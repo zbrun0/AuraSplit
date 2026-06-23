@@ -1,30 +1,33 @@
 /* ==========================================
    AuraSplit Design System & Styling
+   Red Crimson Edition
    ========================================== */
 
 :root {
-    --bg-dark: #070a13;
-    --bg-card: rgba(15, 23, 42, 0.45);
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(99, 102, 241, 0.4);
+    --bg-dark: #070709;
+    --bg-card: rgba(18, 18, 22, 0.65);
+    --border-color: rgba(255, 255, 255, 0.05);
+    --border-hover: rgba(239, 68, 68, 0.3);
     
-    /* Paleta de Colores Curada */
-    --primary: #8b5cf6;       /* Violeta */
-    --secondary: #6366f1;     /* Índigo */
-    --cyan: #06b6d4;          /* Cyan */
-    --emerald: #10b981;       /* Esmeralda */
-    --amber: #f59e0b;         /* Ámbar */
-    --rose: #f43f5e;          /* Rosa/Rojo */
+    /* Neon Red / Crimson Accent Palette */
+    --accent: #ef4444;
+    --accent-glow: rgba(239, 68, 68, 0.4);
+    --accent-hover: #f87171;
+    --accent-active: #dc2626;
     
-    /* Variables de Texto */
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    
-    /* Fuentes */
-    --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* Output channels custom colors */
+    --vocals-color: #f43f5e; /* Rose */
+    --drums-color: #3b82f6;   /* Blue */
+    --bass-color: #10b981;    /* Emerald */
+    --guitar-color: #f59e0b;  /* Amber */
+    --piano-color: #8b5cf6;   /* Violet */
+    --other-color: #a1a1aa;   /* Gray */
+
+    /* Typography */
+    --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* 1. Reset & Configuración Básica */
+/* 1. Global Resets & Scrollbars */
 * {
     margin: 0;
     padding: 0;
@@ -33,527 +36,171 @@
 
 body {
     background-color: var(--bg-dark);
-    color: var(--text-main);
+    color: #f4f4f5;
     font-family: var(--font-sans);
     min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     overflow-x: hidden;
-    position: relative;
 }
 
-/* 2. Gradientes de Fondo Animados (Glow) */
-.ambient-glow {
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+/* 2. Background Glow Effects */
+.red-ambient-glow {
     position: fixed;
-    width: 60vw;
-    height: 60vw;
+    width: 50vw;
+    height: 50vw;
     border-radius: 50%;
-    filter: blur(120px);
+    filter: blur(140px);
     z-index: -1;
-    opacity: 0.15;
+    opacity: 0.08;
     pointer-events: none;
-    animation: pulseGlow 15s infinite alternate ease-in-out;
+    animation: pulseGlow 12s infinite alternate ease-in-out;
 }
 
-.bg-glow-1 {
-    top: -20%;
-    left: -10%;
-    background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-}
-
-.bg-glow-2 {
-    bottom: -20%;
+.glow-top-right {
+    top: -15%;
     right: -10%;
-    background: radial-gradient(circle, var(--cyan) 0%, transparent 70%);
-    animation-delay: -5s;
+    background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+}
+
+.glow-bottom-left {
+    bottom: -15%;
+    left: -10%;
+    background: radial-gradient(circle, #7f1d1d 0%, transparent 70%);
+    animation-delay: -6s;
 }
 
 @keyframes pulseGlow {
     0% { transform: scale(1) translate(0, 0); }
-    50% { transform: scale(1.1) translate(5%, 5%); }
-    100% { transform: scale(0.9) translate(-5%, -5%); }
+    50% { transform: scale(1.1) translate(3%, 3%); }
+    100% { transform: scale(0.9) translate(-3%, -3%); }
 }
 
-/* 3. Contenedor de Aplicación */
-.app-container {
-    width: 100%;
-    max-width: 1100px;
-    padding: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 2.5rem;
-    z-index: 10;
-}
-
-/* Header */
-.app-header {
-    text-align: center;
-}
-
-.logo-wrapper {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-}
-
-.logo-icon {
-    font-size: 2.2rem;
-    background: linear-gradient(135deg, var(--cyan), var(--primary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: rotateMagic 4s infinite linear;
-}
-
-.logo-text {
-    font-size: 2.5rem;
-    font-weight: 800;
-    letter-spacing: -1px;
-}
-
-.logo-text span {
-    background: linear-gradient(135deg, var(--cyan), var(--primary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.subtitle {
-    color: var(--text-muted);
-    font-size: 1.1rem;
-    font-weight: 300;
-}
-
-@keyframes rotateMagic {
-    0% { filter: hue-rotate(0deg); }
-    100% { filter: hue-rotate(360deg); }
-}
-
-/* 4. Estilo de las Tarjetas (Workspace / Cards) */
-.workspace {
-    position: relative;
-    width: 100%;
-}
-
-.dropzone-card, .status-card, .mixer-card {
+/* 3. Glassmorphic Card Styling */
+.glass-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: 24px;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    padding: 3rem;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.hidden {
-    display: none !important;
-    opacity: 0;
-    pointer-events: none;
+.glass-card:hover {
+    border-color: rgba(239, 68, 68, 0.15);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
 }
 
-/* Dropzone (Carga) */
-.dropzone-card {
-    border: 2px dashed var(--border-color);
-    text-align: center;
-    cursor: pointer;
-}
-
-.dropzone-card:hover, .dropzone-card.drag-over {
-    border-color: var(--border-hover);
-    background: rgba(99, 102, 241, 0.05);
-    box-shadow: 0 0 30px rgba(99, 102, 241, 0.15);
-}
-
-.upload-icon {
-    font-size: 3.5rem;
-    color: var(--secondary);
-    margin-bottom: 1.5rem;
-    transition: transform 0.3s ease;
-}
-
-.dropzone-card:hover .upload-icon {
-    transform: translateY(-8px);
-    color: var(--cyan);
-}
-
-.dropzone-card h2 {
-    font-size: 1.6rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-}
-
-.dropzone-card p {
-    color: var(--text-muted);
-    margin-bottom: 1.5rem;
-}
-
-.file-limits {
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    padding: 0.4rem 0.8rem;
-    border-radius: 30px;
-    background: rgba(0, 0, 0, 0.15);
-}
-
-/* 5. Tarjeta de Estado y Progreso */
-.status-card {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.spinner-wrapper {
+/* 4. Vertical Fader Console Slider */
+.fader-container {
+    height: 176px;
+    width: 32px;
     position: relative;
-    width: 90px;
-    height: 90px;
-    margin-bottom: 2rem;
-}
-
-.processing-spinner {
-    width: 100%;
-    height: 100%;
-    border: 3px solid rgba(255, 255, 255, 0.05);
-    border-top: 3px solid var(--cyan);
-    border-right: 3px solid var(--primary);
-    border-radius: 50%;
-    animation: spin 1.2s infinite linear;
-}
-
-.pulse-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.8rem;
-    color: var(--cyan);
-    animation: iconPulse 2s infinite ease-in-out;
-}
-
-@keyframes spin {
-    100% { transform: rotate(360deg); }
-}
-
-@keyframes iconPulse {
-    0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.9); }
-    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-}
-
-.status-card h3 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.status-card p {
-    color: var(--text-muted);
-    font-size: 0.95rem;
-    margin-bottom: 2rem;
-}
-
-/* Barra de Progreso */
-.progress-bar-container {
-    width: 100%;
-    max-width: 450px;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-    overflow: hidden;
-    margin-bottom: 0.5rem;
-}
-
-.progress-bar-fill {
-    width: 0%;
-    height: 100%;
-    background: linear-gradient(90deg, var(--cyan), var(--primary));
-    border-radius: 10px;
-    transition: width 0.4s ease;
-}
-
-#progressPercentage {
-    font-weight: 600;
-    color: var(--cyan);
-    margin-bottom: 2rem;
-}
-
-.tips-box {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    background: rgba(99, 102, 241, 0.05);
-    border: 1px solid rgba(99, 102, 241, 0.15);
-    padding: 0.8rem 1.2rem;
-    border-radius: 12px;
-    max-width: 500px;
-    text-align: left;
-    font-size: 0.88rem;
-    color: var(--text-muted);
-}
-
-.tips-box i {
-    color: var(--secondary);
-    font-size: 1.2rem;
-}
-
-/* 6. Mezclador (Mixer) */
-.mixer-card {
-    padding: 2.5rem;
-}
-
-.mixer-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2.5rem;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-}
-
-.song-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 1.2rem;
-    font-weight: 600;
-}
-
-.song-info i {
-    color: var(--cyan);
-}
-
-.master-controls {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-}
-
-/* Botones */
-.btn {
-    border: none;
-    border-radius: 12px;
-    padding: 0.75rem 1.25rem;
-    font-family: var(--font-sans);
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: all 0.3s ease;
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, var(--secondary), var(--primary));
-    color: white;
-}
-
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
-}
-
-.btn-secondary {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-main);
-    border: 1px solid var(--border-color);
-}
-
-.btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.btn-success {
-    background: linear-gradient(135deg, var(--cyan), var(--emerald));
-    color: white;
-}
-
-.btn-success:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-}
-
-/* Canales Grid */
-.channels-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 1.5rem;
-}
-
-/* Canal Strip (Tira de canal de consola) */
-.channel-strip {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 1.5rem 1rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.2rem;
-    position: relative;
-    transition: all 0.3s ease;
-}
-
-.channel-strip:hover {
-    border-color: var(--border-hover);
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.channel-icon {
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.05);
-    display: flex;
     justify-content: center;
-    align-items: center;
-    font-size: 1.2rem;
-    transition: all 0.3s ease;
-}
-
-/* Colores específicos de canal */
-.channel-vocals .channel-icon { color: var(--rose); background: rgba(244, 63, 94, 0.1); }
-.channel-drums .channel-icon { color: var(--cyan); background: rgba(6, 180, 212, 0.1); }
-.channel-bass .channel-icon { color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
-.channel-guitar .channel-icon { color: var(--amber); background: rgba(245, 158, 11, 0.1); }
-.channel-piano .channel-icon { color: var(--primary); background: rgba(139, 92, 246, 0.1); }
-.channel-other .channel-icon { color: var(--text-muted); background: rgba(255, 255, 255, 0.05); }
-
-.channel-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    text-transform: capitalize;
-}
-
-/* Fader de Volumen Vertical */
-.fader-wrapper {
-    height: 150px;
-    display: flex;
-    align-items: center;
-    position: relative;
 }
 
 .fader-slider {
     -webkit-appearance: none;
     transform: rotate(-90deg);
-    width: 140px;
+    width: 176px;
     height: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 5px;
+    background: #09090b;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
     outline: none;
     cursor: pointer;
+    position: absolute;
 }
 
-/* Personalizar deslizador */
+.fader-slider::-webkit-slider-runnable-track {
+    background: transparent;
+}
+
 .fader-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--text-main);
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    transition: all 0.2s ease;
+    appearance: none;
+    width: 16px;
+    height: 32px; /* Rotated: width 32px, height 16px */
+    background: var(--accent);
+    border: 2px solid #ffffff;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.7), inset 0 0 4px rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
 }
 
 .fader-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.25);
-    background: var(--cyan);
+    background: var(--accent-hover);
+    transform: scale(1.05);
 }
 
-/* Botones de Control del Canal (Solo/Mute) */
-.channel-actions {
-    display: flex;
-    gap: 0.4rem;
-    width: 100%;
+.fader-slider::-webkit-slider-thumb:active {
+    background: var(--accent-active);
+    transform: scale(0.95);
 }
 
-.btn-mute, .btn-solo {
-    flex: 1;
-    border: 1px solid var(--border-color);
-    background: rgba(255, 255, 255, 0.02);
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    font-weight: 800;
-    padding: 0.4rem 0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
+.fader-slider::-moz-range-track {
+    background: transparent;
 }
 
-.btn-mute:hover { background: rgba(244, 63, 94, 0.1); color: var(--rose); }
-.btn-solo:hover { background: rgba(16, 185, 129, 0.1); color: var(--emerald); }
-
-.btn-mute.active {
-    background: var(--rose) !important;
-    color: white !important;
-    border-color: var(--rose);
-}
-
-.btn-solo.active {
-    background: var(--emerald) !important;
-    color: white !important;
-    border-color: var(--emerald);
-}
-
-/* Botón Descarga Individual */
-.btn-download-channel {
-    background: rgba(255, 255, 255, 0.05);
-    border: none;
-    width: 32px;
+.fader-slider::-moz-range-thumb {
+    width: 16px;
     height: 32px;
-    border-radius: 8px;
-    color: var(--text-main);
+    background: var(--accent);
+    border: 2px solid #ffffff;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.7), inset 0 0 4px rgba(255, 255, 255, 0.5);
     cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s, transform 0.1s;
 }
 
-.btn-download-channel:hover {
-    background: var(--cyan);
-    color: var(--bg-dark);
+.fader-slider::-moz-range-thumb:hover {
+    background: var(--accent-hover);
+    transform: scale(1.05);
 }
 
-/* 7. Level Meter (Visualizador por canal) */
+.fader-slider::-moz-range-thumb:active {
+    background: var(--accent-active);
+    transform: scale(0.95);
+}
+
+/* 5. Channel-Specific Icons Colors */
+.channel-vocals .material-symbols-outlined { color: var(--vocals-color) !important; }
+.channel-drums .material-symbols-outlined { color: var(--drums-color) !important; }
+.channel-bass .material-symbols-outlined { color: var(--bass-color) !important; }
+.channel-guitar .material-symbols-outlined { color: var(--guitar-color) !important; }
+.channel-piano .material-symbols-outlined { color: var(--piano-color) !important; }
+.channel-other .material-symbols-outlined { color: var(--other-color) !important; }
+
+/* 6. Level Meter Canvas style */
 .meter-canvas {
-    width: 100%;
-    height: 25px;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.02);
+    border-radius: 9999px;
+    image-rendering: pixelated;
 }
 
-/* Footer */
-.app-footer {
-    text-align: center;
-    color: rgba(255, 255, 255, 0.25);
-    font-size: 0.85rem;
+/* 7. Hover and micro-interactions */
+.btn-tactile {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 8. Responsividad */
-@media (max-width: 768px) {
-    .app-container {
-        padding: 1.5rem;
-    }
-    
-    .mixer-header {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .master-controls {
-        flex-direction: column;
-    }
-    
-    .channels-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+.btn-tactile:hover {
+    transform: translateY(-1px);
 }
 
-@media (max-width: 480px) {
-    .channels-grid {
-        grid-template-columns: 1fr;
-    }
+.btn-tactile:active {
+    transform: translateY(1px);
 }

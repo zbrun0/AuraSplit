@@ -1,9 +1,9 @@
-// URL de la API del Backend (Cambiar por tu URL de Hugging Face Spaces o servidor VPS)
+// URL de la API del Backend (Hugging Face Space de AuraSplit)
 const BACKEND_URL = "https://zbrun0-aurasplit.hf.space"; 
 
 // --- Estado Global del Reproductor ---
 let audioCtx = null;
-let tracks = {}; // Contendrá buffer, source, gainNode, analyser, volume, blobUrl, sizeBytes
+let tracks = {}; // Contendrá: audio, gainNode, analyser, volume, isMuted, isSoloed, blobUrl, sizeBytes
 let isPlaying = false;
 let startTime = 0;
 let playOffset = 0; // Posición actual de reproducción en segundos
@@ -13,7 +13,7 @@ let animationFrameId = null;
 let currentPreviewTrack = null; // ID del canal que se está previsualizando individualmente
 let progressInterval = null; // Intervalo para animar la barra de progreso mientras la IA procesa
 
-// Configuración de los 6 Stems del modelo Demucs 6s en Español
+// Configuración de los 6 Stems del modelo Demucs 6s
 const STEMS_CONFIG = {
     vocals: { name: "voces", icon: "mic" },
     drums: { name: "batería", icon: "album" },
@@ -31,8 +31,8 @@ const progressBar = document.getElementById("progressBar");
 const progressPercent = document.getElementById("progressPercent");
 const statusText = document.getElementById("statusText");
 const trackList = document.getElementById("trackList");
+const resultsSection = document.getElementById("resultsSection");
 const resultsList = document.getElementById("resultsList");
-const resultsEmpty = document.getElementById("resultsEmpty");
 const fileMeta = document.getElementById("fileMeta");
 const masterControls = document.getElementById("masterControls");
 const masterPlayBtn = document.getElementById("masterPlayBtn");
@@ -48,16 +48,16 @@ dropzone.addEventListener("dragover", (e) => {
     e.preventDefault();
     const container = dropzone.firstElementChild;
     if (container) {
-        container.classList.add("border-zinc-500", "bg-zinc-800/50");
-        container.classList.remove("border-zinc-800", "bg-zinc-900");
+        container.classList.add("border-red-500/50", "bg-zinc-900/60");
+        container.classList.remove("border-zinc-800", "bg-zinc-900/30");
     }
 });
 
 dropzone.addEventListener("dragleave", () => {
     const container = dropzone.firstElementChild;
     if (container) {
-        container.classList.remove("border-zinc-500", "bg-zinc-800/50");
-        container.classList.add("border-zinc-800", "bg-zinc-900");
+        container.classList.remove("border-red-500/50", "bg-zinc-900/60");
+        container.classList.add("border-zinc-800", "bg-zinc-900/30");
     }
 });
 
@@ -65,8 +65,8 @@ dropzone.addEventListener("drop", (e) => {
     e.preventDefault();
     const container = dropzone.firstElementChild;
     if (container) {
-        container.classList.remove("border-zinc-500", "bg-zinc-800/50");
-        container.classList.add("border-zinc-800", "bg-zinc-900");
+        container.classList.remove("border-red-500/50", "bg-zinc-900/60");
+        container.classList.add("border-zinc-800", "bg-zinc-900/30");
     }
     if (e.dataTransfer.files.length > 0) {
         processSelectedFile(e.dataTransfer.files[0]);
@@ -115,7 +115,7 @@ function uploadAndSeparate(file) {
         }
     };
 
-    // Una vez que sube completamente el archivo, se inicia la simulación del progreso del procesamiento IA
+    // Al finalizar la subida, iniciamos la simulación del progreso del procesamiento IA
     xhr.upload.onload = () => {
         startProcessingProgress();
     };
@@ -160,7 +160,7 @@ function showError(msg) {
     resetAudio();
 }
 
-// --- Incremento gradual para que no se quede estancado en 90% mientras la IA procesa ---
+// --- Incremento gradual simulado para la IA en CPU ---
 function startProcessingProgress() {
     let currentPercent = 90;
     let secondsElapsed = 0;
@@ -188,7 +188,7 @@ function startProcessingProgress() {
 
     const currentMsg = getMessage(secondsElapsed);
     updateStatus(currentMsg.title, currentMsg.desc, currentPercent);
-    progressBar.classList.add("animate-shimmer");
+    progressBar.classList.add("animate-pulse");
     
     if (progressInterval) clearInterval(progressInterval);
     
@@ -199,23 +199,23 @@ function startProcessingProgress() {
         }
         const msg = getMessage(secondsElapsed);
         updateStatus(msg.title, msg.desc, currentPercent);
-    }, 5000); // Actualiza el mensaje y porcentaje cada 5 segundos
+    }, 5000);
 }
 
+// --- Parar animación de carga ---
 function stopProcessingProgress() {
-    progressBar.classList.remove("animate-shimmer");
+    progressBar.classList.remove("animate-pulse");
     if (progressInterval) {
         clearInterval(progressInterval);
         progressInterval = null;
     }
 }
 
-// --- Limpieza y Restablecimiento ---
+// --- Restablecer Audio y Mezclador ---
 function resetAudio() {
     pauseTracks();
     stopProcessingProgress();
     
-    // Limpiar elementos de audio para liberar RAM
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.pause();
@@ -237,20 +237,23 @@ function resetAudio() {
     
     if (masterControls) masterControls.classList.add("hidden");
     
-    if (resultsEmpty) resultsEmpty.classList.remove("hidden");
-    if (resultsList) {
-        resultsList.classList.add("opacity-50", "pointer-events-none", "hidden");
-        resultsList.innerHTML = "";
-    }
+    if (resultsSection) resultsSection.classList.add("hidden");
+    if (resultsList) resultsList.innerHTML = "";
     
     if (trackList) {
-        trackList.innerHTML = `<p class="text-zinc-500 font-body-sm text-center py-md" id="trackListPlaceholder">Carga un archivo de audio para ver los parámetros.</p>`;
+        trackList.innerHTML = `
+            <div class="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800/40 rounded-2xl bg-zinc-900/10">
+                <span class="material-symbols-outlined text-3xl mb-3 text-zinc-600" data-icon="tune">tune</span>
+                <p class="text-sm font-semibold text-zinc-400">Carga un archivo de audio para activar la consola de mezcla.</p>
+                <p class="text-xs text-zinc-600 mt-1">AuraSplit aislará de forma inteligente las voces e instrumentos.</p>
+            </div>
+        `;
     }
 }
 
 // --- Descompresión de Stems e Inicialización del Mezclador ---
 async function decodeAndSetupMixer(blob) {
-    updateStatus("DECODIFICANDO CANALES SIN PÉRDIDA...", "Extrayendo y decodificando pistas WAV en la memoria del navegador...", 100);
+    updateStatus("DECODIFICANDO CANALES...", "Extrayendo y decodificando pistas WAV en la memoria del navegador...", 100);
     
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContextClass();
@@ -268,12 +271,10 @@ async function decodeAndSetupMixer(blob) {
             const fileInZip = zip.file(filename);
 
             if (!fileInZip) {
-                console.warn(`Stem ${filename} no encontrado en el ZIP retornado.`);
+                console.warn(`Stem ${filename} no encontrado en el ZIP.`);
                 continue;
             }
 
-            // En lugar de usar decodeAudioData (que decodifica el audio completo a floats sin comprimir ocupando
-            // cientos de megabytes en RAM), extraemos como Blob ligero y cargamos mediante elementos <audio>
             const wavBlob = await fileInZip.async("blob");
             const blobUrl = URL.createObjectURL(wavBlob);
             const sizeBytes = wavBlob.size;
@@ -282,17 +283,17 @@ async function decodeAndSetupMixer(blob) {
             audio.preload = "auto";
             audio.crossOrigin = "anonymous";
 
-            // Guardar datos
             tracks[stemId] = {
                 audio: audio,
                 gainNode: null,
                 analyser: null,
                 volume: 0.8,
+                isMuted: false,
+                isSoloed: false,
                 blobUrl: blobUrl,
                 sizeBytes: sizeBytes
             };
 
-            // Escuchar metadatos de audio para extraer duración de forma síncrona
             audio.addEventListener("loadedmetadata", () => {
                 if (duration === 0) {
                     duration = audio.duration;
@@ -307,10 +308,11 @@ async function decodeAndSetupMixer(blob) {
         
         processing.classList.add("hidden");
         dropzone.classList.remove("hidden");
-        resultsEmpty.classList.add("hidden");
-        resultsList.classList.remove("opacity-50", "pointer-events-none", "hidden");
+        resultsSection.classList.remove("hidden");
         masterControls.classList.remove("hidden");
 
+        // Activar la animación de vúmetros
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
         drawMeters();
 
     } catch (e) {
@@ -318,24 +320,37 @@ async function decodeAndSetupMixer(blob) {
     }
 }
 
-// --- Generar UI de Canal (Control Panel) ---
+// --- Generar UI de Canal (Vertical Console Strip) ---
 function createTrackUI(id) {
     const config = STEMS_CONFIG[id];
     const displayName = config.name.toUpperCase();
 
     const trackHtml = `
-        <div class="track-item flex flex-col gap-sm" data-track-id="${id}">
-            <div class="flex justify-between items-center">
-                <label class="font-label-md text-white font-semibold">${displayName}</label>
-                <div class="relative inline-block w-10 h-5 transition duration-200 ease-in">
-                    <input checked class="toggle-checkbox absolute block w-0 h-0 opacity-0" id="${id}-toggle" type="checkbox"/>
-                    <label class="toggle-label block overflow-hidden h-5 rounded-full bg-zinc-800 cursor-pointer transition-colors" for="${id}-toggle">
-                        <span class="toggle-dot block w-5 h-5 rounded-full bg-zinc-400 shadow-sm transition-transform"></span>
-                    </label>
+        <div class="channel-strip channel-${id} bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 flex flex-col items-center gap-4 w-full text-center relative hover:border-red-500/40 hover:bg-zinc-900/60 transition-all duration-300 shadow-xl" data-track-id="${id}">
+            <!-- Header -->
+            <div class="flex flex-col items-center gap-1">
+                <span class="material-symbols-outlined text-2xl" data-icon="${config.icon}">${config.icon}</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-zinc-300">${displayName}</span>
+            </div>
+            
+            <!-- Meter and Fader Row -->
+            <div class="flex items-center justify-center gap-6 h-56 relative w-full my-2">
+                <!-- Vertical LED VU Meter -->
+                <div class="w-3.5 h-44 bg-zinc-950 rounded-full overflow-hidden relative border border-zinc-800/50 flex flex-col justify-end">
+                    <canvas class="w-full h-full meter-canvas" id="canvas-${id}" width="14" height="176"></canvas>
+                </div>
+                
+                <!-- Vertical Fader Container -->
+                <div class="fader-container">
+                    <input class="fader-slider" id="fader-${id}" max="100" min="0" type="range" value="80"/>
                 </div>
             </div>
-            <canvas class="w-full h-[6px] bg-zinc-950/50 rounded border border-zinc-900/50 meter-canvas" id="canvas-${id}"></canvas>
-            <input class="w-full" id="fader-${id}" max="100" min="0" type="range" value="80"/>
+            
+            <!-- Controls (Mute / Solo) -->
+            <div class="flex gap-2 w-full mt-2">
+                <button id="mute-${id}" class="flex-1 py-2 px-1 bg-zinc-950 border border-zinc-800 text-[10px] font-black tracking-widest text-zinc-400 hover:text-white rounded-lg hover:border-red-500/30 transition-all duration-200">MUTE</button>
+                <button id="solo-${id}" class="flex-1 py-2 px-1 bg-zinc-950 border border-zinc-800 text-[10px] font-black tracking-widest text-zinc-400 hover:text-white rounded-lg hover:border-yellow-500/30 transition-all duration-200">SOLO</button>
+            </div>
         </div>
     `;
     trackList.insertAdjacentHTML("beforeend", trackHtml);
@@ -345,30 +360,37 @@ function createTrackUI(id) {
         setTrackVolume(id, parseInt(e.target.value) / 100);
     });
 
-    const toggle = document.getElementById(`${id}-toggle`);
-    toggle.addEventListener("change", () => {
-        updateTrackGains();
+    const muteBtn = document.getElementById(`mute-${id}`);
+    muteBtn.addEventListener("click", () => {
+        toggleMute(id);
+    });
+
+    const soloBtn = document.getElementById(`solo-${id}`);
+    soloBtn.addEventListener("click", () => {
+        toggleSolo(id);
     });
 }
 
-// --- Generar UI de Resultados (Result Panel) ---
+// --- Generar UI de Resultados (Export Panel List) ---
 function createResultUI(id) {
     const config = STEMS_CONFIG[id];
     const sizeMB = (tracks[id].sizeBytes / (1024 * 1024)).toFixed(1);
 
     const resultHtml = `
-        <div class="flex items-center justify-between p-md border border-zinc-800 hover:bg-zinc-800/30 transition-colors" data-track-id="${id}">
-            <div class="flex items-center gap-md">
-                <span class="material-symbols-outlined text-zinc-500" data-icon="${config.icon}">${config.icon}</span>
-                <span class="font-body-md text-white">${id}.wav</span>
-                <span class="text-zinc-500 font-mono-sm">${sizeMB} MB</span>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 py-3 hover:bg-zinc-900/40 transition-colors gap-3" data-track-id="${id}">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-red-500 text-lg" data-icon="${config.icon}">${config.icon}</span>
+                <div class="flex flex-col">
+                    <span class="text-xs font-bold text-white uppercase">${config.name} (${id}.wav)</span>
+                    <span class="text-[10px] text-zinc-500 font-mono">${sizeMB} MB</span>
+                </div>
             </div>
-            <div class="flex gap-sm">
-                <button id="preview-${id}" class="px-md py-xs border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 transition-colors font-label-md text-white flex items-center gap-xs">
-                    <span class="material-symbols-outlined text-sm">play_arrow</span> VISTA PREVIA
+            <div class="flex gap-2 w-full sm:w-auto">
+                <button id="preview-${id}" class="flex-1 sm:flex-none px-4 py-1.5 border border-zinc-800 hover:border-red-500/40 hover:text-red-400 transition-all duration-300 text-xs font-bold uppercase rounded-lg text-zinc-300 flex items-center justify-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">play_arrow</span> Escuchar
                 </button>
-                <a id="download-${id}" href="${tracks[id].blobUrl}" download="${id}.wav" class="px-md py-xs bg-white text-black font-label-md hover:opacity-90 transition-opacity flex items-center gap-xs">
-                    <span class="material-symbols-outlined text-sm">download</span> DESCARGAR
+                <a id="download-${id}" href="${tracks[id].blobUrl}" download="${id}.wav" class="flex-1 sm:flex-none px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">download</span> Descargar
                 </a>
             </div>
         </div>
@@ -390,7 +412,6 @@ function setupAudioNodes() {
         
         track.gainNode.gain.setValueAtTime(track.volume, audioCtx.currentTime);
         
-        // Conectar el elemento HTML5 Audio a la red de nodos
         const sourceNode = audioCtx.createMediaElementSource(track.audio);
         sourceNode.connect(track.gainNode);
         track.gainNode.connect(track.analyser);
@@ -398,7 +419,7 @@ function setupAudioNodes() {
     }
 }
 
-// --- Actualizar Volumen de una Pista ---
+// --- Actualizar Volumen ---
 function setTrackVolume(id, volume) {
     if (tracks[id]) {
         tracks[id].volume = volume;
@@ -406,9 +427,45 @@ function setTrackVolume(id, volume) {
     }
 }
 
-// --- Actualizar ganancias (Faders / Mutes / Preview) ---
+// --- Lógica del Fader, Mute y Solo ---
+function toggleMute(id) {
+    if (!tracks[id]) return;
+    tracks[id].isMuted = !tracks[id].isMuted;
+    
+    const muteBtn = document.getElementById(`mute-${id}`);
+    if (tracks[id].isMuted) {
+        muteBtn.classList.add("bg-red-600", "text-white", "border-red-500");
+        muteBtn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+    } else {
+        muteBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
+        muteBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+    }
+    
+    updateTrackGains();
+}
+
+function toggleSolo(id) {
+    if (!tracks[id]) return;
+    tracks[id].isSoloed = !tracks[id].isSoloed;
+    
+    const soloBtn = document.getElementById(`solo-${id}`);
+    if (tracks[id].isSoloed) {
+        soloBtn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
+        soloBtn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+    } else {
+        soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+        soloBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+    }
+    
+    updateTrackGains();
+}
+
+// --- Calcular Ganancias en base a Fader + Mute + Solo ---
 function updateTrackGains() {
     if (!audioCtx) return;
+
+    // Verificar si hay algún track en modo SOLO
+    const anySoloed = Object.values(tracks).some(t => t.isSoloed);
 
     for (const [id, track] of Object.entries(tracks)) {
         if (!track.gainNode) continue;
@@ -416,13 +473,17 @@ function updateTrackGains() {
         let targetGain = 0;
 
         if (currentPreviewTrack) {
-            // Modo Preview: Sólo suena el track previsualizado
+            // Modo Vista Previa: solo se reproduce el canal seleccionado
             targetGain = (id === currentPreviewTrack) ? track.volume : 0;
         } else {
-            // Modo Mezclador General: Suena si el interruptor está activado
-            const toggle = document.getElementById(`${id}-toggle`);
-            const isMuted = toggle ? !toggle.checked : false;
-            targetGain = isMuted ? 0 : track.volume;
+            // Modo Mezclador General
+            if (track.isMuted) {
+                targetGain = 0; // Si está silenciado, volumen 0
+            } else if (anySoloed) {
+                targetGain = track.isSoloed ? track.volume : 0; // Si hay solos, solo suena si es soloed
+            } else {
+                targetGain = track.volume; // Modo normal
+            }
         }
 
         track.gainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.02);
@@ -437,14 +498,14 @@ function playTracks() {
         audioCtx.resume();
     }
 
-    // Sincronizar playheads antes de iniciar
+    // Sincronizar playheads
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.currentTime = playOffset;
         }
     }
 
-    // Iniciar reproducción síncrona
+    // Iniciar reproducción
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.play().catch(e => console.error("Error al reproducir stem:", e));
@@ -455,13 +516,13 @@ function playTracks() {
     updateTrackGains();
     updatePreviewButtons();
 
-    // Monitorear finalización natural de la canción en la primera pista disponible
+    // Evento de fin natural de reproducción
     const firstTrack = Object.keys(tracks)[0];
     if (tracks[firstTrack] && tracks[firstTrack].audio) {
         tracks[firstTrack].audio.onended = () => {
             const currentPos = tracks[firstTrack].audio.currentTime;
             if (currentPos >= duration - 0.5) {
-                pauseTracks(true); // Reiniciar a 0
+                pauseTracks(true); // Reiniciar al inicio
             }
         };
     }
@@ -479,7 +540,6 @@ function pauseTracks(resetToZero = false) {
         return;
     }
 
-    // Pausar todos los stems
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.pause();
@@ -502,7 +562,7 @@ function pauseTracks(resetToZero = false) {
     updatePreviewButtons();
 }
 
-// --- Alternar Preview Individual ---
+// --- Alternar Vista Previa de una Pista ---
 function togglePreviewTrack(id) {
     if (isPlaying && currentPreviewTrack === id) {
         pauseTracks();
@@ -525,13 +585,13 @@ function updatePreviewButtons() {
         if (!btn) continue;
         
         if (isPlaying && currentPreviewTrack === id) {
-            btn.innerHTML = `<span class="material-symbols-outlined text-sm">pause</span> PAUSAR`;
-            btn.classList.add("bg-zinc-800", "text-white");
-            btn.classList.remove("border-zinc-800");
+            btn.innerHTML = `<span class="material-symbols-outlined text-sm">pause</span> Detener`;
+            btn.classList.add("border-red-500", "text-red-500", "bg-red-950/20");
+            btn.classList.remove("border-zinc-800", "text-zinc-300");
         } else {
-            btn.innerHTML = `<span class="material-symbols-outlined text-sm">play_arrow</span> VISTA PREVIA`;
-            btn.classList.remove("bg-zinc-800", "text-white");
-            btn.classList.add("border-zinc-800");
+            btn.innerHTML = `<span class="material-symbols-outlined text-sm">play_arrow</span> Escuchar`;
+            btn.classList.remove("border-red-500", "text-red-500", "bg-red-950/20");
+            btn.classList.add("border-zinc-800", "text-zinc-300");
         }
     }
 
@@ -570,8 +630,20 @@ resetMixerBtn.addEventListener("click", () => {
         const fader = document.getElementById(`fader-${id}`);
         if (fader) fader.value = 80;
 
-        const toggle = document.getElementById(`${id}-toggle`);
-        if (toggle) toggle.checked = true;
+        tracks[id].isMuted = false;
+        tracks[id].isSoloed = false;
+
+        const muteBtn = document.getElementById(`mute-${id}`);
+        if (muteBtn) {
+            muteBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
+            muteBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        }
+
+        const soloBtn = document.getElementById(`solo-${id}`);
+        if (soloBtn) {
+            soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+            soloBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        }
     }
     updateTrackGains();
 });
@@ -587,7 +659,7 @@ downloadZipBtn.addEventListener("click", () => {
     document.body.removeChild(link);
 });
 
-// --- Renderizado del Espectro (Vúmetros en Tiempo Real) ---
+// --- Renderizado del Espectro (Vúmetros Segmentados en Tiempo Real) ---
 function drawMeters() {
     if (!isPlaying) {
         for (const id of Object.keys(tracks)) {
@@ -610,6 +682,7 @@ function drawMeters() {
 
         const width = canvas.width;
         const height = canvas.height;
+        
         ctx.clearRect(0, 0, width, height);
 
         let sum = 0;
@@ -617,16 +690,38 @@ function drawMeters() {
             sum += dataArray[i];
         }
         const average = sum / bufferLength;
-        const fillPercent = average / 255;
+        
+        // Calibración de sensibilidad
+        const fillPercent = Math.min(1.0, (average / 200) * 1.25); 
 
-        // Fondo transparente para el vúmetro
-        ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+        // Dibujar fondo de vúmetro
+        ctx.fillStyle = "#09090b";
         ctx.fillRect(0, 0, width, height);
 
-        // Barra de nivel activa
-        ctx.fillStyle = "#FAFAFA";
-        const gain = track.gainNode.gain.value;
-        ctx.fillRect(0, 0, width * fillPercent * gain * 1.5, height);
+        if (fillPercent > 0) {
+            const gain = track.gainNode ? track.gainNode.gain.value : 1.0;
+            const fillHeight = height * fillPercent * Math.min(gain, 1.2);
+
+            // Gradiente para LED
+            const gradient = ctx.createLinearGradient(0, height, 0, 0);
+            gradient.addColorStop(0, "#ef4444");     // Rojo en la base
+            gradient.addColorStop(0.5, "#dc2626");   // Rojo oscuro
+            gradient.addColorStop(0.8, "#f87171");   // Rojo brillante / Neón
+            gradient.addColorStop(0.95, "#ffffff");  // Blanco en el pico (saturación)
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, height - fillHeight, width, fillHeight);
+        }
+
+        // Divisiones de los segmentos LED
+        ctx.strokeStyle = "#121214"; 
+        ctx.lineWidth = 1.5;
+        for (let y = 0; y < height; y += 4) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
     }
 
     animationFrameId = requestAnimationFrame(drawMeters);
@@ -636,15 +731,18 @@ function clearMeter(id) {
     const canvas = document.getElementById(`canvas-${id}`);
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.fillStyle = "#09090b";
+    ctx.fillRect(0, 0, width, height);
+    
+    // Dibujar divisiones inactivas
+    ctx.strokeStyle = "#121214";
+    ctx.lineWidth = 1.5;
+    for (let y = 0; y < height; y += 4) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+    }
 }
-
-// --- Efecto Hover Visual de las Tarjetas ---
-document.querySelectorAll('.bg-zinc-900').forEach(card => {
-    card.addEventListener('mouseenter', () => {
-        card.style.borderColor = '#3F3F46';
-    });
-    card.addEventListener('mouseleave', () => {
-        card.style.borderColor = '#27272A';
-    });
-});
