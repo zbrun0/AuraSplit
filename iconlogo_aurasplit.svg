@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 4200 1155" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g transform="matrix(1,0,0,1,-203.834128,-172.873065)">
+        <g transform="matrix(3.241292,0,0,3.241292,-583.799902,-1103.842293)">
+            <path d="M313.797,600.389L411.462,394L411.462,546.43L388.442,600.389L313.797,600.389ZM371.789,639.396C366.452,651.37 323.435,742.188 243,750L295.339,639.396L371.789,639.396Z" style="fill:white;"/>
+            <g transform="matrix(-1,0,0,1,823.005009,-0.109157)">
+                <path d="M313.797,600.389L411.462,394L411.462,546.43L388.442,600.389L313.797,600.389ZM371.789,639.396C366.452,651.37 323.435,742.188 243,750L295.339,639.396L371.789,639.396Z" style="fill:white;"/>
+            </g>
+        </g>
+    </g>
+    <text x="1300" y="730" font-family="'Geist', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="480" font-weight="900" letter-spacing="15">
+        <tspan fill="#ffffff">AURA</tspan><tspan fill="#ef4444">SPLIT</tspan>
+    </text>
+</svg>

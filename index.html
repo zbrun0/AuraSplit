@@ -4,6 +4,7 @@
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>AuraSplit | Separación de Audio por IA de Alta Precisión</title>
+    <link rel="icon" type="image/svg+xml" href="iconlogo.svg"/>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com" rel="preconnect"/>
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -40,7 +41,7 @@
     <header class="bg-zinc-950/80 border-b border-zinc-900/60 flex justify-between items-center w-full px-8 py-4 fixed top-0 z-50 backdrop-blur-md">
         <div class="flex items-center gap-4">
             <!-- AuraSplit Logo and Branding -->
-            <img src="AuraSplit.png" alt="AuraSplit Logo" class="h-9 w-auto filter drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]"/>
+            <img src="iconlogo_aurasplit.svg" alt="AuraSplit Logo" class="h-9 w-auto filter drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]"/>
         </div>
         <div class="flex items-center gap-4">
             <span class="font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg">
@@ -62,6 +63,7 @@
                 <button class="bg-red-600 text-white font-bold text-xs uppercase tracking-widest px-8 py-3.5 rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20 btn-tactile">
                     Seleccionar Archivo
                 </button>
+                <p class="text-xs text-zinc-500 mt-4 font-mono">Nota: El proceso de separación por IA requiere un alto uso de cómputo y puede tardar varios minutos.</p>
                 <input accept=".mp3,.wav,.flac,.ogg,.m4a" class="hidden" id="fileInput" type="file"/>
             </div>
         </section>
@@ -77,6 +79,10 @@
             </div>
             <div class="w-full h-1.5 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/40">
                 <div class="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300 w-0" id="progressBar"></div>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-between text-[11px] text-zinc-500 font-mono mt-1 gap-1">
+                <span>Por favor, mantén esta ventana abierta.</span>
+                <span class="text-red-500/80 animate-pulse">▲ El procesamiento completo puede tardar varios minutos.</span>
             </div>
         </section>
 

@@ -210,7 +210,10 @@ function pollJobStatus(jobId, file) {
                 
                 const desc = document.getElementById("mixerStatusDesc");
                 if (desc) {
-                    desc.textContent = `Tu posición en la cola es: ${data.position}. Tiempo estimado de espera: ~${data.position * 45} segundos.`;
+                    desc.innerHTML = `
+                        <p class="text-sm font-semibold text-zinc-400">Tu posición en la cola es: ${data.position}</p>
+                        <p class="text-xs text-zinc-500 mt-1">Tiempo estimado de espera: ~${data.position * 45} segundos. El procesamiento completo puede tardar varios minutos.</p>
+                    `;
                 }
                 fileMeta.textContent = `EN COLA (Posición ${data.position}): ` + file.name.toUpperCase();
                 
@@ -231,6 +234,7 @@ function pollJobStatus(jobId, file) {
                         <p class="text-sm font-semibold text-zinc-400">Separando instrumentos por IA...</p>
                         <p class="text-xs text-red-500 font-bold uppercase mt-1 animate-pulse">${data.step}</p>
                         <p class="text-xs text-zinc-500 mt-0.5">${data.description}</p>
+                        <p class="text-[10px] text-zinc-600 mt-2 italic">▲ Nota: La separación por IA procesa modelos neuronales profundos y puede tardar varios minutos.</p>
                     `;
                 }
                 
