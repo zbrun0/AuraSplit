@@ -179,12 +179,12 @@ body {
 }
 
 /* 5. Channel-Specific Icons Colors */
-.channel-vocals .material-symbols-outlined { color: var(--vocals-color) !important; }
-.channel-drums .material-symbols-outlined { color: var(--drums-color) !important; }
-.channel-bass .material-symbols-outlined { color: var(--bass-color) !important; }
-.channel-guitar .material-symbols-outlined { color: var(--guitar-color) !important; }
-.channel-piano .material-symbols-outlined { color: var(--piano-color) !important; }
-.channel-other .material-symbols-outlined { color: var(--other-color) !important; }
+.channel-vocals .material-symbols-outlined, .channel-vocals svg { color: var(--vocals-color) !important; }
+.channel-drums .material-symbols-outlined, .channel-drums svg { color: var(--drums-color) !important; }
+.channel-bass .material-symbols-outlined, .channel-bass svg { color: var(--bass-color) !important; }
+.channel-guitar .material-symbols-outlined, .channel-guitar svg { color: var(--guitar-color) !important; }
+.channel-piano .material-symbols-outlined, .channel-piano svg { color: var(--piano-color) !important; }
+.channel-other .material-symbols-outlined, .channel-other svg { color: var(--other-color) !important; }
 
 /* 6. Level Meter Canvas style */
 .meter-canvas {
