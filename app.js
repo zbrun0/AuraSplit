@@ -12,6 +12,7 @@ let zipBlob = null; // Almacenará el blob del archivo ZIP original para descarg
 let animationFrameId = null;
 let currentPreviewTrack = null; // ID del canal que se está previsualizando individualmente
 let progressInterval = null; // Intervalo para animar la barra de progreso mientras la IA procesa
+let pollInterval = null; // Intervalo para consultar el estado del trabajo en la cola
 
 // Configuración de los 6 Stems del modelo Demucs 6s
 const STEMS_CONFIG = {
@@ -146,23 +147,18 @@ function uploadAndSeparate(file) {
         }
     };
 
-    // Al finalizar la subida, iniciamos la simulación del progreso del procesamiento IA
-    xhr.upload.onload = () => {
-        startProcessingProgress(file);
-    };
-
     xhr.onload = async function() {
-        stopProcessingProgress();
         if (xhr.status === 200) {
-            updateStatus("DECODIFICANDO CANALES...", "Extrayendo y decodificando pistas WAV en la memoria del navegador...", 99);
-            progressBar.style.width = "99%";
-            progressPercent.textContent = "Procesando...";
-
             try {
-                zipBlob = xhr.response;
-                await decodeAndSetupMixer(zipBlob);
+                const data = xhr.response; // Ya parseado a JSON gracias a xhr.responseType = "json"
+                if (data && data.job_id) {
+                    updateStatus("EN COLA DE ESPERA...", "Audio subido correctamente. Esperando turno...", 20);
+                    pollJobStatus(data.job_id, file);
+                } else {
+                    showError("Respuesta del servidor inválida.");
+                }
             } catch (err) {
-                showError("Error al decodificar la separación: " + err.message);
+                showError("Error al procesar la respuesta de la cola: " + err.message);
             }
         } else {
             showError(`Error del servidor (Código ${xhr.status}). Asegúrate de que el backend esté en línea.`);
@@ -170,11 +166,10 @@ function uploadAndSeparate(file) {
     };
 
     xhr.onerror = function() {
-        stopProcessingProgress();
         showError("No se pudo conectar con el backend de FastAPI. Verifica que el puerto 7860 esté libre y en línea.");
     };
 
-    xhr.responseType = "blob";
+    xhr.responseType = "json";
     xhr.send(formData);
 }
 
@@ -191,70 +186,95 @@ function showError(msg) {
     resetAudio();
 }
 
-// --- Incremento gradual simulado para la IA en CPU ---
-function startProcessingProgress(file) {
-    if (file) {
-        fileMeta.textContent = "PROCESANDO: " + file.name.toUpperCase();
-        if (trackList) {
-            trackList.innerHTML = `
-                <div class="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800/40 rounded-2xl bg-zinc-900/10">
-                    <svg class="w-8 h-8 mb-3 text-red-500 animate-spin fill-current" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <p class="text-sm font-semibold text-zinc-400">Separando instrumentos por IA...</p>
-                    <p class="text-xs text-zinc-600 mt-1" id="mixerStatusDesc">Cargando modelo HTDemucs v4 (6 Stems) en CPU...</p>
-                </div>
-            `;
-        }
-    }
-    let currentPercent = 90;
-    let secondsElapsed = 0;
+// --- Consultar el estado del proceso en la cola (Polling) ---
+function pollJobStatus(jobId, file) {
+    if (pollInterval) clearInterval(pollInterval);
     
-    const messages = [
-        { time: 0, title: "DECODIFICANDO AUDIO...", desc: "Leyendo y decodificando archivo de entrada..." },
-        { time: 5, title: "RESAMPLEANDO SEÑAL...", desc: "Ajustando frecuencia de muestreo a 44100Hz..." },
-        { time: 10, title: "INICIANDO INFERENCIA DE IA...", desc: "Cargando modelo HTDemucs v4 (6 Stems) en CPU..." },
-        { time: 20, title: "AISLANDO VOCES...", desc: "Aislando frecuencias vocales..." },
-        { time: 40, title: "AISLANDO BATERÍA Y BAJO...", desc: "Aislando sección rítmica y percusión..." },
-        { time: 60, title: "AISLANDO GUITARRA Y PIANO...", desc: "Extrayendo instrumentos melódicos..." },
-        { time: 80, title: "RECONSTRUYENDO STEMS...", desc: "Ensamblando los 6 canales en alta calidad..." },
-        { time: 100, title: "GENERANDO COMPRESIÓN ZIP...", desc: "Empaquetando pistas resultantes en un archivo ZIP..." }
-    ];
-
-    function getMessage(secs) {
-        let matched = messages[0];
-        for (const msg of messages) {
-            if (secs >= msg.time) {
-                matched = msg;
-            }
-        }
-        return matched;
-    }
-
-    const currentMsg = getMessage(secondsElapsed);
-    updateStatus(currentMsg.title, currentMsg.desc, currentPercent);
+    // Iniciar clase de animación de carga en barra de progreso
     progressBar.classList.add("animate-pulse");
-    
-    if (progressInterval) clearInterval(progressInterval);
-    
-    progressInterval = setInterval(() => {
-        secondsElapsed += 5;
-        if (currentPercent < 98) {
-            currentPercent += 1;
+
+    pollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/status/${jobId}`);
+            if (res.status !== 200) {
+                clearInterval(pollInterval);
+                showError("No se pudo obtener el estado del proceso de separación.");
+                return;
+            }
+            
+            const data = await res.json();
+            
+            if (data.status === "queued") {
+                const percent = Math.min(45, 10 + (data.position * 3));
+                updateStatus("EN COLA DE ESPERA...", `Turno: Posición ${data.position}. Tiempo est. restante: ~${data.position * 45}s`, percent);
+                
+                const desc = document.getElementById("mixerStatusDesc");
+                if (desc) {
+                    desc.textContent = `Tu posición en la cola es: ${data.position}. Tiempo estimado de espera: ~${data.position * 45} segundos.`;
+                }
+                fileMeta.textContent = `EN COLA (Posición ${data.position}): ` + file.name.toUpperCase();
+                
+            } else if (data.status === "processing") {
+                let percent = 50;
+                if (data.step.includes("DECODIFICANDO")) percent = 55;
+                else if (data.step.includes("RESAMPLEANDO")) percent = 60;
+                else if (data.step.includes("INFERENCIA")) percent = 75;
+                else if (data.step.includes("RECONSTRUYENDO")) percent = 85;
+                else if (data.step.includes("COMPRIMIENDO")) percent = 95;
+                
+                updateStatus(data.step, data.description, percent);
+                fileMeta.textContent = "PROCESANDO: " + file.name.toUpperCase();
+                
+                const desc = document.getElementById("mixerStatusDesc");
+                if (desc) {
+                    desc.innerHTML = `
+                        <p class="text-sm font-semibold text-zinc-400">Separando instrumentos por IA...</p>
+                        <p class="text-xs text-red-500 font-bold uppercase mt-1 animate-pulse">${data.step}</p>
+                        <p class="text-xs text-zinc-500 mt-0.5">${data.description}</p>
+                    `;
+                }
+                
+            } else if (data.status === "completed") {
+                clearInterval(pollInterval);
+                progressBar.classList.remove("animate-pulse");
+                
+                updateStatus("DESCARGANDO RESULTADOS...", "Obteniendo los canales de audio comprimidos desde el servidor...", 98);
+                
+                const desc = document.getElementById("mixerStatusDesc");
+                if (desc) {
+                    desc.textContent = "Descargando stems decodificados en el navegador...";
+                }
+                
+                try {
+                    const downloadRes = await fetch(`${BACKEND_URL}/download/${jobId}`);
+                    if (!downloadRes.ok) throw new Error("Error en la descarga de los stems.");
+                    
+                    zipBlob = await downloadRes.blob();
+                    await decodeAndSetupMixer(zipBlob);
+                    
+                    updateStatus("LISTO", "Separación finalizada.", 100);
+                } catch (err) {
+                    showError("Error al descargar o decodificar los stems: " + err.message);
+                }
+                
+            } else if (data.status === "failed") {
+                clearInterval(pollInterval);
+                progressBar.classList.remove("animate-pulse");
+                showError("La separación por IA falló: " + data.description);
+            }
+            
+        } catch (err) {
+            console.error("Error consultando estado en cola:", err);
         }
-        const msg = getMessage(secondsElapsed);
-        updateStatus(msg.title, msg.desc, currentPercent);
-        const desc = document.getElementById("mixerStatusDesc");
-        if (desc) {
-            desc.textContent = msg.desc;
-        }
-    }, 5000);
+    }, 3000);
 }
 
-// --- Parar animación de carga ---
+// --- Parar animación y consulta de carga ---
 function stopProcessingProgress() {
     progressBar.classList.remove("animate-pulse");
-    if (progressInterval) {
-        clearInterval(progressInterval);
-        progressInterval = null;
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
     }
 }
 
