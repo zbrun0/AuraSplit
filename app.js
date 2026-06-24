@@ -23,6 +23,19 @@ const STEMS_CONFIG = {
     other: { name: "otros", icon: "tune" }
 };
 
+// SVGs para los iconos correspondientes (sin clases de colores para heredar del contenedor)
+const ICONS_SVG = {
+    mic: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>`,
+    album: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.48 0-4.5-2.02-4.5-4.5s2.02-4.5 4.5-4.5 4.5 2.02 4.5 4.5-2.02 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>`,
+    music_note: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`,
+    music_video: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 9H8v-2h4v2zm0-4H8V6h4v2zm6 8h-4v-2h4v2zm0-4h-4V8h4v2z"/></svg>`,
+    piano: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M19.02 3H4.98C3.89 3 3 3.89 3 4.98v14.04C3 20.11 3.89 21 4.98 21h14.04c1.09 0 1.98-.89 1.98-1.98V4.98C21 3.89 20.11 3 19.02 3zM12 5h1.5v7h-1.5V5zm-3 0h1.5v7H9V5zM6 5h1.5v7H6V5zm12 14H6v-5h12v5z"/></svg>`,
+    tune: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>`,
+    play_arrow: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
+    pause: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`,
+    download: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`
+};
+
 // --- Referencias al DOM ---
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -37,6 +50,7 @@ const fileMeta = document.getElementById("fileMeta");
 const masterControls = document.getElementById("masterControls");
 const masterPlayBtn = document.getElementById("masterPlayBtn");
 const resetMixerBtn = document.getElementById("resetMixerBtn");
+const downloadMixBtn = document.getElementById("downloadMixBtn");
 const downloadZipBtn = document.getElementById("downloadZipBtn");
 
 // --- Eventos Click y Drag & Drop para Carga ---
@@ -243,7 +257,7 @@ function resetAudio() {
     if (trackList) {
         trackList.innerHTML = `
             <div class="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800/40 rounded-2xl bg-zinc-900/10">
-                <span class="material-symbols-outlined text-3xl mb-3 text-zinc-600" data-icon="tune">tune</span>
+                <svg class="w-8 h-8 mb-3 text-zinc-600 fill-current" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
                 <p class="text-sm font-semibold text-zinc-400">Carga un archivo de audio para activar la consola de mezcla.</p>
                 <p class="text-xs text-zinc-600 mt-1">AuraSplit aislará de forma inteligente las voces e instrumentos.</p>
             </div>
@@ -328,8 +342,8 @@ function createTrackUI(id) {
     const trackHtml = `
         <div class="channel-strip channel-${id} bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 flex flex-col items-center gap-4 w-full text-center relative hover:border-red-500/40 hover:bg-zinc-900/60 transition-all duration-300 shadow-xl" data-track-id="${id}">
             <!-- Header -->
-            <div class="flex flex-col items-center gap-1">
-                <span class="material-symbols-outlined text-2xl" data-icon="${config.icon}">${config.icon}</span>
+            <div class="flex flex-col items-center gap-1 group-hover:text-red-500 transition-colors">
+                <div class="text-2xl text-zinc-400 flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
                 <span class="text-[10px] font-black uppercase tracking-widest text-zinc-300">${displayName}</span>
             </div>
             
@@ -379,7 +393,7 @@ function createResultUI(id) {
     const resultHtml = `
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 py-3 hover:bg-zinc-900/40 transition-colors gap-3" data-track-id="${id}">
             <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-red-500 text-lg" data-icon="${config.icon}">${config.icon}</span>
+                <div class="text-red-500 text-lg flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
                 <div class="flex flex-col">
                     <span class="text-xs font-bold text-white uppercase">${config.name} (${id}.wav)</span>
                     <span class="text-[10px] text-zinc-500 font-mono">${sizeMB} MB</span>
@@ -387,10 +401,10 @@ function createResultUI(id) {
             </div>
             <div class="flex gap-2 w-full sm:w-auto">
                 <button id="preview-${id}" class="flex-1 sm:flex-none px-4 py-1.5 border border-zinc-800 hover:border-red-500/40 hover:text-red-400 transition-all duration-300 text-xs font-bold uppercase rounded-lg text-zinc-300 flex items-center justify-center gap-1.5">
-                    <span class="material-symbols-outlined text-sm">play_arrow</span> Escuchar
+                    ${ICONS_SVG.play_arrow} Escuchar
                 </button>
                 <a id="download-${id}" href="${tracks[id].blobUrl}" download="${id}.wav" class="flex-1 sm:flex-none px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5">
-                    <span class="material-symbols-outlined text-sm">download</span> Descargar
+                    ${ICONS_SVG.download} Descargar
                 </a>
             </div>
         </div>
@@ -585,11 +599,11 @@ function updatePreviewButtons() {
         if (!btn) continue;
         
         if (isPlaying && currentPreviewTrack === id) {
-            btn.innerHTML = `<span class="material-symbols-outlined text-sm">pause</span> Detener`;
+            btn.innerHTML = `${ICONS_SVG.pause} Detener`;
             btn.classList.add("border-red-500", "text-red-500", "bg-red-950/20");
             btn.classList.remove("border-zinc-800", "text-zinc-300");
         } else {
-            btn.innerHTML = `<span class="material-symbols-outlined text-sm">play_arrow</span> Escuchar`;
+            btn.innerHTML = `${ICONS_SVG.play_arrow} Escuchar`;
             btn.classList.remove("border-red-500", "text-red-500", "bg-red-950/20");
             btn.classList.add("border-zinc-800", "text-zinc-300");
         }
@@ -600,10 +614,10 @@ function updatePreviewButtons() {
 
 function updateMasterPlayBtn() {
     if (isPlaying && !currentPreviewTrack) {
-        masterPlayBtn.innerHTML = `<span class="material-symbols-outlined text-sm">pause</span> PAUSAR`;
+        masterPlayBtn.innerHTML = `${ICONS_SVG.pause} PAUSAR`;
         masterPlayBtn.classList.add("bg-zinc-800");
     } else {
-        masterPlayBtn.innerHTML = `<span class="material-symbols-outlined text-sm">play_arrow</span> REPRODUCIR`;
+        masterPlayBtn.innerHTML = `${ICONS_SVG.play_arrow} REPRODUCIR`;
         masterPlayBtn.classList.remove("bg-zinc-800");
     }
 }
@@ -744,5 +758,144 @@ function clearMeter(id) {
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
         ctx.stroke();
+    }
+}
+
+// --- Evento de Descarga de Mezcla Personalizada ---
+downloadMixBtn.addEventListener("click", async () => {
+    if (!tracks || Object.keys(tracks).length === 0) return;
+    
+    const originalText = downloadMixBtn.innerHTML;
+    downloadMixBtn.disabled = true;
+    downloadMixBtn.innerHTML = `
+        <svg class="w-4 h-4 animate-spin fill-current" viewBox="0 0 24 24" style="display:inline-block; vertical-align:middle; margin-right:6px;">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg> MEZCLANDO...
+    `;
+    
+    try {
+        const anySoloed = Object.values(tracks).some(t => t.isSoloed);
+        const tracksToMix = [];
+        
+        for (const [id, track] of Object.entries(tracks)) {
+            let volume = 0;
+            if (currentPreviewTrack) {
+                volume = (id === currentPreviewTrack) ? track.volume : 0;
+            } else {
+                if (track.isMuted) {
+                    volume = 0;
+                } else if (anySoloed) {
+                    volume = track.isSoloed ? track.volume : 0;
+                } else {
+                    volume = track.volume;
+                }
+            }
+            if (volume > 0) {
+                tracksToMix.push({ id, track, volume });
+            }
+        }
+        
+        if (tracksToMix.length === 0) {
+            alert("No hay ningún canal activo para mezclar.");
+            downloadMixBtn.disabled = false;
+            downloadMixBtn.innerHTML = originalText;
+            return;
+        }
+        
+        const sampleRate = audioCtx.sampleRate || 44100;
+        const targetDuration = duration;
+        const length = Math.ceil(targetDuration * sampleRate);
+        
+        const offlineCtx = new OfflineAudioContext(2, length, sampleRate);
+        
+        const decodePromises = tracksToMix.map(async ({ id, track, volume }) => {
+            const response = await fetch(track.blobUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
+            
+            const source = offlineCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            
+            const gainNode = offlineCtx.createGain();
+            gainNode.gain.setValueAtTime(volume, 0);
+            
+            source.connect(gainNode);
+            gainNode.connect(offlineCtx.destination);
+            
+            source.start(0);
+        });
+        
+        await Promise.all(decodePromises);
+        const renderedBuffer = await offlineCtx.startRendering();
+        const wavBlob = bufferToWav(renderedBuffer);
+        
+        const nameWithoutExt = fileMeta.textContent.replace(/\.[^/.]+$/, "");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(wavBlob);
+        link.download = `mezcla_${nameWithoutExt}.wav`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+    } catch (err) {
+        console.error("Error al exportar la mezcla:", err);
+        alert("Error al generar la descarga de la mezcla: " + err.message);
+    } finally {
+        downloadMixBtn.disabled = false;
+        downloadMixBtn.innerHTML = originalText;
+    }
+});
+
+// Función para codificar un AudioBuffer a WAV PCM 16 bits
+function bufferToWav(buffer) {
+    let numOfChan = buffer.numberOfChannels,
+        length = buffer.length * numOfChan * 2 + 44,
+        bufferArr = new ArrayBuffer(length),
+        view = new DataView(bufferArr),
+        channels = [], i, sample,
+        offset = 0,
+        pos = 0;
+
+    // Escribir cabecera WAV
+    setUint32(0x46464952);                         // "RIFF"
+    setUint32(length - 8);                         // file length - 8
+    setUint32(0x45564157);                         // "WAVE"
+
+    setUint32(0x20746d66);                         // "fmt " chunk
+    setUint32(16);                                 // longitud del chunk (16)
+    setUint16(1);                                  // formato PCM (1)
+    setUint16(numOfChan);                          // número de canales
+    setUint32(buffer.sampleRate);                  // frecuencia de muestreo
+    setUint32(buffer.sampleRate * 2 * numOfChan); // byte rate (muestreo * block align)
+    setUint16(numOfChan * 2);                      // block align (canales * bits/muestra / 8)
+    setUint16(16);                                 // bits por muestra (16 bits)
+
+    setUint32(0x61746164);                         // "data" chunk
+    setUint32(length - pos - 4);                   // longitud de los datos
+
+    for(i=0; i<buffer.numberOfChannels; i++)
+        channels.push(buffer.getChannelData(i));
+
+    while(pos < length) {
+        for(i=0; i<numOfChan; i++) {             // Intercalar canales
+            sample = Math.max(-1, Math.min(1, channels[i][offset])); // limitar
+            sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF); // escalar a entero de 16 bits firmado
+            view.setInt16(pos, sample, true);          // escribir muestra de 16 bits (little endian)
+            pos += 2;
+        }
+        offset++;
+    }
+
+    return new Blob([bufferArr], {type: "audio/wav"});
+
+    function setUint16(data) {
+        view.setUint16(pos, data, true);
+        pos += 2;
+    }
+
+    function setUint32(data) {
+        view.setUint32(pos, data, true);
+        pos += 4;
     }
 }
