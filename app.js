@@ -389,15 +389,17 @@ async function decodeAndSetupMixer(blob) {
                 // Forzar la duración real desde el búfer de la batería
                 duration = drumsBuffer.duration;
                 
-                // Detectar los instantes de golpes
-                let beatTimes = getBeats(drumsBuffer);
+                // Detectar los instantes de golpes y estimar BPM
+                const beatResult = getBeats(drumsBuffer);
+                let beatTimes = beatResult.beats;
+                let estimatedBpm = beatResult.bpm;
                 
                 // Fallback por si no detecta suficientes golpes
                 if (beatTimes.length < 5) {
                     console.warn("[Metrónomo] Pocos golpes en batería. Generando click track steady a 120 BPM...");
                     beatTimes = [];
-                    const bpm = 120;
-                    const interval = 60 / bpm;
+                    estimatedBpm = 120;
+                    const interval = 60 / estimatedBpm;
                     for (let t = 0; t < duration; t += interval) {
                         beatTimes.push(t);
                     }
@@ -423,7 +425,8 @@ async function decodeAndSetupMixer(blob) {
                     isMuted: false,
                     isSoloed: false,
                     blobUrl: metronomeBlobUrl,
-                    sizeBytes: metronomeWavBlob.size
+                    sizeBytes: metronomeWavBlob.size,
+                    bpm: estimatedBpm
                 };
                 
                 createTrackUI("metronome");
@@ -457,7 +460,11 @@ async function decodeAndSetupMixer(blob) {
 // --- Generar UI de Canal (Vertical Console Strip) ---
 function createTrackUI(id) {
     const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
-    const displayName = config.name.toUpperCase();
+    let displayName = config.name.toUpperCase();
+    
+    if (id === "metronome" && tracks.metronome && tracks.metronome.bpm) {
+        displayName += ` (${tracks.metronome.bpm.toFixed(1)} BPM)`;
+    }
 
     const trackHtml = `
         <div class="channel-strip channel-${id} bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 flex flex-col items-center gap-4 w-full text-center relative hover:border-red-500/40 hover:bg-zinc-900/60 transition-all duration-300 shadow-xl" data-track-id="${id}">
@@ -509,13 +516,18 @@ function createTrackUI(id) {
 function createResultUI(id) {
     const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
     const sizeMB = (tracks[id].sizeBytes / (1024 * 1024)).toFixed(1);
+    
+    let resultName = config.name;
+    if (id === "metronome" && tracks.metronome && tracks.metronome.bpm) {
+        resultName = `${config.name} (${tracks.metronome.bpm.toFixed(1)} BPM)`;
+    }
 
     const resultHtml = `
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 py-3 hover:bg-zinc-900/40 transition-colors gap-3" data-track-id="${id}">
             <div class="flex items-center gap-3">
                 <div class="text-red-500 text-lg flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
                 <div class="flex flex-col">
-                    <span class="text-xs font-bold text-white uppercase">${config.name} (${id}.wav)</span>
+                    <span class="text-xs font-bold text-white uppercase">${resultName} (${id}.wav)</span>
                     <span class="text-[10px] text-zinc-500 font-mono">${sizeMB} MB</span>
                 </div>
             </div>
@@ -1082,8 +1094,8 @@ function getBeats(audioBuffer) {
         flux[f] = Math.max(0, energy[f] - energy[f-1]);
     }
     
-    const beatTimes = [];
-    const minDistanceSec = 0.28; // Limitar a un tempo máximo de ~210 BPM
+    const rawBeats = [];
+    const minDistanceSec = 0.25; // tempo máximo de ~240 BPM para onsets individuales
     const windowSize = 15;       // Ventana para media local (~300ms)
     
     // 3. Detección de picos adaptativa
@@ -1103,18 +1115,131 @@ function getBeats(audioBuffer) {
             }
         }
         const localMean = localSum / count;
-        const threshold = localMean * 1.6 + 0.003;
+        const threshold = localMean * 1.5 + 0.002; // Umbral adaptativo ligeramente más sensible
         
         if (flux[f] > threshold) {
             const time = (f * hopSize) / sampleRate;
-            if (beatTimes.length === 0 || (time - beatTimes[beatTimes.length - 1]) >= minDistanceSec) {
-                beatTimes.push(time);
+            if (rawBeats.length === 0 || (time - rawBeats[rawBeats.length - 1]) >= minDistanceSec) {
+                rawBeats.push(time);
             }
         }
     }
     
-    return beatTimes;
+    if (rawBeats.length < 5) {
+        return { beats: rawBeats, bpm: 120 };
+    }
+    
+    // 4. Estimar el intervalo de beat principal (BPM)
+    const T_estimated = estimateBeatInterval(rawBeats);
+    let T = T_estimated;
+    const estimatedBpm = 60 / T_estimated;
+    
+    // 5. Tracking de fase y frecuencia (PLL) para filtrar vacíos y remates
+    const cleanBeats = [];
+    const duration = audioBuffer.duration;
+    
+    // Empezamos en el primer golpe detectado
+    let t = rawBeats[0];
+    cleanBeats.push(t);
+    
+    // Parámetros de actualización del PLL
+    const alpha = 0.15; // Ajuste de fase (qué tanto se alinea al golpe real)
+    const beta = 0.02;  // Ajuste de tempo (qué tan rápido cambia el BPM local)
+    
+    while (t + T < duration) {
+        const expectedNext = t + T;
+        
+        // Buscar el golpe real más cercano dentro de una ventana de tolerancia
+        const tolerance = 0.3 * T;
+        let bestRawBeat = null;
+        let minDiff = Infinity;
+        
+        for (const rawT of rawBeats) {
+            const diff = Math.abs(rawT - expectedNext);
+            if (diff < tolerance && diff < minDiff) {
+                minDiff = diff;
+                bestRawBeat = rawT;
+            }
+        }
+        
+        if (bestRawBeat !== null) {
+            // Actualizar fase usando una mezcla del esperado y el real
+            const phaseError = bestRawBeat - expectedNext;
+            t = expectedNext + alpha * phaseError;
+            
+            // Actualizar tempo (intervalo T) para adaptarse a cambios lentos de tempo
+            const actualInterval = bestRawBeat - cleanBeats[cleanBeats.length - 1];
+            if (Math.abs(actualInterval - T) < 0.2 * T) {
+                T = T + beta * (actualInterval - T);
+            }
+        } else {
+            // Si hay un vacío (break de batería), seguimos con el tempo constante estimado
+            t = expectedNext;
+        }
+        
+        cleanBeats.push(t);
+    }
+    
+    // 6. Extrapolar hacia atrás (antes del primer golpe) para cubrir intros sin batería
+    T = T_estimated;
+    let backT = rawBeats[0] - T;
+    while (backT >= 0) {
+        cleanBeats.unshift(backT);
+        backT -= T;
+    }
+    
+    return { beats: cleanBeats, bpm: estimatedBpm };
 }
+
+// Función auxiliar para estimar el intervalo de tiempo entre beats (BPM)
+function estimateBeatInterval(rawBeats) {
+    const diffs = [];
+    for (let i = 1; i < rawBeats.length; i++) {
+        const d = rawBeats[i] - rawBeats[i - 1];
+        if (d > 0.15 && d < 2.0) {
+            diffs.push(d);
+        }
+        if (i > 1) {
+            const d2 = rawBeats[i] - rawBeats[i - 2];
+            if (d2 > 0.15 && d2 < 2.0) {
+                diffs.push(d2);
+            }
+        }
+    }
+    
+    if (diffs.length === 0) return 0.5; // 120 BPM por defecto
+    
+    let bestInterval = 0.5;
+    let maxScore = -1;
+    
+    // Probar BPMs razonables para música popular (60 a 200 BPM)
+    for (let bpm = 60; bpm <= 200; bpm += 1) {
+        const T = 60 / bpm;
+        let score = 0;
+        for (const d of diffs) {
+            const ratio = d / T;
+            const roundRatio = Math.round(ratio);
+            if (roundRatio >= 1 && roundRatio <= 4) {
+                const error = Math.abs(ratio - roundRatio);
+                // Si el error es menor del 15% del beat, sumamos puntuación
+                if (error < 0.15) {
+                    score += (1 - error / 0.15) / roundRatio;
+                }
+            }
+        }
+        
+        // Priorizar tempo alrededor de 120 BPM usando un prior Gaussiano (evita octavas extremas)
+        const bpmBias = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 120) / 0.6, 2));
+        const finalScore = score * bpmBias;
+        
+        if (finalScore > maxScore) {
+            maxScore = finalScore;
+            bestInterval = T;
+        }
+    }
+    return bestInterval;
+}
+
 
 // Función para sintetizar un AudioBuffer de metrónomo con sonidos de click (madera) en cada marca de beat
 function createMetronomeBuffer(beatTimes, duration, sampleRate) {
