@@ -49,6 +49,7 @@ const resultsList = document.getElementById("resultsList");
 const fileMeta = document.getElementById("fileMeta");
 const masterControls = document.getElementById("masterControls");
 const masterPlayBtn = document.getElementById("masterPlayBtn");
+const masterRewindBtn = document.getElementById("masterRewindBtn");
 const resetMixerBtn = document.getElementById("resetMixerBtn");
 const downloadMixBtn = document.getElementById("downloadMixBtn");
 const downloadZipBtn = document.getElementById("downloadZipBtn");
@@ -113,6 +114,18 @@ function uploadAndSeparate(file) {
     dropzone.classList.add("hidden");
     processing.classList.remove("hidden");
     
+    // Indicar en la consola de mezcla que se está subiendo el archivo
+    fileMeta.textContent = "SUBIENDO: " + file.name.toUpperCase();
+    if (trackList) {
+        trackList.innerHTML = `
+            <div class="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800/40 rounded-2xl bg-zinc-900/10">
+                <svg class="w-8 h-8 mb-3 text-red-500 animate-spin fill-current" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <p class="text-sm font-semibold text-zinc-400">Subiendo archivo de origen...</p>
+                <p class="text-xs text-zinc-600 mt-1" id="mixerStatusDesc">Enviando archivo a la memoria temporal del servidor...</p>
+            </div>
+        `;
+    }
+    
     updateStatus("SUBIENDO AUDIO DE ORIGEN...", "Enviando archivo a la memoria temporal del servidor...", 10);
 
     const formData = new FormData();
@@ -126,12 +139,16 @@ function uploadAndSeparate(file) {
         if (e.lengthComputable) {
             const percent = Math.round((e.loaded / e.total) * 90);
             updateStatus("SUBIENDO AUDIO DE ORIGEN...", `Enviando archivo a la memoria de FastAPI (${percent}%)`, percent);
+            const desc = document.getElementById("mixerStatusDesc");
+            if (desc) {
+                desc.textContent = `Enviando archivo a la memoria de FastAPI (${percent}%)`;
+            }
         }
     };
 
     // Al finalizar la subida, iniciamos la simulación del progreso del procesamiento IA
     xhr.upload.onload = () => {
-        startProcessingProgress();
+        startProcessingProgress(file);
     };
 
     xhr.onload = async function() {
@@ -175,7 +192,19 @@ function showError(msg) {
 }
 
 // --- Incremento gradual simulado para la IA en CPU ---
-function startProcessingProgress() {
+function startProcessingProgress(file) {
+    if (file) {
+        fileMeta.textContent = "PROCESANDO: " + file.name.toUpperCase();
+        if (trackList) {
+            trackList.innerHTML = `
+                <div class="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800/40 rounded-2xl bg-zinc-900/10">
+                    <svg class="w-8 h-8 mb-3 text-red-500 animate-spin fill-current" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <p class="text-sm font-semibold text-zinc-400">Separando instrumentos por IA...</p>
+                    <p class="text-xs text-zinc-600 mt-1" id="mixerStatusDesc">Cargando modelo HTDemucs v4 (6 Stems) en CPU...</p>
+                </div>
+            `;
+        }
+    }
     let currentPercent = 90;
     let secondsElapsed = 0;
     
@@ -213,6 +242,10 @@ function startProcessingProgress() {
         }
         const msg = getMessage(secondsElapsed);
         updateStatus(msg.title, msg.desc, currentPercent);
+        const desc = document.getElementById("mixerStatusDesc");
+        if (desc) {
+            desc.textContent = msg.desc;
+        }
     }, 5000);
 }
 
@@ -400,9 +433,6 @@ function createResultUI(id) {
                 </div>
             </div>
             <div class="flex gap-2 w-full sm:w-auto">
-                <button id="preview-${id}" class="flex-1 sm:flex-none px-4 py-1.5 border border-zinc-800 hover:border-red-500/40 hover:text-red-400 transition-all duration-300 text-xs font-bold uppercase rounded-lg text-zinc-300 flex items-center justify-center gap-1.5">
-                    ${ICONS_SVG.play_arrow} Escuchar
-                </button>
                 <a id="download-${id}" href="${tracks[id].blobUrl}" download="${id}.wav" class="flex-1 sm:flex-none px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5">
                     ${ICONS_SVG.download} Descargar
                 </a>
@@ -410,11 +440,6 @@ function createResultUI(id) {
         </div>
     `;
     resultsList.insertAdjacentHTML("beforeend", resultHtml);
-
-    const previewBtn = document.getElementById(`preview-${id}`);
-    previewBtn.addEventListener("click", () => {
-        togglePreviewTrack(id);
-    });
 }
 
 // --- Configurar Nodos de Audio en Web Audio API ---
@@ -899,3 +924,43 @@ function bufferToWav(buffer) {
         pos += 4;
     }
 }
+
+// --- Evento de Retroceso de Audio (Master Rewind) ---
+masterRewindBtn.addEventListener("click", () => {
+    if (!tracks || Object.keys(tracks).length === 0) return;
+    
+    playOffset = 0;
+    const isPlayingCurrent = isPlaying;
+    
+    // Si estaba reproduciendo, detenemos temporalmente para sincronizar
+    if (isPlayingCurrent) {
+        pauseTracks();
+    }
+    
+    for (const track of Object.values(tracks)) {
+        if (track.audio) {
+            track.audio.currentTime = 0;
+        }
+    }
+    
+    playOffset = 0;
+    
+    // Si estaba reproduciendo, reanudamos desde 0
+    if (isPlayingCurrent) {
+        playTracks();
+    } else {
+        updatePreviewButtons();
+    }
+});
+
+// --- Prevenir salida accidental o recarga de página ---
+window.addEventListener("beforeunload", (e) => {
+    const isProcessing = processing && !processing.classList.contains("hidden");
+    const hasLoadedFiles = zipBlob !== null || Object.keys(tracks).length > 0;
+    
+    if (isProcessing || hasLoadedFiles) {
+        e.preventDefault();
+        e.returnValue = "Si cierras o recargas la página, se perderá tu mezcla actual y el progreso.";
+        return e.returnValue;
+    }
+});
