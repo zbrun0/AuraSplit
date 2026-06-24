@@ -32,6 +32,7 @@ const ICONS_SVG = {
     music_video: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 9H8v-2h4v2zm0-4H8V6h4v2zm6 8h-4v-2h4v2zm0-4h-4V8h4v2z"/></svg>`,
     piano: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M19.02 3H4.98C3.89 3 3 3.89 3 4.98v14.04C3 20.11 3.89 21 4.98 21h14.04c1.09 0 1.98-.89 1.98-1.98V4.98C21 3.89 20.11 3 19.02 3zM12 5h1.5v7h-1.5V5zm-3 0h1.5v7H9V5zM6 5h1.5v7H6V5zm12 14H6v-5h12v5z"/></svg>`,
     tune: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>`,
+    schedule: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>`,
     play_arrow: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
     pause: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`,
     download: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`
@@ -375,6 +376,68 @@ async function decodeAndSetupMixer(blob) {
             createResultUI(stemId);
         }
 
+        // --- Generar Metrónomo Inteligente (Enfoque B) ---
+        if (tracks.drums) {
+            try {
+                updateStatus("GENERANDO METRÓNOMO...", "Analizando pista de batería y sintetizando metrónomo...", 99);
+                
+                // Fetch de la batería para decodificar
+                const response = await fetch(tracks.drums.blobUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const drumsBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                
+                // Forzar la duración real desde el búfer de la batería
+                duration = drumsBuffer.duration;
+                
+                // Detectar los instantes de golpes
+                let beatTimes = getBeats(drumsBuffer);
+                
+                // Fallback por si no detecta suficientes golpes
+                if (beatTimes.length < 5) {
+                    console.warn("[Metrónomo] Pocos golpes en batería. Generando click track steady a 120 BPM...");
+                    beatTimes = [];
+                    const bpm = 120;
+                    const interval = 60 / bpm;
+                    for (let t = 0; t < duration; t += interval) {
+                        beatTimes.push(t);
+                    }
+                }
+                
+                // Sintetizar el búfer de audio del metrónomo
+                const metronomeBuffer = createMetronomeBuffer(beatTimes, duration, drumsBuffer.sampleRate);
+                
+                // Codificar a WAV Blob
+                const metronomeWavBlob = bufferToWav(metronomeBuffer);
+                const metronomeBlobUrl = URL.createObjectURL(metronomeWavBlob);
+                
+                // Crear el elemento de Audio
+                const metronomeAudio = new Audio(metronomeBlobUrl);
+                metronomeAudio.preload = "auto";
+                metronomeAudio.crossOrigin = "anonymous";
+                
+                tracks.metronome = {
+                    audio: metronomeAudio,
+                    gainNode: null,
+                    analyser: null,
+                    volume: 0.0, // Iniciamos en 0 para no saturar al usuario inicialmente
+                    isMuted: false,
+                    isSoloed: false,
+                    blobUrl: metronomeBlobUrl,
+                    sizeBytes: metronomeWavBlob.size
+                };
+                
+                createTrackUI("metronome");
+                createResultUI("metronome");
+                
+                // Establecer slider del metrónomo a 0 en la interfaz
+                const fader = document.getElementById("fader-metronome");
+                if (fader) fader.value = 0;
+                
+            } catch (err) {
+                console.error("No se pudo generar el metrónomo inteligente:", err);
+            }
+        }
+
         setupAudioNodes();
         
         processing.classList.add("hidden");
@@ -393,7 +456,7 @@ async function decodeAndSetupMixer(blob) {
 
 // --- Generar UI de Canal (Vertical Console Strip) ---
 function createTrackUI(id) {
-    const config = STEMS_CONFIG[id];
+    const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
     const displayName = config.name.toUpperCase();
 
     const trackHtml = `
@@ -444,7 +507,7 @@ function createTrackUI(id) {
 
 // --- Generar UI de Resultados (Export Panel List) ---
 function createResultUI(id) {
-    const config = STEMS_CONFIG[id];
+    const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
     const sizeMB = (tracks[id].sizeBytes / (1024 * 1024)).toFixed(1);
 
     const resultHtml = `
@@ -689,9 +752,10 @@ masterPlayBtn.addEventListener("click", () => {
 
 resetMixerBtn.addEventListener("click", () => {
     for (const id of Object.keys(tracks)) {
-        setTrackVolume(id, 0.8);
+        const defaultVol = (id === "metronome") ? 0.0 : 0.8;
+        setTrackVolume(id, defaultVol);
         const fader = document.getElementById(`fader-${id}`);
-        if (fader) fader.value = 80;
+        if (fader) fader.value = defaultVol * 100;
 
         tracks[id].isMuted = false;
         tracks[id].isSoloed = false;
@@ -988,3 +1052,103 @@ window.addEventListener("beforeunload", (e) => {
         return e.returnValue;
     }
 });
+
+// --- Funciones para el Metrónomo Inteligente (Enfoque B) ---
+
+// Función para calcular los instantes de golpes (beats) en base al canal de la batería
+function getBeats(audioBuffer) {
+    const sampleRate = audioBuffer.sampleRate;
+    const data = audioBuffer.getChannelData(0);
+    const hopSize = 1024;
+    const numFrames = Math.floor(data.length / hopSize);
+    const energy = new Float32Array(numFrames);
+    
+    // 1. Calcular la energía local por fotograma (RMS)
+    for (let f = 0; f < numFrames; f++) {
+        let sum = 0;
+        const start = f * hopSize;
+        const end = Math.min(start + hopSize, data.length);
+        const length = end - start;
+        if (length <= 0) continue;
+        for (let i = start; i < end; i++) {
+            sum += data[i] * data[i];
+        }
+        energy[f] = Math.sqrt(sum / length);
+    }
+    
+    // 2. Calcular flujo de energía (onsets de picos)
+    const flux = new Float32Array(numFrames);
+    for (let f = 1; f < numFrames; f++) {
+        flux[f] = Math.max(0, energy[f] - energy[f-1]);
+    }
+    
+    const beatTimes = [];
+    const minDistanceSec = 0.28; // Limitar a un tempo máximo de ~210 BPM
+    const windowSize = 15;       // Ventana para media local (~300ms)
+    
+    // 3. Detección de picos adaptativa
+    for (let f = 2; f < numFrames - 2; f++) {
+        // Confirmar si es un máximo local en ventana de 5 fotogramas
+        if (flux[f] < flux[f-1] || flux[f] < flux[f-2] || flux[f] < flux[f+1] || flux[f] < flux[f+2]) {
+            continue;
+        }
+        
+        let localSum = 0;
+        let count = 0;
+        for (let d = -windowSize; d <= windowSize; d++) {
+            const idx = f + d;
+            if (idx >= 0 && idx < numFrames) {
+                localSum += flux[idx];
+                count++;
+            }
+        }
+        const localMean = localSum / count;
+        const threshold = localMean * 1.6 + 0.003;
+        
+        if (flux[f] > threshold) {
+            const time = (f * hopSize) / sampleRate;
+            if (beatTimes.length === 0 || (time - beatTimes[beatTimes.length - 1]) >= minDistanceSec) {
+                beatTimes.push(time);
+            }
+        }
+    }
+    
+    return beatTimes;
+}
+
+// Función para sintetizar un AudioBuffer de metrónomo con sonidos de click (madera) en cada marca de beat
+function createMetronomeBuffer(beatTimes, duration, sampleRate) {
+    const numSamples = Math.floor(duration * sampleRate);
+    const metronomeBuffer = audioCtx.createBuffer(2, numSamples, sampleRate);
+    
+    const leftChannel = metronomeBuffer.getChannelData(0);
+    const rightChannel = metronomeBuffer.getChannelData(1);
+    
+    const clickDuration = 0.04; // 40ms
+    const clickSamples = Math.floor(clickDuration * sampleRate);
+    const clickSignal = new Float32Array(clickSamples);
+    
+    // Generar onda de click (onda senoidal atenuada de alta frecuencia con caída rápida)
+    for (let i = 0; i < clickSamples; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-t * 120); // Caída rápida
+        clickSignal[i] = Math.sin(2 * Math.PI * 900 * t) * env * 0.6;
+    }
+    
+    // Insertar el sonido del click en cada instante detectado
+    for (let beatIndex = 0; beatIndex < beatTimes.length; beatIndex++) {
+        const time = beatTimes[beatIndex];
+        const startSample = Math.floor(time * sampleRate);
+        if (startSample >= numSamples) continue;
+        
+        for (let i = 0; i < clickSamples; i++) {
+            const sampleIdx = startSample + i;
+            if (sampleIdx < numSamples) {
+                leftChannel[sampleIdx] += clickSignal[i];
+                rightChannel[sampleIdx] += clickSignal[i];
+            }
+        }
+    }
+    
+    return metronomeBuffer;
+}
