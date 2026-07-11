@@ -13,6 +13,7 @@ let animationFrameId = null;
 let currentPreviewTrack = null; // ID del canal que se está previsualizando individualmente
 let progressInterval = null; // Intervalo para animar la barra de progreso mientras la IA procesa
 let pollInterval = null; // Intervalo para consultar el estado del trabajo en la cola
+let selectedFile = null; // Archivo seleccionado pendiente de procesamiento
 
 // Configuración de los 6 Stems del modelo Demucs 6s
 const STEMS_CONFIG = {
@@ -55,6 +56,12 @@ const masterRewindBtn = document.getElementById("masterRewindBtn");
 const resetMixerBtn = document.getElementById("resetMixerBtn");
 const downloadMixBtn = document.getElementById("downloadMixBtn");
 const downloadZipBtn = document.getElementById("downloadZipBtn");
+
+const uploadState = document.getElementById("uploadState");
+const configState = document.getElementById("configState");
+const configFileName = document.getElementById("configFileName");
+const startProcessBtn = document.getElementById("startProcessBtn");
+const cancelProcessBtn = document.getElementById("cancelProcessBtn");
 
 // --- Eventos Click y Drag & Drop para Carga ---
 window.handleUploadClick = function() {
@@ -107,9 +114,50 @@ function processSelectedFile(file) {
     }
     
     resetAudio();
-    fileMeta.textContent = file.name.toUpperCase();
-    uploadAndSeparate(file);
+    selectedFile = file;
+    
+    if (uploadState && configState && configFileName) {
+        uploadState.classList.add("hidden");
+        configState.classList.remove("hidden");
+        configFileName.textContent = file.name.toUpperCase();
+        updateEstimatedTime();
+    }
 }
+
+function resetToUploadState() {
+    selectedFile = null;
+    if (uploadState && configState) {
+        configState.classList.add("hidden");
+        uploadState.classList.remove("hidden");
+    }
+}
+
+function updateEstimatedTime() {
+    const modelSelect = document.getElementById("modelSelect");
+    const formatSelect = document.getElementById("formatSelect");
+    const estimatedTimeText = document.getElementById("estimatedTimeText");
+    if (!modelSelect || !estimatedTimeText) return;
+    
+    const model = modelSelect.value;
+    const format = formatSelect ? formatSelect.value : "mp3";
+    
+    let timeText = "";
+    if (model === "htdemucs") {
+        timeText = "~2.5 a 4 minutos";
+    } else {
+        timeText = "~5 a 8 minutos";
+    }
+    
+    if (format === "wav") {
+        timeText += " (Descarga lenta)";
+    } else {
+        timeText += " (Descarga rápida)";
+    }
+    
+    estimatedTimeText.textContent = timeText;
+}
+
+window.updateEstimatedTime = updateEstimatedTime;
 
 // --- Envío del Archivo a la API ---
 function uploadAndSeparate(file) {
@@ -318,6 +366,8 @@ function resetAudio() {
     
     if (resultsSection) resultsSection.classList.add("hidden");
     if (resultsList) resultsList.innerHTML = "";
+    
+    resetToUploadState();
     
     if (trackList) {
         trackList.innerHTML = `
@@ -565,6 +615,24 @@ function setupAudioNodes() {
         sourceNode.connect(track.gainNode);
         track.gainNode.connect(track.analyser);
         track.analyser.connect(audioCtx.destination);
+
+        // Pre-cargar y cachear referencias DOM y buffers para máxima performance
+        const canvas = document.getElementById(`canvas-${id}`);
+        if (canvas) {
+            track.canvas = canvas;
+            track.ctx = canvas.getContext("2d");
+            const bufferLength = track.analyser.frequencyBinCount;
+            track.dataArray = new Uint8Array(bufferLength);
+            
+            // Pre-calcular el gradiente para evitar crearlo cada frame
+            const height = canvas.height;
+            const gradient = track.ctx.createLinearGradient(0, height, 0, 0);
+            gradient.addColorStop(0, "#ef4444");     // Rojo en la base
+            gradient.addColorStop(0.5, "#dc2626");   // Rojo oscuro
+            gradient.addColorStop(0.8, "#f87171");   // Rojo brillante / Neón
+            gradient.addColorStop(0.95, "#ffffff");  // Blanco en el pico
+            track.gradient = gradient;
+        }
     }
 }
 
@@ -820,14 +888,12 @@ function drawMeters() {
     }
 
     for (const [id, track] of Object.entries(tracks)) {
-        const canvas = document.getElementById(`canvas-${id}`);
-        if (!canvas) continue;
+        const canvas = track.canvas;
+        const ctx = track.ctx;
+        if (!canvas || !ctx) continue;
 
-        const ctx = canvas.getContext("2d");
         const analyser = track.analyser;
-
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+        const dataArray = track.dataArray;
         analyser.getByteFrequencyData(dataArray);
 
         const width = canvas.width;
@@ -836,6 +902,7 @@ function drawMeters() {
         ctx.clearRect(0, 0, width, height);
 
         let sum = 0;
+        const bufferLength = dataArray.length;
         for (let i = 0; i < bufferLength; i++) {
             sum += dataArray[i];
         }
@@ -852,49 +919,44 @@ function drawMeters() {
             const gain = track.gainNode ? track.gainNode.gain.value : 1.0;
             const fillHeight = height * fillPercent * Math.min(gain, 1.2);
 
-            // Gradiente para LED
-            const gradient = ctx.createLinearGradient(0, height, 0, 0);
-            gradient.addColorStop(0, "#ef4444");     // Rojo en la base
-            gradient.addColorStop(0.5, "#dc2626");   // Rojo oscuro
-            gradient.addColorStop(0.8, "#f87171");   // Rojo brillante / Neón
-            gradient.addColorStop(0.95, "#ffffff");  // Blanco en el pico (saturación)
-
-            ctx.fillStyle = gradient;
+            ctx.fillStyle = track.gradient;
             ctx.fillRect(0, height - fillHeight, width, fillHeight);
         }
 
-        // Divisiones de los segmentos LED
+        // Divisiones de los segmentos LED (Optimizado: un solo draw call)
         ctx.strokeStyle = "#121214"; 
         ctx.lineWidth = 1.5;
+        ctx.beginPath();
         for (let y = 0; y < height; y += 4) {
-            ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(width, y);
-            ctx.stroke();
         }
+        ctx.stroke();
     }
 
     animationFrameId = requestAnimationFrame(drawMeters);
 }
 
 function clearMeter(id) {
-    const canvas = document.getElementById(`canvas-${id}`);
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const track = tracks[id];
+    if (!track) return;
+    const canvas = track.canvas;
+    const ctx = track.ctx;
+    if (!canvas || !ctx) return;
     const width = canvas.width;
     const height = canvas.height;
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, width, height);
     
-    // Dibujar divisiones inactivas
+    // Dibujar divisiones inactivas (Optimizado: un solo draw call)
     ctx.strokeStyle = "#121214";
     ctx.lineWidth = 1.5;
+    ctx.beginPath();
     for (let y = 0; y < height; y += 4) {
-        ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
-        ctx.stroke();
     }
+    ctx.stroke();
 }
 
 // --- Evento de Descarga de Mezcla Personalizada ---
@@ -1287,4 +1349,19 @@ function createMetronomeBuffer(beatTimes, duration, sampleRate) {
     }
     
     return metronomeBuffer;
+}
+
+// --- Inicialización de los Botones de la Vista de Configuración ---
+if (startProcessBtn) {
+    startProcessBtn.addEventListener("click", () => {
+        if (selectedFile) {
+            uploadAndSeparate(selectedFile);
+        }
+    });
+}
+
+if (cancelProcessBtn) {
+    cancelProcessBtn.addEventListener("click", () => {
+        resetToUploadState();
+    });
 }
