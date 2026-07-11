@@ -62,6 +62,8 @@ const configState = document.getElementById("configState");
 const configFileName = document.getElementById("configFileName");
 const startProcessBtn = document.getElementById("startProcessBtn");
 const cancelProcessBtn = document.getElementById("cancelProcessBtn");
+const mixerSection = document.getElementById("mixerSection");
+const newSeparationBtn = document.getElementById("newSeparationBtn");
 
 // --- Eventos Click y Drag & Drop para Carga ---
 window.handleUploadClick = function() {
@@ -129,6 +131,9 @@ function resetToUploadState() {
     if (uploadState && configState) {
         configState.classList.add("hidden");
         uploadState.classList.remove("hidden");
+    }
+    if (dropzone) {
+        dropzone.classList.remove("hidden");
     }
 }
 
@@ -367,6 +372,8 @@ function resetAudio() {
     if (resultsSection) resultsSection.classList.add("hidden");
     if (resultsList) resultsList.innerHTML = "";
     
+    if (mixerSection) mixerSection.classList.add("hidden");
+    
     resetToUploadState();
     
     if (trackList) {
@@ -507,7 +514,7 @@ async function decodeAndSetupMixer(blob) {
         setupAudioNodes();
         
         processing.classList.add("hidden");
-        dropzone.classList.remove("hidden");
+        if (mixerSection) mixerSection.classList.remove("hidden");
         resultsSection.classList.remove("hidden");
         masterControls.classList.remove("hidden");
 
@@ -1363,5 +1370,11 @@ if (startProcessBtn) {
 if (cancelProcessBtn) {
     cancelProcessBtn.addEventListener("click", () => {
         resetToUploadState();
+    });
+}
+
+if (newSeparationBtn) {
+    newSeparationBtn.addEventListener("click", () => {
+        resetAudio();
     });
 }

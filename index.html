@@ -143,15 +143,20 @@
         </section>
 
         <!-- Main Mixing Console & Controls -->
-        <section class="glass-card rounded-3xl p-6 md:p-8 space-y-6 relative overflow-hidden shadow-2xl">
+        <section id="mixerSection" class="glass-card rounded-3xl p-6 md:p-8 space-y-6 relative overflow-hidden shadow-2xl hidden">
             <!-- Subtle local glow -->
             <div class="absolute -right-32 -top-32 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
             <!-- Console Header -->
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-zinc-800/80">
-                <div>
-                    <h2 class="text-sm font-bold tracking-widest text-zinc-400 uppercase">Consola de Mezcla IA</h2>
-                    <p class="text-xs text-zinc-500 font-mono mt-0.5" id="fileMeta">SIN ARCHIVO CARGADO</p>
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-zinc-800/80 w-full">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-sm font-bold tracking-widest text-zinc-400 uppercase">Consola de Mezcla IA</h2>
+                        <p class="text-xs text-zinc-500 font-mono mt-0.5" id="fileMeta">SIN ARCHIVO CARGADO</p>
+                    </div>
+                    <button id="newSeparationBtn" class="px-4 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-red-500/40 text-red-500 hover:text-white font-mono text-[10px] font-black tracking-widest rounded-lg transition-colors flex items-center gap-1.5 btn-tactile">
+                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> NUEVA SEPARACIÓN
+                    </button>
                 </div>
                 
                 <!-- Master controls -->
