@@ -14,6 +14,8 @@ let currentPreviewTrack = null; // ID del canal que se está previsualizando ind
 let progressInterval = null; // Intervalo para animar la barra de progreso mientras la IA procesa
 let pollInterval = null; // Intervalo para consultar el estado del trabajo en la cola
 let selectedFile = null; // Archivo seleccionado pendiente de procesamiento
+let activeView = "mixer"; // Vista activa: mixer o timeline
+let waveformsRendered = false; // Estado del renderizado de las ondas de audio
 
 // Configuración de los 6 Stems del modelo Demucs 6s
 const STEMS_CONFIG = {
@@ -64,6 +66,14 @@ const startProcessBtn = document.getElementById("startProcessBtn");
 const cancelProcessBtn = document.getElementById("cancelProcessBtn");
 const mixerSection = document.getElementById("mixerSection");
 const newSeparationBtn = document.getElementById("newSeparationBtn");
+
+const controlPanel = document.getElementById("controlPanel");
+const masterSeekbar = document.getElementById("masterSeekbar");
+const currentTimeDisplay = document.getElementById("currentTimeDisplay");
+const totalTimeDisplay = document.getElementById("totalTimeDisplay");
+const viewMixerBtn = document.getElementById("viewMixerBtn");
+const viewTimelineBtn = document.getElementById("viewTimelineBtn");
+const timelineTracksList = document.getElementById("timelineTracksList");
 
 // --- Eventos Click y Drag & Drop para Carga ---
 window.handleUploadClick = function() {
@@ -367,12 +377,16 @@ function resetAudio() {
     zipBlob = null;
     currentPreviewTrack = null;
     
-    if (masterControls) masterControls.classList.add("hidden");
+    if (controlPanel) controlPanel.classList.add("hidden");
     
     if (resultsSection) resultsSection.classList.add("hidden");
     if (resultsList) resultsList.innerHTML = "";
     
     if (mixerSection) mixerSection.classList.add("hidden");
+    if (timelineTracksList) timelineTracksList.innerHTML = "";
+    
+    waveformsRendered = false;
+    switchView("mixer");
     
     resetToUploadState();
     
@@ -402,6 +416,7 @@ async function decodeAndSetupMixer(blob) {
         resultsList.innerHTML = "";
         duration = 0;
 
+        if (timelineTracksList) timelineTracksList.innerHTML = "";
         for (const stemId of Object.keys(STEMS_CONFIG)) {
             // Verificar si el archivo en el ZIP tiene formato .mp3 o .wav
             let fileExtension = "mp3";
@@ -443,6 +458,7 @@ async function decodeAndSetupMixer(blob) {
             });
 
             createTrackUI(stemId);
+            createTimelineTrackUI(stemId);
             createResultUI(stemId);
         }
 
@@ -500,6 +516,7 @@ async function decodeAndSetupMixer(blob) {
                 };
                 
                 createTrackUI("metronome");
+                createTimelineTrackUI("metronome");
                 createResultUI("metronome");
                 
                 // Establecer slider del metrónomo a 0 en la interfaz
@@ -515,8 +532,8 @@ async function decodeAndSetupMixer(blob) {
         
         processing.classList.add("hidden");
         if (mixerSection) mixerSection.classList.remove("hidden");
+        if (controlPanel) controlPanel.classList.remove("hidden");
         resultsSection.classList.remove("hidden");
-        masterControls.classList.remove("hidden");
 
         // Activar la animación de vúmetros
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -648,6 +665,13 @@ function setTrackVolume(id, volume) {
     if (tracks[id]) {
         tracks[id].volume = volume;
         updateTrackGains();
+        
+        // Sincronizar sliders en ambas vistas
+        const mixerSlider = document.getElementById(`fader-${id}`);
+        const timelineSlider = document.getElementById(`fader-timeline-${id}`);
+        const pctVal = Math.round(volume * 100);
+        if (mixerSlider && mixerSlider.value != pctVal) mixerSlider.value = pctVal;
+        if (timelineSlider && timelineSlider.value != pctVal) timelineSlider.value = pctVal;
     }
 }
 
@@ -657,13 +681,20 @@ function toggleMute(id) {
     tracks[id].isMuted = !tracks[id].isMuted;
     
     const muteBtn = document.getElementById(`mute-${id}`);
-    if (tracks[id].isMuted) {
-        muteBtn.classList.add("bg-red-600", "text-white", "border-red-500");
-        muteBtn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
-    } else {
-        muteBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
-        muteBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
-    }
+    const muteTimelineBtn = document.getElementById(`mute-timeline-${id}`);
+    
+    const setMuteStyle = (btn) => {
+        if (!btn) return;
+        if (tracks[id].isMuted) {
+            btn.classList.add("bg-red-600", "text-white", "border-red-500");
+            btn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        } else {
+            btn.classList.remove("bg-red-600", "text-white", "border-red-500");
+            btn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        }
+    };
+    setMuteStyle(muteBtn);
+    setMuteStyle(muteTimelineBtn);
     
     updateTrackGains();
 }
@@ -673,13 +704,20 @@ function toggleSolo(id) {
     tracks[id].isSoloed = !tracks[id].isSoloed;
     
     const soloBtn = document.getElementById(`solo-${id}`);
-    if (tracks[id].isSoloed) {
-        soloBtn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
-        soloBtn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
-    } else {
-        soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
-        soloBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
-    }
+    const soloTimelineBtn = document.getElementById(`solo-timeline-${id}`);
+    
+    const setSoloStyle = (btn) => {
+        if (!btn) return;
+        if (tracks[id].isSoloed) {
+            btn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
+            btn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        } else {
+            btn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+            btn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        }
+    };
+    setSoloStyle(soloBtn);
+    setSoloStyle(soloTimelineBtn);
     
     updateTrackGains();
 }
@@ -824,10 +862,12 @@ function updatePreviewButtons() {
 
 function updateMasterPlayBtn() {
     if (isPlaying && !currentPreviewTrack) {
-        masterPlayBtn.innerHTML = `${ICONS_SVG.pause} PAUSAR`;
+        masterPlayBtn.innerHTML = `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> PAUSAR`;
         masterPlayBtn.classList.add("bg-zinc-800");
+        masterPlayBtn.classList.remove("bg-red-600");
     } else {
-        masterPlayBtn.innerHTML = `${ICONS_SVG.play_arrow} REPRODUCIR`;
+        masterPlayBtn.innerHTML = `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> REPRODUCIR`;
+        masterPlayBtn.classList.add("bg-red-600");
         masterPlayBtn.classList.remove("bg-zinc-800");
     }
 }
@@ -852,9 +892,7 @@ resetMixerBtn.addEventListener("click", () => {
     for (const id of Object.keys(tracks)) {
         const defaultVol = (id === "metronome") ? 0.0 : 0.8;
         setTrackVolume(id, defaultVol);
-        const fader = document.getElementById(`fader-${id}`);
-        if (fader) fader.value = defaultVol * 100;
-
+        
         tracks[id].isMuted = false;
         tracks[id].isSoloed = false;
 
@@ -868,6 +906,18 @@ resetMixerBtn.addEventListener("click", () => {
         if (soloBtn) {
             soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
             soloBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        }
+
+        const muteTimelineBtn = document.getElementById(`mute-timeline-${id}`);
+        if (muteTimelineBtn) {
+            muteTimelineBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
+            muteTimelineBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        }
+
+        const soloTimelineBtn = document.getElementById(`solo-timeline-${id}`);
+        if (soloTimelineBtn) {
+            soloTimelineBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+            soloTimelineBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
         }
     }
     updateTrackGains();
@@ -894,51 +944,104 @@ function drawMeters() {
         return;
     }
 
+    // Actualizar seekbar y visualización de tiempo maestro
+    const firstTrack = Object.keys(tracks)[0];
+    if (firstTrack && tracks[firstTrack].audio) {
+        const currentPos = tracks[firstTrack].audio.currentTime;
+        playOffset = currentPos;
+        
+        if (currentTimeDisplay) {
+            currentTimeDisplay.textContent = formatTime(currentPos);
+        }
+        if (totalTimeDisplay && duration) {
+            totalTimeDisplay.textContent = formatTime(duration);
+        }
+        if (masterSeekbar && duration) {
+            masterSeekbar.value = (currentPos / duration) * 100;
+        }
+
+        // Si terminó la canción, reiniciar
+        if (currentPos >= duration - 0.05 && duration > 0) {
+            pauseTracks();
+            playOffset = 0;
+            for (const t of Object.values(tracks)) {
+                if (t.audio) t.audio.currentTime = 0;
+            }
+            updateMasterPlayBtn();
+        }
+    }
+
     for (const [id, track] of Object.entries(tracks)) {
+        // 1. Dibujar VU Meter clásico
         const canvas = track.canvas;
         const ctx = track.ctx;
-        if (!canvas || !ctx) continue;
+        if (canvas && ctx) {
+            const analyser = track.analyser;
+            const dataArray = track.dataArray;
+            analyser.getByteFrequencyData(dataArray);
 
-        const analyser = track.analyser;
-        const dataArray = track.dataArray;
-        analyser.getByteFrequencyData(dataArray);
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            ctx.clearRect(0, 0, width, height);
 
-        const width = canvas.width;
-        const height = canvas.height;
-        
-        ctx.clearRect(0, 0, width, height);
+            let sum = 0;
+            const bufferLength = dataArray.length;
+            for (let i = 0; i < bufferLength; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / bufferLength;
+            
+            const fillPercent = Math.min(1.0, (average / 200) * 1.25); 
 
-        let sum = 0;
-        const bufferLength = dataArray.length;
-        for (let i = 0; i < bufferLength; i++) {
-            sum += dataArray[i];
+            ctx.fillStyle = "#09090b";
+            ctx.fillRect(0, 0, width, height);
+
+            if (fillPercent > 0) {
+                const gain = track.gainNode ? track.gainNode.gain.value : 1.0;
+                const fillHeight = height * fillPercent * Math.min(gain, 1.2);
+
+                ctx.fillStyle = track.gradient;
+                ctx.fillRect(0, height - fillHeight, width, fillHeight);
+            }
+
+            ctx.strokeStyle = "#121214"; 
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let y = 0; y < height; y += 4) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+            }
+            ctx.stroke();
         }
-        const average = sum / bufferLength;
-        
-        // Calibración de sensibilidad
-        const fillPercent = Math.min(1.0, (average / 200) * 1.25); 
 
-        // Dibujar fondo de vúmetro
-        ctx.fillStyle = "#09090b";
-        ctx.fillRect(0, 0, width, height);
-
-        if (fillPercent > 0) {
-            const gain = track.gainNode ? track.gainNode.gain.value : 1.0;
-            const fillHeight = height * fillPercent * Math.min(gain, 1.2);
-
-            ctx.fillStyle = track.gradient;
-            ctx.fillRect(0, height - fillHeight, width, fillHeight);
+        // 2. Dibujar aguja de reproducción (playhead) en la vista de línea de tiempo
+        const timelineCanvas = document.getElementById(`canvas-timeline-${id}`);
+        if (timelineCanvas && timelineCanvas.waveformImage) {
+            const tCtx = timelineCanvas.getContext("2d");
+            const w = timelineCanvas.width;
+            const h = timelineCanvas.height;
+            
+            // Restablecer la onda limpia
+            tCtx.putImageData(timelineCanvas.waveformImage, 0, 0);
+            
+            // Calcular posición del cursor
+            const playPercent = playOffset / duration;
+            const cursorX = w * playPercent;
+            
+            // Dibujar línea de cursor vertical roja con brillo neón
+            tCtx.strokeStyle = "#ffffff";
+            tCtx.lineWidth = 1.5;
+            tCtx.shadowColor = "#ef4444";
+            tCtx.shadowBlur = 4;
+            tCtx.beginPath();
+            tCtx.moveTo(cursorX, 0);
+            tCtx.lineTo(cursorX, h);
+            tCtx.stroke();
+            
+            // Restablecer efectos de sombra
+            tCtx.shadowBlur = 0;
         }
-
-        // Divisiones de los segmentos LED (Optimizado: un solo draw call)
-        ctx.strokeStyle = "#121214"; 
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        for (let y = 0; y < height; y += 4) {
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-        }
-        ctx.stroke();
     }
 
     animationFrameId = requestAnimationFrame(drawMeters);
@@ -949,21 +1052,28 @@ function clearMeter(id) {
     if (!track) return;
     const canvas = track.canvas;
     const ctx = track.ctx;
-    if (!canvas || !ctx) return;
-    const width = canvas.width;
-    const height = canvas.height;
-    ctx.fillStyle = "#09090b";
-    ctx.fillRect(0, 0, width, height);
-    
-    // Dibujar divisiones inactivas (Optimizado: un solo draw call)
-    ctx.strokeStyle = "#121214";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    for (let y = 0; y < height; y += 4) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+    if (canvas && ctx) {
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.fillStyle = "#09090b";
+        ctx.fillRect(0, 0, width, height);
+        
+        ctx.strokeStyle = "#121214";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let y = 0; y < height; y += 4) {
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+        }
+        ctx.stroke();
     }
-    ctx.stroke();
+
+    // Limpiar también el cursor de la línea de tiempo a su posición inicial
+    const timelineCanvas = document.getElementById(`canvas-timeline-${id}`);
+    if (timelineCanvas && timelineCanvas.waveformImage) {
+        const tCtx = timelineCanvas.getContext("2d");
+        tCtx.putImageData(timelineCanvas.waveformImage, 0, 0);
+    }
 }
 
 // --- Evento de Descarga de Mezcla Personalizada ---
@@ -1376,5 +1486,247 @@ if (cancelProcessBtn) {
 if (newSeparationBtn) {
     newSeparationBtn.addEventListener("click", () => {
         resetAudio();
+    });
+}
+
+// --- Soporte de Línea de Tiempo y Audio Waveform (DAW Style) ---
+
+function formatTime(secs) {
+    if (isNaN(secs) || secs === Infinity) return "0:00";
+    const minutes = Math.floor(secs / 60);
+    const seconds = Math.floor(secs % 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function createTimelineTrackUI(id) {
+    const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
+    let displayName = config.name.toUpperCase();
+    
+    if (id === "metronome" && tracks.metronome && tracks.metronome.bpm) {
+        displayName += ` (${tracks.metronome.bpm.toFixed(1)} BPM)`;
+    }
+
+    const timelineHtml = `
+        <div class="flex flex-col md:flex-row items-stretch md:items-center bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 gap-4 w-full shadow-lg hover:border-red-500/35 transition-all duration-300" data-track-id="${id}">
+            <!-- 1. Track Info (Icon & Title) -->
+            <div class="flex items-center gap-3 w-full md:w-44 shrink-0">
+                <div class="text-red-500 text-xl flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-zinc-300 truncate">${displayName}</span>
+            </div>
+
+            <!-- 2. Vol, Mute & Solo Controls -->
+            <div class="flex items-center gap-4 w-full md:w-60 shrink-0">
+                <!-- Mute / Solo -->
+                <div class="flex gap-1">
+                    <button id="mute-timeline-${id}" class="py-1.5 px-3 bg-zinc-950 border border-zinc-800 text-[9px] font-black tracking-widest text-zinc-400 hover:text-white rounded-lg transition-all">MUTE</button>
+                    <button id="solo-timeline-${id}" class="py-1.5 px-3 bg-zinc-950 border border-zinc-800 text-[9px] font-black tracking-widest text-zinc-400 hover:text-white rounded-lg transition-all">SOLO</button>
+                </div>
+                <!-- Volume Fader -->
+                <div class="flex-1 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-zinc-500 fill-current" viewBox="0 0 24 24"><path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>
+                    <input class="w-full h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer outline-none accent-red-500" id="fader-timeline-${id}" max="100" min="0" type="range" value="80"/>
+                </div>
+            </div>
+
+            <!-- 3. Waveform Timeline Canvas -->
+            <div class="flex-1 bg-zinc-950/80 rounded-xl border border-zinc-900/60 h-16 relative overflow-hidden flex items-center">
+                <canvas class="w-full h-full block" id="canvas-timeline-${id}" height="64" style="height: 64px; width: 100%;"></canvas>
+            </div>
+        </div>
+    `;
+    
+    timelineTracksList.insertAdjacentHTML("beforeend", timelineHtml);
+
+    // Bind slider
+    const slider = document.getElementById(`fader-timeline-${id}`);
+    if (slider) {
+        slider.addEventListener("input", (e) => {
+            const val = parseInt(e.target.value) / 100;
+            setTrackVolume(id, val);
+        });
+    }
+
+    // Bind Mute
+    const muteBtn = document.getElementById(`mute-timeline-${id}`);
+    if (muteBtn) {
+        muteBtn.addEventListener("click", () => {
+            toggleMute(id);
+        });
+    }
+
+    // Bind Solo
+    const soloBtn = document.getElementById(`solo-timeline-${id}`);
+    if (soloBtn) {
+        soloBtn.addEventListener("click", () => {
+            toggleSolo(id);
+        });
+    }
+
+    // Bind click on canvas for seeking
+    const canvas = document.getElementById(`canvas-timeline-${id}`);
+    if (canvas) {
+        canvas.addEventListener("click", (e) => {
+            if (!duration) return;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickPercent = clickX / rect.width;
+            const newTime = clickPercent * duration;
+            playOffset = newTime;
+            
+            // Sincronizar todos los audios
+            for (const track of Object.values(tracks)) {
+                if (track.audio) {
+                    track.audio.currentTime = newTime;
+                }
+            }
+            
+            if (currentTimeDisplay) {
+                currentTimeDisplay.textContent = formatTime(newTime);
+            }
+            if (masterSeekbar) {
+                masterSeekbar.value = clickPercent * 100;
+            }
+        });
+    }
+}
+
+function switchView(viewName) {
+    activeView = viewName;
+    if (viewName === "mixer") {
+        if (trackList) trackList.classList.remove("hidden");
+        if (timelineTracksList) timelineTracksList.classList.add("hidden");
+        
+        if (viewMixerBtn) {
+            viewMixerBtn.classList.add("bg-zinc-900", "border-zinc-800", "text-white");
+            viewMixerBtn.classList.remove("text-zinc-500");
+        }
+        if (viewTimelineBtn) {
+            viewTimelineBtn.classList.remove("bg-zinc-900", "border-zinc-800", "text-white");
+            viewTimelineBtn.classList.add("text-zinc-500");
+        }
+    } else {
+        if (trackList) trackList.classList.add("hidden");
+        if (timelineTracksList) timelineTracksList.classList.remove("hidden");
+        
+        if (viewTimelineBtn) {
+            viewTimelineBtn.classList.add("bg-zinc-900", "border-zinc-800", "text-white");
+            viewTimelineBtn.classList.remove("text-zinc-500");
+        }
+        if (viewMixerBtn) {
+            viewMixerBtn.classList.remove("bg-zinc-900", "border-zinc-800", "text-white");
+            viewMixerBtn.classList.add("text-zinc-500");
+        }
+        
+        // Render waveforms when switching to timeline view if not already rendered
+        if (!waveformsRendered) {
+            renderAllWaveforms();
+        }
+    }
+}
+
+async function renderAllWaveforms() {
+    waveformsRendered = true;
+    for (const [id, track] of Object.entries(tracks)) {
+        const canvas = document.getElementById(`canvas-timeline-${id}`);
+        if (!canvas) continue;
+        
+        const ctx = canvas.getContext("2d");
+        const w = canvas.width = canvas.parentElement.clientWidth || 600;
+        const h = canvas.height = 64;
+        
+        ctx.fillStyle = "#09090b";
+        ctx.fillRect(0, 0, w, h);
+        ctx.font = "10px monospace";
+        ctx.fillStyle = "#ef4444";
+        ctx.fillText("DECODIFICANDO ONDA...", 20, 36);
+        
+        drawWaveformFromBlob(track.blobUrl, canvas, ctx);
+    }
+}
+
+async function drawWaveformFromBlob(blobUrl, canvas, ctx) {
+    try {
+        const res = await fetch(blobUrl);
+        const arrayBuffer = await res.arrayBuffer();
+        
+        const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
+        tempCtx.close();
+        
+        const w = canvas.width;
+        const h = canvas.height;
+        const data = audioBuffer.getChannelData(0);
+        const step = Math.ceil(data.length / w);
+        const amp = h / 2;
+        
+        ctx.fillStyle = "#09090b";
+        ctx.fillRect(0, 0, w, h);
+        
+        ctx.strokeStyle = "#18181b";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, h/2);
+        ctx.lineTo(w, h/2);
+        ctx.stroke();
+        
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let i = 0; i < w; i++) {
+            let min = 1.0;
+            let max = -1.0;
+            const start = i * step;
+            const end = start + step;
+            for (let j = start; j < end; j++) {
+                const val = data[j];
+                if (val < min) min = val;
+                if (val > max) max = val;
+            }
+            ctx.moveTo(i, amp + min * amp * 0.85);
+            ctx.lineTo(i, amp + max * amp * 0.85);
+        }
+        ctx.stroke();
+        
+        canvas.waveformImage = ctx.getImageData(0, 0, w, h);
+        
+    } catch (err) {
+        console.error("Error al renderizar forma de onda:", err);
+        ctx.fillStyle = "#09090b";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#52525b";
+        ctx.fillText("FORMA DE ONDA NO DISPONIBLE", 20, 36);
+    }
+}
+
+// Bind seekbar input event
+if (masterSeekbar) {
+    masterSeekbar.addEventListener("input", (e) => {
+        if (!duration) return;
+        const targetPercent = parseFloat(e.target.value) / 100;
+        const newTime = targetPercent * duration;
+        playOffset = newTime;
+        
+        for (const track of Object.values(tracks)) {
+            if (track.audio) {
+                track.audio.currentTime = newTime;
+            }
+        }
+        
+        if (currentTimeDisplay) {
+            currentTimeDisplay.textContent = formatTime(newTime);
+        }
+    });
+}
+
+// Bind View toggles
+if (viewMixerBtn) {
+    viewMixerBtn.addEventListener("click", () => {
+        switchView("mixer");
+    });
+}
+
+if (viewTimelineBtn) {
+    viewTimelineBtn.addEventListener("click", () => {
+        switchView("timeline");
     });
 }

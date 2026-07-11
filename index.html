@@ -148,45 +148,72 @@
             <div class="absolute -right-32 -top-32 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
             <!-- Console Header -->
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-zinc-800/80 w-full">
-                <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div>
-                        <h2 class="text-sm font-bold tracking-widest text-zinc-400 uppercase">Consola de Mezcla IA</h2>
-                        <p class="text-xs text-zinc-500 font-mono mt-0.5" id="fileMeta">SIN ARCHIVO CARGADO</p>
-                    </div>
-                    <button id="newSeparationBtn" class="px-4 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-red-500/40 text-red-500 hover:text-white font-mono text-[10px] font-black tracking-widest rounded-lg transition-colors flex items-center gap-1.5 btn-tactile">
-                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> NUEVA SEPARACIÓN
-                    </button>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-zinc-800/80 w-full">
+                <div>
+                    <h2 class="text-sm font-bold tracking-widest text-zinc-400 uppercase">Consola de Mezcla IA</h2>
+                    <p class="text-xs text-zinc-500 font-mono mt-0.5" id="fileMeta">SIN ARCHIVO CARGADO</p>
                 </div>
-                
-                <!-- Master controls -->
-                <div id="masterControls" class="flex flex-wrap items-center gap-3 hidden">
-                    <button id="masterPlayBtn" class="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs tracking-widest rounded-xl transition-all duration-300 shadow-lg shadow-red-600/25 flex items-center gap-2 btn-tactile">
-                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> REPRODUCIR
-                    </button>
-                    <button id="masterRewindBtn" class="p-2 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded-xl transition-colors btn-tactile" title="Retroceder al Inicio">
-                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12.5 11.5l5 3.5v-7l-5 3.5zm-6 0l5 3.5v-7l-5 3.5z"/></svg>
-                    </button>
-                    <button id="resetMixerBtn" class="p-2 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded-xl transition-colors btn-tactile" title="Reiniciar Mezcla">
-                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
-                    </button>
-                    <button id="downloadMixBtn" class="px-5 py-2.5 bg-zinc-800 border border-zinc-800 hover:bg-zinc-700 hover:border-zinc-700 text-white font-bold text-xs tracking-widest rounded-xl transition-colors flex items-center gap-2 btn-tactile">
-                        <svg class="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"/></svg> DESCARGAR MEZCLA
-                    </button>
-                    <button id="downloadZipBtn" class="px-5 py-2.5 bg-white text-zinc-950 font-bold text-xs tracking-widest rounded-xl hover:bg-zinc-200 transition-colors flex items-center gap-2 btn-tactile">
-                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> DESCARGAR TODO
-                    </button>
+                <button id="newSeparationBtn" class="px-4 py-1.5 bg-zinc-900 border border-zinc-850 hover:border-red-500/40 text-red-500 hover:text-white font-mono text-[10px] font-black tracking-widest rounded-lg transition-colors flex items-center gap-1.5 btn-tactile">
+                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> NUEVA SEPARACIÓN
+                </button>
+            </div>
+
+            <!-- Panel de Control Unificado (Transporte, Seekbar y Vistas) -->
+            <div id="controlPanel" class="flex flex-col gap-4 border-b border-zinc-900/60 pb-5 hidden">
+                <!-- 1. Seekbar Fila Superior -->
+                <div class="w-full flex items-center gap-4 bg-zinc-950/60 border border-zinc-900 p-3.5 rounded-2xl shadow-inner">
+                    <span id="currentTimeDisplay" class="font-mono text-xs text-zinc-400 font-bold select-none min-w-[45px] text-right">0:00</span>
+                    <div class="relative flex-1 h-5 flex items-center group cursor-pointer">
+                        <input type="range" id="masterSeekbar" min="0" max="100" value="0" class="w-full h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer outline-none accent-red-500 group-hover:h-1.5 transition-all"/>
+                    </div>
+                    <span id="totalTimeDisplay" class="font-mono text-xs text-zinc-400 font-bold select-none min-w-[45px]">0:00</span>
+                </div>
+
+                <!-- 2. Botones de Control y Vistas -->
+                <div class="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+                    <!-- Transport (Reproducción) -->
+                    <div class="flex items-center gap-2">
+                        <button id="masterPlayBtn" class="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs tracking-widest rounded-xl transition-all duration-300 shadow-lg shadow-red-600/20 flex items-center gap-2 btn-tactile">
+                            <svg id="playBtnIcon" class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> <span id="playBtnText">REPRODUCIR</span>
+                        </button>
+                        <button id="masterRewindBtn" class="p-2.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded-xl transition-colors btn-tactile" title="Retroceder al Inicio">
+                            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12.5 11.5l5 3.5v-7l-5 3.5zm-6 0l5 3.5v-7l-5 3.5z"/></svg>
+                        </button>
+                        <button id="resetMixerBtn" class="p-2.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white rounded-xl transition-colors btn-tactile" title="Reiniciar Mezcla">
+                            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- Selector de Vista (Mixer vs Timeline) -->
+                    <div class="flex bg-zinc-950 border border-zinc-900 p-1 rounded-xl self-center shadow-inner">
+                        <button id="viewMixerBtn" class="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all bg-zinc-900 border border-zinc-800 text-white" type="button">
+                            MEZCLADOR
+                        </button>
+                        <button id="viewTimelineBtn" class="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest text-zinc-500 hover:text-white transition-all" type="button">
+                            LÍNEA DE TIEMPO
+                        </button>
+                    </div>
+
+                    <!-- Descargas -->
+                    <div class="flex items-center gap-2">
+                        <button id="downloadMixBtn" class="px-5 py-2.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 text-white font-bold text-xs tracking-widest rounded-xl transition-colors flex items-center gap-2 btn-tactile">
+                            <svg class="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"/></svg> DESCARGAR MEZCLA
+                        </button>
+                        <button id="downloadZipBtn" class="px-5 py-2.5 bg-white text-zinc-950 font-bold text-xs tracking-widest rounded-xl hover:bg-zinc-200 transition-colors flex items-center gap-2 btn-tactile">
+                            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> DESCARGAR TODO
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Mixer Grid containing the 6 channels -->
+            <!-- Vista 1: Mezclador Clásico Vertical (Se muestra por defecto) -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 py-2" id="trackList">
-                <!-- Clean placeholder shown initially -->
-                <div class="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800/40 rounded-2xl bg-zinc-900/10">
-                    <svg class="w-8 h-8 mb-3 text-zinc-600 fill-current" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                    <p class="text-sm font-semibold text-zinc-400">Carga un archivo de audio para activar la consola de mezcla.</p>
-                    <p class="text-xs text-zinc-600 mt-1">AuraSplit aislará de forma inteligente las voces e instrumentos.</p>
-                </div>
+                <!-- Se rellena dinámicamente -->
+            </div>
+
+            <!-- Vista 2: Línea de Tiempo DAW Horizontal (Oculto por defecto) -->
+            <div class="flex flex-col gap-4 py-2 hidden" id="timelineTracksList">
+                <!-- Se rellena dinámicamente -->
             </div>
         </section>
 
