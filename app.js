@@ -1640,54 +1640,35 @@ async function renderAllWaveforms() {
         ctx.fillStyle = "#ef4444";
         ctx.fillText("DECODIFICANDO ONDA...", 20, 36);
         
-        drawWaveformFromBlob(track.blobUrl, canvas, ctx);
+        // Decodificar secuencialmente y dar un respiro al hilo principal de la interfaz
+        await drawWaveformFromBlob(id, track.blobUrl, canvas, ctx);
+        await new Promise(resolve => setTimeout(resolve, 30));
     }
 }
 
-async function drawWaveformFromBlob(blobUrl, canvas, ctx) {
+async function drawWaveformFromBlob(id, blobUrl, canvas, ctx) {
+    const track = tracks[id];
+    if (!track) return;
+
+    // 1. Dibujar instantáneamente si ya tenemos el buffer en caché
+    if (track.audioBuffer) {
+        drawWaveformFromBuffer(track.audioBuffer, canvas, ctx);
+        return;
+    }
+
     try {
         const res = await fetch(blobUrl);
         const arrayBuffer = await res.arrayBuffer();
         
-        const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // 2. Usar OfflineAudioContext que corre en segundo plano y no despierta hardware
+        const OfflineContextClass = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        const tempCtx = new OfflineContextClass(1, 1, 44100);
         const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
-        tempCtx.close();
         
-        const w = canvas.width;
-        const h = canvas.height;
-        const data = audioBuffer.getChannelData(0);
-        const step = Math.ceil(data.length / w);
-        const amp = h / 2;
+        // Guardar en la caché global del track
+        track.audioBuffer = audioBuffer;
         
-        ctx.fillStyle = "#09090b";
-        ctx.fillRect(0, 0, w, h);
-        
-        ctx.strokeStyle = "#18181b";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, h/2);
-        ctx.lineTo(w, h/2);
-        ctx.stroke();
-        
-        ctx.strokeStyle = "#ef4444";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        for (let i = 0; i < w; i++) {
-            let min = 1.0;
-            let max = -1.0;
-            const start = i * step;
-            const end = start + step;
-            for (let j = start; j < end; j++) {
-                const val = data[j];
-                if (val < min) min = val;
-                if (val > max) max = val;
-            }
-            ctx.moveTo(i, amp + min * amp * 0.85);
-            ctx.lineTo(i, amp + max * amp * 0.85);
-        }
-        ctx.stroke();
-        
-        canvas.waveformImage = ctx.getImageData(0, 0, w, h);
+        drawWaveformFromBuffer(audioBuffer, canvas, ctx);
         
     } catch (err) {
         console.error("Error al renderizar forma de onda:", err);
@@ -1696,6 +1677,60 @@ async function drawWaveformFromBlob(blobUrl, canvas, ctx) {
         ctx.fillStyle = "#52525b";
         ctx.fillText("FORMA DE ONDA NO DISPONIBLE", 20, 36);
     }
+}
+
+function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
+    const w = canvas.width;
+    const h = canvas.height;
+    const data = audioBuffer.getChannelData(0);
+    const step = Math.ceil(data.length / w);
+    const amp = h / 2;
+    
+    ctx.fillStyle = "#09090b";
+    ctx.fillRect(0, 0, w, h);
+    
+    // Eje central de la pista
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h/2);
+    ctx.lineTo(w, h/2);
+    ctx.stroke();
+    
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    
+    // Optimización crítica: Downsampling usando un stride (paso de muestras)
+    // No necesitamos leer los 10 millones de muestras, 100-200 picos por píxel son más que suficientes
+    const maxSamplesPerPixel = 100;
+    const stride = Math.max(1, Math.floor(step / maxSamplesPerPixel));
+    
+    for (let i = 0; i < w; i++) {
+        let min = 1.0;
+        let max = -1.0;
+        const start = i * step;
+        const end = Math.min(start + step, data.length);
+        
+        for (let j = start; j < end; j += stride) {
+            const val = data[j];
+            if (val < min) min = val;
+            if (val > max) max = val;
+        }
+        
+        // Si no hay ondas de sonido válidas en este bloque
+        if (min === 1.0 && max === -1.0) {
+            min = 0;
+            max = 0;
+        }
+        
+        ctx.moveTo(i, amp + min * amp * 0.85);
+        ctx.lineTo(i, amp + max * amp * 0.85);
+    }
+    ctx.stroke();
+    
+    // Almacenar los datos de imagen renderizados para redibujados instantáneos de UI
+    canvas.waveformImage = ctx.getImageData(0, 0, w, h);
 }
 
 // Bind seekbar input event
