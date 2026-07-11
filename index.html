@@ -4,7 +4,81 @@
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <meta name="google-site-verification" content="XNN5sk8A24xvvwFqbmVedvaAIvIzo9sWKfj1K04aVPY" />
-    <title>AuraSplit | Separación de Audio por IA de Alta Precisión</title>
+    <title>AuraSplit | Separar Voces y Pistas de Audio con IA Gratis</title>
+    <meta name="description" content="Separa voces, batería, bajo y otros instrumentos de cualquier canción con AuraSplit. Separación de audio con IA de alta precisión usando Demucs v4. ¡Gratis y rápido!"/>
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:title" content="AuraSplit | Separar Voces y Pistas de Audio con IA Gratis"/>
+    <meta property="og:description" content="Separa voces, batería, bajo y otros instrumentos de cualquier canción con AuraSplit. Separación de audio con IA de alta precisión usando Demucs v4. ¡Gratis y rápido!"/>
+    <meta property="og:image" content="https://aurasplit.vercel.app/AuraSplit.png"/>
+    <meta property="og:url" content="https://aurasplit.vercel.app/"/>
+    <meta property="og:type" content="website"/>
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="AuraSplit | Separar Voces y Pistas de Audio con IA Gratis"/>
+    <meta name="twitter:description" content="Separa voces, batería, bajo y otros instrumentos de cualquier canción con AuraSplit. Separación de audio con IA de alta precisión usando Demucs v4. ¡Gratis y rápido!"/>
+    <meta name="twitter:image" content="https://aurasplit.vercel.app/AuraSplit.png"/>
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://aurasplit.vercel.app/"/>
+
+    <!-- Structured Data JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "AuraSplit",
+      "operatingSystem": "All",
+      "applicationCategory": "MultimediaApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "Aplicación web gratuita basada en IA para la separación de audio y creación de stems (voces, batería, bajo, piano, guitarra). Utiliza el modelo Demucs v4."
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿AuraSplit es totalmente gratuito?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí, AuraSplit es una plataforma gratuita sustentada en infraestructura de código abierto. Puedes procesar tus canciones sin coste alguno."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Qué es la separación de audio por IA de Demucs?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Demucs v4 es un modelo de red neuronal de código abierto desarrollado por Meta Research diseñado para dividir pistas de audio mezcladas en canales individuales (voces, batería, bajo, otros) con excelente calidad de sonido."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Puedo descargar las voces por separado?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí, el canal de la voz se aísla de forma independiente para que puedas descargar la voz limpia (a cappella) por separado."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Qué formatos de audio se pueden subir?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "La plataforma soporta formatos populares como MP3, WAV, FLAC, OGG y M4A."
+          }
+        }
+      ]
+    }
+    </script>
     <!-- Vercel Web Analytics -->
     <script>
       window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
@@ -57,6 +131,7 @@
     </header>
 
     <main class="flex-1 mt-28 px-6 md:px-12 mb-16 max-w-7xl mx-auto w-full space-y-8">
+        <h1 class="sr-only">AuraSplit | Separación de Voces y Pistas de Audio con Inteligencia Artificial</h1>
         <!-- Hero Dropzone -->
         <section class="relative" id="dropzone">
             <div class="absolute inset-0 bg-red-600/5 blur-2xl rounded-3xl pointer-events-none"></div>
@@ -224,6 +299,61 @@
             </div>
             <div class="divide-y divide-zinc-800/50" id="resultsList">
                 <!-- Dynamic Results List -->
+            </div>
+        </section>
+
+        <!-- Sección Informativa de Contenido y FAQ para SEO y GEO -->
+        <section class="bg-zinc-900/20 border border-zinc-800/40 rounded-3xl p-6 md:p-8 space-y-8" id="seoContentSection">
+            <div class="space-y-4 max-w-3xl">
+                <h2 class="text-xl font-extrabold text-white tracking-wide">Separador de Voces y Pistas de Audio con IA</h2>
+                <p class="text-sm text-zinc-400 leading-relaxed">
+                    AuraSplit es una herramienta web gratuita diseñada para músicos, productores y creadores de contenido que necesitan <strong>separar voces e instrumentos de cualquier canción</strong> con calidad de estudio. Mediante el uso del avanzado algoritmo de inteligencia artificial <strong>Demucs v4</strong>, nuestra plataforma extrae y divide el audio de forma rápida y precisa en canales individuales o <em>stems</em>.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-zinc-900/60">
+                <!-- Cómo Funciona -->
+                <div class="space-y-3">
+                    <h3 class="text-sm font-bold tracking-widest text-red-500 uppercase">¿Cómo separar el audio en pistas?</h3>
+                    <ol class="list-decimal list-inside text-xs text-zinc-400 space-y-2 leading-relaxed">
+                        <li><strong class="text-zinc-200">Sube tu archivo:</strong> Arrastra o selecciona un archivo de audio (WAV, MP3, FLAC, OGG o M4A).</li>
+                        <li><strong class="text-zinc-200">Elige la configuración:</strong> Selecciona el modelo de separación (4 canales rápidos o 6 canales completos) y el formato de salida deseado.</li>
+                        <li><strong class="text-zinc-200">Procesa y descarga:</strong> Inicia el proceso de IA. Una vez terminado, mezcla los canales a tu gusto en la consola web o descarga todos los stems individuales en un archivo ZIP.</li>
+                    </ol>
+                </div>
+
+                <!-- Detalles Técnicos -->
+                <div class="space-y-3">
+                    <h3 class="text-sm font-bold tracking-widest text-red-500 uppercase">Detalles Técnicos y Modelos</h3>
+                    <ul class="list-disc list-inside text-xs text-zinc-400 space-y-2 leading-relaxed">
+                        <li><strong class="text-zinc-200">Modelos de IA:</strong> HTDemucs (Voces, Batería, Bajo, Otros) y HTDemucs_6s (añade Guitarra y Piano).</li>
+                        <li><strong class="text-zinc-200">Formatos soportados:</strong> Descarga inmediata en MP3 a 320 kbps o descarga en WAV sin pérdidas a 16-bit PCM.</li>
+                        <li><strong class="text-zinc-200">Seguridad:</strong> El procesamiento se realiza de forma segura y temporal en nuestros servidores en la nube.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- FAQs -->
+            <div class="pt-6 border-t border-zinc-900/60 space-y-6">
+                <h3 class="text-sm font-bold tracking-widest text-zinc-400 uppercase">Preguntas Frecuentes (FAQ)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-semibold text-white">¿AuraSplit es totalmente gratuito?</h4>
+                        <p class="text-xs text-zinc-400 leading-relaxed">Sí, AuraSplit es una plataforma gratuita sustentada en infraestructura de código abierto. Puedes procesar tus canciones sin coste alguno.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-semibold text-white">¿Qué es la separación de audio por IA de Demucs?</h4>
+                        <p class="text-xs text-zinc-400 leading-relaxed">Demucs v4 es un modelo de red neuronal de código abierto desarrollado por Meta Research diseñado para dividir pistas de audio mezcladas en canales individuales (voces, batería, bajo, otros) con excelente calidad de sonido.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-semibold text-white">¿Puedo descargar las voces por separado?</h4>
+                        <p class="text-xs text-zinc-400 leading-relaxed">Sí, el canal de la voz se aísla de forma independiente para que puedas descargar la voz limpia (a cappella) por separado.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-semibold text-white">¿Qué formatos de audio se pueden subir?</h4>
+                        <p class="text-xs text-zinc-400 leading-relaxed">La plataforma soporta formatos populares como MP3, WAV, FLAC, OGG y M4A.</p>
+                    </div>
+                </div>
             </div>
         </section>
     </main>
