@@ -130,8 +130,15 @@ function uploadAndSeparate(file) {
     
     updateStatus("SUBIENDO AUDIO DE ORIGEN...", "Enviando archivo a la memoria temporal del servidor...", 10);
 
+    const modelSelect = document.getElementById("modelSelect");
+    const formatSelect = document.getElementById("formatSelect");
+    const selectedModel = modelSelect ? modelSelect.value : "htdemucs_6s";
+    const selectedFormat = formatSelect ? formatSelect.value : "mp3";
+
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("model", selectedModel);
+    formData.append("format", selectedFormat);
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${BACKEND_URL}/separate`, true);
@@ -339,17 +346,22 @@ async function decodeAndSetupMixer(blob) {
         duration = 0;
 
         for (const stemId of Object.keys(STEMS_CONFIG)) {
-            const filename = `${stemId}.wav`;
-            const fileInZip = zip.file(filename);
+            // Verificar si el archivo en el ZIP tiene formato .mp3 o .wav
+            let fileExtension = "mp3";
+            let fileInZip = zip.file(`${stemId}.mp3`);
+            if (!fileInZip) {
+                fileInZip = zip.file(`${stemId}.wav`);
+                fileExtension = "wav";
+            }
 
             if (!fileInZip) {
-                console.warn(`Stem ${filename} no encontrado en el ZIP.`);
+                console.warn(`Stem ${stemId} no encontrado en el ZIP.`);
                 continue;
             }
 
-            const wavBlob = await fileInZip.async("blob");
-            const blobUrl = URL.createObjectURL(wavBlob);
-            const sizeBytes = wavBlob.size;
+            const stemBlob = await fileInZip.async("blob");
+            const blobUrl = URL.createObjectURL(stemBlob);
+            const sizeBytes = stemBlob.size;
 
             const audio = new Audio(blobUrl);
             audio.preload = "auto";
@@ -363,7 +375,8 @@ async function decodeAndSetupMixer(blob) {
                 isMuted: false,
                 isSoloed: false,
                 blobUrl: blobUrl,
-                sizeBytes: sizeBytes
+                sizeBytes: sizeBytes,
+                extension: fileExtension
             };
 
             audio.addEventListener("loadedmetadata", () => {
@@ -515,24 +528,22 @@ function createTrackUI(id) {
 // --- Generar UI de Resultados (Export Panel List) ---
 function createResultUI(id) {
     const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
-    const sizeMB = (tracks[id].sizeBytes / (1024 * 1024)).toFixed(1);
-    
-    let resultName = config.name;
-    if (id === "metronome" && tracks.metronome && tracks.metronome.bpm) {
-        resultName = `${config.name} (${tracks.metronome.bpm.toFixed(1)} BPM)`;
-    }
+    const sizeBytes = tracks[id].sizeBytes;
+    const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
+    const resultName = config.name;
+    const ext = tracks[id].extension || "mp3";
 
     const resultHtml = `
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 py-3 hover:bg-zinc-900/40 transition-colors gap-3" data-track-id="${id}">
             <div class="flex items-center gap-3">
                 <div class="text-red-500 text-lg flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
                 <div class="flex flex-col">
-                    <span class="text-xs font-bold text-white uppercase">${resultName} (${id}.wav)</span>
+                    <span class="text-xs font-bold text-white uppercase">${resultName} (${id}.${ext})</span>
                     <span class="text-[10px] text-zinc-500 font-mono">${sizeMB} MB</span>
                 </div>
             </div>
             <div class="flex gap-2 w-full sm:w-auto">
-                <a id="download-${id}" href="${tracks[id].blobUrl}" download="${id}.wav" class="flex-1 sm:flex-none px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                <a id="download-${id}" href="${tracks[id].blobUrl}" download="${id}.${ext}" class="flex-1 sm:flex-none px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5">
                     ${ICONS_SVG.download} Descargar
                 </a>
             </div>

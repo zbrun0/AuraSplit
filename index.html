@@ -45,8 +45,8 @@
             <img src="iconlogo_aurasplit.svg" alt="AuraSplit Logo" class="h-9 w-auto filter drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]"/>
         </div>
         <div class="flex items-center gap-4">
-            <span class="hidden sm:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg">
-                Arquitectura Demucs v4 (6 Canales)
+            <span id="engineBadge" class="hidden sm:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg">
+                Procesamiento IA Demucs v4
             </span>
         </div>
     </header>
@@ -64,8 +64,26 @@
                 <button class="bg-red-600 text-white font-bold text-xs uppercase tracking-widest px-8 py-3.5 rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20 btn-tactile">
                     Seleccionar Archivo
                 </button>
-                <p class="text-xs text-zinc-500 mt-4 font-mono">Nota: El proceso de separación por IA requiere un alto uso de cómputo y puede tardar varios minutos.</p>
+                <p class="text-xs text-zinc-500 mt-4 font-mono">Nota: El proceso de separación por IA requiere un alto uso de cómputo y se ejecuta en cola gratuita.</p>
                 <input accept=".mp3,.wav,.flac,.ogg,.m4a" class="hidden" id="fileInput" type="file"/>
+            </div>
+
+            <!-- Configuración de Separación IA -->
+            <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mt-6 bg-zinc-900/40 border border-zinc-850 p-5 rounded-3xl backdrop-blur-md relative z-10 max-w-2xl mx-auto">
+                <div class="flex flex-col gap-1.5 w-full sm:w-auto">
+                    <label for="modelSelect" class="font-mono text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest">Modelo de Separación</label>
+                    <select id="modelSelect" class="bg-zinc-950 text-zinc-300 text-xs font-semibold py-2.5 px-4 rounded-xl border border-zinc-800 hover:border-red-500/40 focus:border-red-500 outline-none transition-all cursor-pointer w-full sm:w-60 shadow-inner">
+                        <option value="htdemucs" selected>4 Canales (Fast CPU: Voces, Batería, Bajo, Otros)</option>
+                        <option value="htdemucs_6s">6 Canales (Full: Voces, Batería, Bajo, Guitarra, Piano, Otros)</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1.5 w-full sm:w-auto">
+                    <label for="formatSelect" class="font-mono text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest">Formato de Salida</label>
+                    <select id="formatSelect" class="bg-zinc-950 text-zinc-300 text-xs font-semibold py-2.5 px-4 rounded-xl border border-zinc-800 hover:border-red-500/40 focus:border-red-500 outline-none transition-all cursor-pointer w-full sm:w-56 shadow-inner">
+                        <option value="mp3" selected>MP3 - 320 kbps (Descarga Rápida)</option>
+                        <option value="wav">WAV - 16-bit PCM (Original y Pesado)</option>
+                    </select>
+                </div>
             </div>
         </section>
 
