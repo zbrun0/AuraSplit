@@ -1,0 +1,21 @@
+{
+  "name": "aura-split",
+  "version": "1.0.0",
+  "description": "AuraSplit - AI Audio Separation",
+  "main": "app.js",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'Static site - no build needed'",
+    "lint": "echo 'No linter configured'"
+  },
+  "keywords": [
+    "audio",
+    "separation",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}
