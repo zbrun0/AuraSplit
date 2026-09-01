@@ -93,8 +93,12 @@ const reanalyzeSectionsBtn = document.getElementById("reanalyzeSectionsBtn");
 const bpmInput = document.getElementById("bpmInput");
 const timeSignatureSelect = document.getElementById("timeSignatureSelect");
 const tapTempoBtn = document.getElementById("tapTempoBtn");
+const nudgeMinus50 = document.getElementById("nudgeMinus50");
 const nudgeLeftBtn = document.getElementById("nudgeLeftBtn");
 const nudgeRightBtn = document.getElementById("nudgeRightBtn");
+const nudgePlus50 = document.getElementById("nudgePlus50");
+const phaseDisplayVal = document.getElementById("phaseDisplayVal");
+const autoSnapDrumBtn = document.getElementById("autoSnapDrumBtn");
 const syncCursorBtn = document.getElementById("syncCursorBtn");
 const regenerateClickBtn = document.getElementById("regenerateClickBtn");
 const guideLangSelect = document.getElementById("guideLangSelect");
@@ -643,6 +647,7 @@ async function decodeAndSetupMixer(blob) {
                 if (bpmInput) {
                     bpmInput.value = currentBpm.toFixed(1);
                 }
+                updatePhaseDisplay();
 
                 // 2. Pre-Roll / Lead-in Real: Adelantar la canción después del conteo de metrónomo y guía
                 const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
@@ -2355,17 +2360,92 @@ if (tapTempoBtn) {
     });
 }
 
+function updatePhaseDisplay() {
+    if (phaseDisplayVal) {
+        const beatInterval = 60 / currentBpm;
+        const normalizedOffset = currentOffsetSec % beatInterval;
+        const ms = Math.round(normalizedOffset * 1000);
+        phaseDisplayVal.textContent = `${ms} ms`;
+    }
+}
+
+function adjustOffsetByMs(deltaMs) {
+    const deltaSec = deltaMs / 1000;
+    const beatInterval = 60 / currentBpm;
+    currentOffsetSec = (currentOffsetSec + deltaSec + beatInterval * 100) % beatInterval;
+    updatePhaseDisplay();
+    if (waveformsRendered && typeof renderAllWaveforms === "function") {
+        renderAllWaveforms();
+    }
+    debounceSyncClickAndGuide(100);
+}
+
+if (nudgeMinus50) {
+    nudgeMinus50.addEventListener("click", () => {
+        adjustOffsetByMs(-50);
+    });
+}
+
 if (nudgeLeftBtn) {
     nudgeLeftBtn.addEventListener("click", () => {
-        currentOffsetSec = Math.max(0, currentOffsetSec - 0.010);
-        debounceSyncClickAndGuide(150);
+        adjustOffsetByMs(-5);
     });
 }
 
 if (nudgeRightBtn) {
     nudgeRightBtn.addEventListener("click", () => {
-        currentOffsetSec += 0.010;
-        debounceSyncClickAndGuide(150);
+        adjustOffsetByMs(5);
+    });
+}
+
+if (nudgePlus50) {
+    nudgePlus50.addEventListener("click", () => {
+        adjustOffsetByMs(50);
+    });
+}
+
+if (autoSnapDrumBtn) {
+    autoSnapDrumBtn.addEventListener("click", () => {
+        const drumBuffer = cachedDecodedStemBuffers.drums || (tracks.drums && tracks.drums.audioBuffer);
+        if (!drumBuffer) {
+            alert("No se encontró la pista de batería para calzar.");
+            return;
+        }
+        
+        // Buscar el transitorio de bombo/caja más fuerte dentro de 1 tiempo alrededor de la posición actual
+        const sampleRate = drumBuffer.sampleRate;
+        const data = drumBuffer.getChannelData(0);
+        const beatInterval = 60 / currentBpm;
+        const searchCenter = playOffset > 0 ? playOffset : (currentOffsetSec || 0);
+        const startSec = Math.max(0, searchCenter - beatInterval * 0.8);
+        const endSec = Math.min(drumBuffer.duration, searchCenter + beatInterval * 0.8);
+        
+        const startIdx = Math.floor(startSec * sampleRate);
+        const endIdx = Math.floor(endSec * sampleRate);
+        
+        let maxEnergy = 0;
+        let peakSample = startIdx;
+        const win = 128;
+        
+        for (let i = startIdx; i < endIdx - win; i += win) {
+            let sumSq = 0;
+            for (let j = 0; j < win; j++) {
+                const v = data[i + j];
+                sumSq += v * v;
+            }
+            if (sumSq > maxEnergy) {
+                maxEnergy = sumSq;
+                peakSample = i;
+            }
+        }
+        
+        const exactPeakSec = peakSample / sampleRate;
+        currentOffsetSec = exactPeakSec % beatInterval;
+        updatePhaseDisplay();
+        if (waveformsRendered && typeof renderAllWaveforms === "function") {
+            renderAllWaveforms();
+        }
+        debounceSyncClickAndGuide(50);
     });
 }
 
@@ -2373,7 +2453,11 @@ if (syncCursorBtn) {
     syncCursorBtn.addEventListener("click", () => {
         const beatInterval = 60 / currentBpm;
         currentOffsetSec = playOffset % beatInterval;
-        debounceSyncClickAndGuide(100);
+        updatePhaseDisplay();
+        if (waveformsRendered && typeof renderAllWaveforms === "function") {
+            renderAllWaveforms();
+        }
+        debounceSyncClickAndGuide(80);
     });
 }
 
@@ -2596,6 +2680,33 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, w, h);
     
+    // 1. Dibujar Rejilla Visual de Beats (Líneas verticales de tiempo sincronizadas con el click)
+    if (duration > 0 && currentBpm > 0) {
+        const beatInterval = 60 / currentBpm;
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        
+        let t = currentOffsetSec;
+        while (t - beatInterval >= 0) t -= beatInterval;
+        let beatIdx = 0;
+        
+        while (t < duration) {
+            if (t >= 0) {
+                const x = (t / duration) * w;
+                const isDownbeat = (beatIdx % beatsPerBar === 0);
+                
+                ctx.strokeStyle = isDownbeat ? "rgba(6, 182, 212, 0.40)" : "rgba(255, 255, 255, 0.08)";
+                ctx.lineWidth = isDownbeat ? 1.5 : 1;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            t += beatInterval;
+            beatIdx++;
+        }
+    }
+
+    // 2. Línea central
     ctx.strokeStyle = "#18181b";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -2603,6 +2714,7 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
     ctx.lineTo(w, h/2);
     ctx.stroke();
     
+    // 3. Onda de audio
     ctx.strokeStyle = "#ef4444";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
