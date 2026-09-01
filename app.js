@@ -810,7 +810,7 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             }
 
             const leadInSec = (userConfiguredPreRoll * (60 / currentBpm) * (currentTimeSignature === "3/4" ? 3 : 4));
-            await generateMetronomeTrack(currentBpm, currentTimeSignature, currentOffsetSec, leadInSec);
+            await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
             try {
                 await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
             } catch (e) {}
@@ -872,7 +872,7 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration || 180, decodedStemBuffers, leadInSec);
 
                 // Generar Metrónomo Sintetizado y Guía Vocal Cues
-                await generateMetronomeTrack(currentBpm, currentTimeSignature, currentOffsetSec, leadInSec);
+                await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
                 
                 try {
                     await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
@@ -1063,14 +1063,19 @@ function calculateDownbeatOffset(audioBuffer, bpm) {
 }
 
 // --- Generar Pista de Metrónomo Pro Sincronizado según Métrica (4/4, 3/4, 6/8) ---
-async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
+async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, timeSignature = null) {
     if (!audioCtx) return;
     
+    bpm = parseFloat(bpm) || currentBpm || 120.0;
+    offsetSec = (offsetSec !== undefined && !isNaN(offsetSec)) ? parseFloat(offsetSec) : (currentOffsetSec || 0.0);
+    totalDuration = (totalDuration && !isNaN(totalDuration) && totalDuration > 1) ? parseFloat(totalDuration) : (duration || 180);
+    timeSignature = timeSignature || currentTimeSignature || "4/4";
+
     const sampleRate = audioCtx.sampleRate || 44100;
     const interval = 60 / bpm;
     
     const beatTimes = [];
-    let t = offsetSec;
+    let t = offsetSec % interval;
     while (t - interval >= 0) {
         t -= interval;
     }
@@ -1079,7 +1084,7 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
         t += interval;
     }
 
-    const metronomeBuffer = createAccentedMetronomeBuffer(beatTimes, totalDuration, sampleRate, currentTimeSignature);
+    const metronomeBuffer = createAccentedMetronomeBuffer(beatTimes, totalDuration, sampleRate, timeSignature);
     const wavBlob = bufferToWav(metronomeBuffer);
     const blobUrl = URL.createObjectURL(wavBlob);
 
@@ -1091,7 +1096,7 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
         tracks.metronome.bpm = bpm;
         tracks.metronome.volume = 0.70;
         tracks.metronome.audioBuffer = metronomeBuffer;
-        tracks.metronome.peaks = extractPeaks(metronomeBuffer, 2000);
+        tracks.metronome.cachedWaveformCanvas = null;
         
         const dlLink = document.getElementById("download-metronome");
         if (dlLink) dlLink.href = blobUrl;
@@ -1111,7 +1116,7 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
             sizeBytes: wavBlob.size,
             bpm: bpm,
             audioBuffer: metronomeBuffer,
-            peaks: extractPeaks(metronomeBuffer, 2000),
+            cachedWaveformCanvas: null,
             extension: "wav"
         };
 
@@ -1122,16 +1127,14 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
 
     setupSingleTrackAudioNode("metronome");
     updateTrackGains();
-    updateTrackDisplayName("metronome", `METRÓNOMO (${bpm.toFixed(1)} BPM - ${currentTimeSignature})`);
+    updateTrackDisplayName("metronome", `METRÓNOMO (${bpm.toFixed(1)} BPM - ${timeSignature})`);
 
     const fader = document.getElementById("fader-metronome");
     if (fader) fader.value = 70;
     const faderTl = document.getElementById("fader-timeline-metronome");
     if (faderTl) faderTl.value = 70;
 
-    if (activeView === "timeline" && typeof renderAllWaveforms === "function") {
-        renderAllWaveforms();
-    }
+    requestWaveformRedraw();
 }
 
 // Sintetizador de Click Profesional Unificado (Mismo sonido limpio y nítido para todos los beats)
@@ -4315,34 +4318,70 @@ function drawWaveformWithGrid(id, track, canvas) {
         offCtx.lineTo(w, h/2);
         offCtx.stroke();
 
-        // Forma de onda con gradiente neón por stem
-        const peaks = track.peaks;
-        if (peaks && peaks.length > 0) {
-            const config = STEMS_CONFIG[id] || STEMS_CONFIG.drums;
-            const colorTop = (config && config.gradient) ? config.gradient[0] : "#f59e0b";
-            const colorBottom = (config && config.gradient) ? config.gradient[1] : "#b45309";
-
-            const grad = offCtx.createLinearGradient(0, 0, 0, h);
-            grad.addColorStop(0, colorTop);
-            grad.addColorStop(0.5, "rgba(255, 255, 255, 0.95)");
-            grad.addColorStop(1, colorBottom);
-
-            offCtx.strokeStyle = grad;
-            offCtx.lineWidth = 1.4;
-            offCtx.beginPath();
-            
-            const numPeaks = peaks.length / 2;
-            const amp = h / 2;
-            
-            for (let i = 0; i < w; i++) {
-                const peakIdx = Math.floor((i / w) * numPeaks);
-                const min = peaks[peakIdx * 2];
-                const max = peaks[peakIdx * 2 + 1];
+        if (id === "metronome") {
+            // Renderizar la forma de onda del metrónomo como impulsos rítmicos exactos en los tiempos de los compases
+            if (duration > 0 && currentBpm > 0) {
+                const beatInterval = 60 / currentBpm;
+                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+                let t = currentOffsetSec % beatInterval;
+                while (t - beatInterval >= 0) t -= beatInterval;
+                let beatIdx = 0;
                 
-                offCtx.moveTo(i, amp + min * amp * 0.92);
-                offCtx.lineTo(i, amp + max * amp * 0.92);
+                while (t < duration) {
+                    if (t >= 0) {
+                        const bx = (t / duration) * w;
+                        const isDownbeat = (beatIdx % beatsPerBar === 0);
+                        
+                        offCtx.beginPath();
+                        if (isDownbeat) {
+                            // Tiempo 1 (Downbeat fuerte): Barra de acento cyan neón
+                            offCtx.strokeStyle = "#06b6d4";
+                            offCtx.lineWidth = 2.5;
+                            offCtx.moveTo(bx, h * 0.12);
+                            offCtx.lineTo(bx, h * 0.88);
+                        } else {
+                            // Tiempos 2, 3, 4: Barras secundarias
+                            offCtx.strokeStyle = "#38bdf8";
+                            offCtx.lineWidth = 1.6;
+                            offCtx.moveTo(bx, h * 0.30);
+                            offCtx.lineTo(bx, h * 0.70);
+                        }
+                        offCtx.stroke();
+                    }
+                    t += beatInterval;
+                    beatIdx++;
+                }
             }
-            offCtx.stroke();
+        } else {
+            // Forma de onda con gradiente neón por stem
+            const peaks = track.peaks;
+            if (peaks && peaks.length > 0) {
+                const config = STEMS_CONFIG[id] || STEMS_CONFIG.drums;
+                const colorTop = (config && config.gradient) ? config.gradient[0] : "#f59e0b";
+                const colorBottom = (config && config.gradient) ? config.gradient[1] : "#b45309";
+
+                const grad = offCtx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, colorTop);
+                grad.addColorStop(0.5, "rgba(255, 255, 255, 0.95)");
+                grad.addColorStop(1, colorBottom);
+
+                offCtx.strokeStyle = grad;
+                offCtx.lineWidth = 1.4;
+                offCtx.beginPath();
+                
+                const numPeaks = peaks.length / 2;
+                const amp = h / 2;
+                
+                for (let i = 0; i < w; i++) {
+                    const peakIdx = Math.floor((i / w) * numPeaks);
+                    const min = peaks[peakIdx * 2];
+                    const max = peaks[peakIdx * 2 + 1];
+                    
+                    offCtx.moveTo(i, amp + min * amp * 0.92);
+                    offCtx.lineTo(i, amp + max * amp * 0.92);
+                }
+                offCtx.stroke();
+            }
         }
 
         track.cachedWaveformCanvas = offCanvas;
