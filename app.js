@@ -3332,15 +3332,14 @@ if (closePlansModalBtn) {
     });
 }
 
-// Configurar listener de Lemon Squeezy para eventos de checkout
-if (typeof window !== "undefined") {
-    window.createLemonSqueezy = function() {
+// --- Integración Lemon Squeezy (Suscripciones PRO) ---
+function initLemonSqueezy() {
+    window.createLemonSqueezy = function () {
         if (window.LemonSqueezy) {
             window.LemonSqueezy.Setup({
                 eventHandler: async (event) => {
-                    if (event && event.event === "Checkout.Success") {
-                        console.log("[LemonSqueezy] Checkout exitoso:", event);
-                        if (currentUser && supabaseClient) {
+                    if (event.event === "Checkout.Success") {
+                        if (currentUser) {
                             try {
                                 const trialEnd = new Date();
                                 trialEnd.setDate(trialEnd.getDate() + 5);
@@ -3352,7 +3351,7 @@ if (typeof window !== "undefined") {
 
                                 await loadUserProfile(currentUser.id);
                                 updateAuthUI();
-                                alert("👑 ¡Pago configurado con éxito! Tu prueba gratuita de 5 días de AuraSplit Pro está activa.");
+                                alert("¡Pago configurado con éxito! Tu prueba gratuita de 5 días de AuraSplit PRO está activa.");
                             } catch (e) {
                                 console.error("Error al actualizar perfil tras checkout:", e);
                             }
@@ -3450,11 +3449,11 @@ async function loadVaultProjects() {
         vaultProjectsList.innerHTML = `
             <div class="text-center py-12 text-zinc-400 font-mono text-xs space-y-3">
                 <div class="w-12 h-12 mx-auto rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
-                    <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    <i class="fa-solid fa-lock text-xl"></i>
                 </div>
                 <p class="text-zinc-200 font-bold text-sm">Tu Repertorio es Personal y Privado</p>
                 <p class="text-zinc-500 text-[11px] max-w-xs mx-auto">Inicia sesión con tu cuenta para acceder a tu repertorio personal.</p>
-                <button onclick="if (document.getElementById('authModal')) document.getElementById('authModal').classList.remove('hidden');" class="mt-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs font-mono transition-all shadow-lg shadow-red-600/20">
+                <button onclick="if (document.getElementById('authModal')) document.getElementById('authModal').classList.remove('hidden');" class="mt-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs font-mono transition-all shadow-lg shadow-red-600/20 cursor-pointer">
                     INICIAR SESIÓN / REGISTRARSE
                 </button>
             </div>
@@ -3470,17 +3469,17 @@ async function loadVaultProjects() {
         vaultProjectsList.innerHTML = `
             <div class="text-center py-12 text-zinc-400 font-mono text-xs space-y-3">
                 <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner shadow-amber-500/10">
-                    <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    <i class="fa-solid fa-crown text-2xl"></i>
                 </div>
                 <div>
-                    <h3 class="text-zinc-100 font-bold text-sm tracking-wider uppercase">Bóveda Cloud Exclusiva del Plan PRO</h3>
+                    <h3 class="text-zinc-100 font-bold text-sm tracking-wider uppercase">Almacenamiento Cloud Exclusivo PRO</h3>
                     <p class="text-zinc-400 text-[11px] max-w-sm mx-auto mt-1 leading-relaxed">
-                        El repertorio personal en la nube (50TB) para guardar tus canciones separadas, tempos, compases y guías de ensayo está disponible únicamente para suscriptores PRO.
+                        El repertorio personal en la nube para guardar tus canciones separadas, tempos, compases y guías de ensayo está disponible únicamente para suscriptores PRO.
                     </p>
                 </div>
                 <div class="pt-2">
-                    <button onclick="if (document.getElementById('plansModal')) document.getElementById('plansModal').classList.remove('hidden');" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-extrabold rounded-xl text-xs font-mono transition-all shadow-lg shadow-amber-500/20 tracking-wider">
-                        ⭐ DESBLOQUEAR REPERTORIO CON PLAN PRO
+                    <button onclick="if (document.getElementById('plansModal')) document.getElementById('plansModal').classList.remove('hidden');" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-extrabold rounded-xl text-xs font-mono transition-all shadow-lg shadow-amber-500/20 tracking-wider cursor-pointer">
+                        DESBLOQUEAR REPERTORIO CON PLAN PRO
                     </button>
                 </div>
             </div>
@@ -3532,7 +3531,7 @@ function renderFilteredRepertoire(query = "") {
         if (cachedRepertoireProjects.length === 0) {
             vaultProjectsList.innerHTML = `
                 <div class="text-center py-12 text-zinc-500 font-mono text-xs space-y-2">
-                    <svg class="w-10 h-10 mx-auto text-zinc-700 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                    <i class="fa-solid fa-folder-open text-3xl text-zinc-700 block mb-2"></i>
                     <p class="text-zinc-300 font-bold">Tu repertorio está vacío</p>
                     <p class="text-zinc-500 text-[11px]">Separa una canción y haz clic en "GUARDAR EN REPERTORIO" para tenerla siempre lista en tu cuenta.</p>
                 </div>
@@ -3565,24 +3564,24 @@ function renderFilteredRepertoire(query = "") {
             <div class="bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/40 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all group" data-vault-id="${proj.folder_id}">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-zinc-950 border border-zinc-800 group-hover:border-red-500/40 rounded-xl text-red-500 transition-colors">
-                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                        <i class="fa-solid fa-music text-base"></i>
                     </div>
                     <div>
                         <h4 class="text-xs font-bold text-white uppercase tracking-wider">${displayName}</h4>
                         <div class="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-400">
-                            <span>📅 ${dateStr}</span>
-                            ${bpm ? `<span>• ⚡ ${bpm}</span>` : ""}
-                            <span>• 🎼 ${compas}</span>
-                            ${pitch !== "0 st" ? `<span class="text-purple-400 font-bold">• 🎹 ${pitch}</span>` : ""}
+                            <span><i class="fa-regular fa-calendar text-zinc-500 mr-1"></i>${dateStr}</span>
+                            ${bpm ? `• <span><i class="fa-solid fa-bolt text-amber-500 mr-1"></i>${bpm}</span>` : ""}
+                            <span>• <i class="fa-solid fa-clock text-cyan-500 mr-1"></i>${compas}</span>
+                            ${pitch !== "0 st" ? `<span class="text-purple-400 font-bold">• <i class="fa-solid fa-music text-purple-400 mr-1"></i>${pitch}</span>` : ""}
                         </div>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
                     <button onclick="loadProjectFromVault('${proj.folder_id}')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-mono font-bold tracking-wider transition-all shadow-md shadow-red-600/20 flex items-center gap-1.5 cursor-pointer">
-                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> ABRIR Y ENSAYAR
+                        <i class="fa-solid fa-play text-xs"></i> ABRIR Y ENSAYAR
                     </button>
-                    <button onclick="deleteProjectFromVault('${proj.folder_id}')" class="p-2 bg-zinc-950 hover:bg-red-950/40 text-zinc-500 hover:text-red-400 rounded-xl border border-zinc-800 text-xs font-mono transition-colors" title="Eliminar de mi repertorio">
-                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    <button onclick="deleteProjectFromVault('${proj.folder_id}')" class="p-2 bg-zinc-950 hover:bg-red-950/40 text-zinc-500 hover:text-red-400 rounded-xl border border-zinc-800 text-xs font-mono transition-colors cursor-pointer" title="Eliminar de mi repertorio">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
                     </button>
                 </div>
             </div>
@@ -3671,7 +3670,7 @@ async function saveCurrentProjectToVault() {
 
     if (!isUserPro()) {
         if (plansModal) plansModal.classList.remove("hidden");
-        alert("Guardar en la Bóveda de Repertorio de 50TB es una función exclusiva del Plan PRO.");
+        alert("Guardar en el Repertorio Cloud es una función exclusiva del Plan PRO.");
         return;
     }
 
@@ -3716,7 +3715,7 @@ async function saveCurrentProjectToVault() {
 
         saveToVaultBtn.classList.remove("bg-zinc-900", "text-zinc-200");
         saveToVaultBtn.classList.add("bg-emerald-600", "text-white");
-        saveToVaultBtn.innerHTML = `✓ ¡GUARDADO EN TU REPERTORIO!`;
+        saveToVaultBtn.innerHTML = `<i class="fa-solid fa-check mr-1.5"></i> GUARDADO EN TU REPERTORIO`;
 
         setTimeout(() => {
             saveToVaultBtn.classList.remove("bg-emerald-600", "text-white");
