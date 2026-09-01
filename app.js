@@ -2849,7 +2849,7 @@ function updatePhaseDisplay() {
     }
 }
 
-function syncSectionsToPhaseOffset(oldOffset, newOffset) {
+function syncSectionsToPhaseOffset(oldOffset, newOffset, updateDOM = false) {
     if (!songSections || songSections.length === 0 || !duration) return;
     const delta = newOffset - oldOffset;
     if (Math.abs(delta) < 0.0001) return;
@@ -2869,7 +2869,9 @@ function syncSectionsToPhaseOffset(oldOffset, newOffset) {
         }
     }
 
-    renderSectionMarkers();
+    if (updateDOM) {
+        renderSectionMarkers();
+    }
 }
 
 function adjustOffsetByMs(deltaMs) {
@@ -2877,10 +2879,10 @@ function adjustOffsetByMs(deltaMs) {
     const beatInterval = 60 / currentBpm;
     const oldOffset = currentOffsetSec;
     currentOffsetSec = (currentOffsetSec + deltaSec + beatInterval * 100) % beatInterval;
-    syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
+    syncSectionsToPhaseOffset(oldOffset, currentOffsetSec, true);
     updatePhaseDisplay();
     requestWaveformRedraw();
-    debounceSyncClickAndGuide(350);
+    debounceSyncClickAndGuide(400);
 }
 
 if (phaseSlider) {
@@ -2890,9 +2892,14 @@ if (phaseSlider) {
         if (tlPhaseDisplayVal) tlPhaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
         const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
-        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
+        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec, false);
         requestWaveformRedraw();
-        debounceSyncClickAndGuide(400);
+        debounceSyncClickAndGuide(500);
+    });
+
+    phaseSlider.addEventListener("change", () => {
+        renderSectionMarkers();
+        debounceSyncClickAndGuide(200);
     });
 }
 
@@ -2903,9 +2910,14 @@ if (tlPhaseSlider) {
         if (phaseDisplayVal) phaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
         const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
-        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
+        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec, false);
         requestWaveformRedraw();
-        debounceSyncClickAndGuide(400);
+        debounceSyncClickAndGuide(500);
+    });
+
+    tlPhaseSlider.addEventListener("change", () => {
+        renderSectionMarkers();
+        debounceSyncClickAndGuide(200);
     });
 }
 
@@ -4283,10 +4295,65 @@ function drawWaveformWithGrid(id, track, canvas) {
     }
     
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#09090b";
-    ctx.fillRect(0, 0, w, h);
-    
-    // 1. Rejilla Visual de Beats (Optimizada con Renderizado por Lotes)
+
+    // Cachear la forma de onda estática en un canvas offscreen para no recalcular miles de muestras en cada frame
+    if (!track.cachedWaveformCanvas || track.cachedWaveformWidth !== w || track.cachedWaveformHeight !== h) {
+        const offCanvas = document.createElement("canvas");
+        offCanvas.width = w;
+        offCanvas.height = h;
+        const offCtx = offCanvas.getContext("2d");
+
+        // Fondo oscuro
+        offCtx.fillStyle = "#09090b";
+        offCtx.fillRect(0, 0, w, h);
+
+        // Línea central guía
+        offCtx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+        offCtx.lineWidth = 1;
+        offCtx.beginPath();
+        offCtx.moveTo(0, h/2);
+        offCtx.lineTo(w, h/2);
+        offCtx.stroke();
+
+        // Forma de onda con gradiente neón por stem
+        const peaks = track.peaks;
+        if (peaks && peaks.length > 0) {
+            const config = STEMS_CONFIG[id] || STEMS_CONFIG.drums;
+            const colorTop = (config && config.gradient) ? config.gradient[0] : "#f59e0b";
+            const colorBottom = (config && config.gradient) ? config.gradient[1] : "#b45309";
+
+            const grad = offCtx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, colorTop);
+            grad.addColorStop(0.5, "rgba(255, 255, 255, 0.95)");
+            grad.addColorStop(1, colorBottom);
+
+            offCtx.strokeStyle = grad;
+            offCtx.lineWidth = 1.4;
+            offCtx.beginPath();
+            
+            const numPeaks = peaks.length / 2;
+            const amp = h / 2;
+            
+            for (let i = 0; i < w; i++) {
+                const peakIdx = Math.floor((i / w) * numPeaks);
+                const min = peaks[peakIdx * 2];
+                const max = peaks[peakIdx * 2 + 1];
+                
+                offCtx.moveTo(i, amp + min * amp * 0.92);
+                offCtx.lineTo(i, amp + max * amp * 0.92);
+            }
+            offCtx.stroke();
+        }
+
+        track.cachedWaveformCanvas = offCanvas;
+        track.cachedWaveformWidth = w;
+        track.cachedWaveformHeight = h;
+    }
+
+    // 1. Dibujar el fondo + forma de onda cacheada en GPU instantáneamente (<0.02 ms)
+    ctx.drawImage(track.cachedWaveformCanvas, 0, 0);
+
+    // 2. Rejilla Visual Dinámica de Beats (se dibuja en microsegundos según el desfase actual)
     if (duration > 0 && currentBpm > 0) {
         const beatInterval = 60 / currentBpm;
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
@@ -4355,47 +4422,10 @@ function drawWaveformWithGrid(id, track, canvas) {
         }
     }
 
-    // 2. Línea Central Guía
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, h/2);
-    ctx.lineTo(w, h/2);
-    ctx.stroke();
-    
-    // 3. Dibujar Forma de Onda con Gradiente Neón Studio por Stem
-    const peaks = track.peaks;
-    if (peaks && peaks.length > 0) {
-        const config = STEMS_CONFIG[id] || STEMS_CONFIG.drums;
-        const colorTop = (config && config.gradient) ? config.gradient[0] : "#f59e0b";
-        const colorBottom = (config && config.gradient) ? config.gradient[1] : "#b45309";
-
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, colorTop);
-        grad.addColorStop(0.5, "rgba(255, 255, 255, 0.95)");
-        grad.addColorStop(1, colorBottom);
-
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        
-        const numPeaks = peaks.length / 2;
-        const amp = h / 2;
-        
-        for (let i = 0; i < w; i++) {
-            const peakIdx = Math.floor((i / w) * numPeaks);
-            const min = peaks[peakIdx * 2];
-            const max = peaks[peakIdx * 2 + 1];
-            
-            ctx.moveTo(i, amp + min * amp * 0.92);
-            ctx.lineTo(i, amp + max * amp * 0.92);
-        }
-        ctx.stroke();
-    }
-
-    // 4. Dibujar Marcadores y Banderas de Secciones Musicales en la Onda
+    // 3. Dibujar Marcadores y Banderas de Secciones Musicales en la Onda
     if (duration > 0 && songSections && songSections.length > 0) {
-        songSections.forEach(sec => {
+        for (let s = 0; s < songSections.length; s++) {
+            const sec = songSections[s];
             const secX = (sec.startTime / duration) * w;
             if (secX >= 0 && secX <= w) {
                 // Línea vertical distintiva de sección
@@ -4419,7 +4449,7 @@ function drawWaveformWithGrid(id, track, canvas) {
                 ctx.fillStyle = "#ffffff";
                 ctx.fillText(labelText, secX + 5, 11);
             }
-        });
+        }
     }
 }
 
