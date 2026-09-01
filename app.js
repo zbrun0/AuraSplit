@@ -2138,8 +2138,8 @@ function setupSingleTrackAudioNode(id) {
                 });
                 pitchNode.wet.value = (currentPitchShift === 0 ? 0 : 1.0);
                 track.pitchShift = pitchNode;
-                sourceNode.connect(pitchNode.input || pitchNode);
-                pitchNode.connect(track.gainNode);
+                Tone.connect(sourceNode, pitchNode);
+                Tone.connect(pitchNode, track.gainNode);
             } catch (err) {
                 console.warn(`PitchShift fallback para track ${id}:`, err);
                 sourceNode.connect(track.gainNode);
@@ -2246,7 +2246,6 @@ function updateTrackGains() {
 
         if (currentPreviewTrack) {
             targetGain = (id === currentPreviewTrack) ? track.volume : 0;
-        } else {
             if (track.isMuted) {
                 targetGain = 0;
             } else if (anySoloed) {
@@ -2276,6 +2275,14 @@ async function playTracks() {
         }
     }
 
+    if (window.Tone && typeof Tone.start === "function") {
+        try {
+            await Tone.start();
+        } catch (e) {
+            console.warn("Tone.start error:", e);
+        }
+    }
+
     const playPromises = [];
     for (const track of Object.values(tracks)) {
         if (track.audio) {
@@ -2298,16 +2305,6 @@ async function playTracks() {
     isPlaying = true;
     updateTrackGains();
     updateMasterPlayBtn();
-
-    const firstTrack = Object.keys(tracks)[0];
-    if (tracks[firstTrack] && tracks[firstTrack].audio) {
-        tracks[firstTrack].audio.onended = () => {
-            const currentPos = tracks[firstTrack].audio.currentTime;
-            if (currentPos >= duration - 0.5) {
-                pauseTracks(true);
-            }
-        };
-    }
 }
 
 function pauseTracks(resetToZero = false) {
@@ -2398,33 +2395,45 @@ masterPlayBtn.addEventListener("click", () => {
     }
 });
 
+masterRewindBtn.addEventListener("click", () => {
+    seekToTime(0);
+});
+
+masterSeekbar.addEventListener("input", (e) => {
+    if (duration > 0) {
+        const seekTime = (parseFloat(e.target.value) / 100) * duration;
+        seekToTime(seekTime);
+    }
+});
+
 resetMixerBtn.addEventListener("click", () => {
-    for (const id of Object.keys(tracks)) {
-        const defaultVol = (id === "metronome") ? 0.0 : 0.8;
-        setTrackVolume(id, defaultVol);
-        
-        tracks[id].isMuted = false;
-        tracks[id].isSoloed = false;
+    for (const [id, track] of Object.entries(tracks)) {
+        track.volume = (id === "metronome" ? 0.70 : (id === "guide" ? 0.85 : 0.80));
+        track.isMuted = false;
+        track.isSoloed = false;
+
+        const fader = document.getElementById(`fader-${id}`);
+        const timelineFader = document.getElementById(`fader-timeline-${id}`);
+        if (fader) fader.value = Math.round(track.volume * 100);
+        if (timelineFader) timelineFader.value = Math.round(track.volume * 100);
 
         const muteBtn = document.getElementById(`mute-${id}`);
+        const muteTimelineBtn = document.getElementById(`mute-timeline-${id}`);
+        const soloBtn = document.getElementById(`solo-${id}`);
+        const soloTimelineBtn = document.getElementById(`solo-timeline-${id}`);
+
         if (muteBtn) {
             muteBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
             muteBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
         }
-
-        const soloBtn = document.getElementById(`solo-${id}`);
-        if (soloBtn) {
-            soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
-            soloBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
-        }
-
-        const muteTimelineBtn = document.getElementById(`mute-timeline-${id}`);
         if (muteTimelineBtn) {
             muteTimelineBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
             muteTimelineBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
         }
-
-        const soloTimelineBtn = document.getElementById(`solo-timeline-${id}`);
+        if (soloBtn) {
+            soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+            soloBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+        }
         if (soloTimelineBtn) {
             soloTimelineBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
             soloTimelineBtn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
@@ -3118,66 +3127,15 @@ if (syncCursorBtn) {
 }
 
 // --- Mover Canción (Todos los Stems) por Compases en la Línea de Tiempo ---
-function trimAudioBufferStart(audioBuffer, trimSeconds) {
-    if (!audioBuffer || trimSeconds <= 0 || !audioCtx) return audioBuffer;
-    const sampleRate = audioBuffer.sampleRate;
-    const trimSamples = Math.min(Math.floor(trimSeconds * sampleRate), Math.max(0, audioBuffer.length - 100));
-    if (trimSamples <= 0 || trimSamples >= audioBuffer.length) return audioBuffer;
-    const newLength = audioBuffer.length - trimSamples;
-    const trimmed = audioCtx.createBuffer(audioBuffer.numberOfChannels, newLength, sampleRate);
-    for (let c = 0; c < audioBuffer.numberOfChannels; c++) {
-        const origData = audioBuffer.getChannelData(c);
-        const trimmedData = trimmed.getChannelData(c);
-        trimmedData.set(origData.subarray(trimSamples));
-    }
-    return trimmed;
-}
-
 async function shiftSongByBars(deltaBars) {
-    if (!duration || !currentBpm || deltaBars === 0 || !audioCtx) return;
+    if (!duration || !currentBpm || deltaBars === 0) return;
     const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
     const barDuration = (60 / currentBpm) * beatsPerBar;
     const deltaSec = deltaBars * barDuration;
 
-    const wasPlaying = isPlaying;
-    if (wasPlaying) pauseTracks();
-
-    const songStemIds = ["vocals", "drums", "bass", "guitar", "piano", "other"];
-
-    for (const stemId of songStemIds) {
-        const track = tracks[stemId];
-        if (!track || !track.audioBuffer) continue;
-
-        let newBuf;
-        if (deltaSec > 0) {
-            newBuf = padAudioBufferWithLeadIn(track.audioBuffer, deltaSec);
-        } else {
-            newBuf = trimAudioBufferStart(track.audioBuffer, Math.abs(deltaSec));
-        }
-
-        if (newBuf) {
-            track.audioBuffer = newBuf;
-            track.peaks = extractPeaks(newBuf, 2400);
-            const newWav = bufferToWav(newBuf);
-            track.sizeBytes = newWav.size;
-            const newUrl = URL.createObjectURL(newWav);
-            track.blobUrl = newUrl;
-            track.audio.src = newUrl;
-            track.audio.load();
-        }
-    }
-
-    // Actualizar duración máxima de la canción
-    let maxDur = 0;
-    for (const stemId of songStemIds) {
-        if (tracks[stemId] && tracks[stemId].audioBuffer) {
-            maxDur = Math.max(maxDur, tracks[stemId].audioBuffer.duration);
-        }
-    }
-    if (maxDur > 0) {
-        duration = maxDur;
-        if (totalTimeDisplay) totalTimeDisplay.textContent = formatTime(duration);
-    }
+    // Desplazar el desfase de la rejilla de compases
+    currentOffsetSec = (currentOffsetSec + deltaSec);
+    updatePhaseDisplay();
 
     // Desplazar marcadores de sección en la misma proporción
     if (songSections && songSections.length > 0) {
@@ -3189,21 +3147,18 @@ async function shiftSongByBars(deltaBars) {
         renderSectionMarkers();
     }
 
-    // Sincronizar metrónomo y guías si están activos
+    // Sincronizar metrónomo y guías vocales con los nuevos compases
     if (userConfiguredAutoGuide && (tracks.metronome || tracks.guide)) {
         await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
         if (tracks.guide) {
-            await generateGuideTrack("es", userConfiguredPreRoll, (userConfiguredPreRoll >= 1 ? (barDuration * userConfiguredPreRoll) : 0));
+            const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+            await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
         }
     }
 
+    // Redibujar ondas con la nueva numeración de compases
     if (typeof renderAllWaveforms === "function") renderAllWaveforms();
-    const newPos = Math.max(0, Math.min(duration, playOffset + deltaSec));
-    seekToTime(newPos);
-
-    if (wasPlaying) {
-        setTimeout(() => { playTracks(); }, 150);
-    }
+    seekToTime(playOffset);
 }
 
 if (tlShiftSongMinus2Bars) tlShiftSongMinus2Bars.addEventListener("click", () => shiftSongByBars(-2));
@@ -3337,11 +3292,17 @@ if (downloadSelectedStemsZipBtn) {
 // --- Cambio de Tono en Tiempo Real (Pitch Shifter en Semitonos sin alterar velocidad) ---
 let currentPitchShift = 0; // -12 a +12 semitonos
 
-function applyPitchShift(semitones) {
+async function applyPitchShift(semitones) {
     currentPitchShift = Math.max(-12, Math.min(12, semitones));
     if (pitchDisplayVal) {
         const sign = currentPitchShift > 0 ? `+${currentPitchShift}` : `${currentPitchShift}`;
         pitchDisplayVal.textContent = `${sign} st`;
+    }
+
+    if (window.Tone && typeof Tone.start === "function") {
+        try {
+            await Tone.start();
+        } catch (e) {}
     }
 
     for (const [id, track] of Object.entries(tracks)) {
@@ -3352,13 +3313,8 @@ function applyPitchShift(semitones) {
                 track.audio.playbackRate = 1.0;
             }
             if (track.pitchShift) {
-                if (currentPitchShift === 0) {
-                    track.pitchShift.wet.value = 0;
-                    track.pitchShift.pitch = 0;
-                } else {
-                    track.pitchShift.wet.value = 1.0;
-                    track.pitchShift.pitch = currentPitchShift;
-                }
+                track.pitchShift.pitch = currentPitchShift;
+                track.pitchShift.wet.value = (currentPitchShift === 0 ? 0 : 1.0);
             }
         }
     }
