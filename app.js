@@ -746,18 +746,29 @@ async function getCueAudioBuffer(sampleKey) {
     if (CUE_SAMPLE_CACHE[sampleKey]) {
         return CUE_SAMPLE_CACHE[sampleKey];
     }
-    try {
-        const url = `assets/cues/${sampleKey}.mp3`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Sample "${sampleKey}" no encontrado en ${url}`);
-        const arrayBuf = await res.arrayBuffer();
-        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
-        CUE_SAMPLE_CACHE[sampleKey] = audioBuf;
-        return audioBuf;
-    } catch (e) {
-        console.warn(`No se pudo cargar cue sample "${sampleKey}":`, e);
-        return null;
+    
+    const possibleUrls = [
+        `assets/cues/${sampleKey}.mp3`,
+        `./assets/cues/${sampleKey}.mp3`,
+        `/assets/cues/${sampleKey}.mp3`
+    ];
+
+    for (const url of possibleUrls) {
+        try {
+            const res = await fetch(url);
+            if (res.ok) {
+                const arrayBuf = await res.arrayBuffer();
+                const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+                CUE_SAMPLE_CACHE[sampleKey] = audioBuf;
+                return audioBuf;
+            }
+        } catch (e) {
+            // Continuar con la siguiente ruta si falla
+        }
     }
+
+    console.warn(`No se pudo cargar cue sample "${sampleKey}"`);
+    return null;
 }
 
 // Cálculo del downbeat offset (primer pulso) con correlación de envolvente de transitorios de alta precisión
@@ -1343,7 +1354,8 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
 
     try {
         const sampleRate = audioCtx.sampleRate || 44100;
-        const totalSamples = Math.floor(duration * sampleRate);
+        const effectiveDuration = (duration && duration > 0 && !isNaN(duration)) ? duration : 180;
+        const totalSamples = Math.max(sampleRate * 2, Math.floor(effectiveDuration * sampleRate));
         const guideBuffer = audioCtx.createBuffer(2, totalSamples, sampleRate);
         const left = guideBuffer.getChannelData(0);
         const right = guideBuffer.getChannelData(1);
