@@ -3367,32 +3367,38 @@ if (typeof window !== "undefined") {
     }
 }
 
-if (startProCheckoutBtn) {
-    startProCheckoutBtn.addEventListener("click", () => {
-        if (!currentUser) {
-            if (plansModal) plansModal.classList.add("hidden");
-            if (authModal) authModal.classList.remove("hidden");
-            alert("Por favor inicia sesión o crea una cuenta antes de activar el plan PRO.");
-            return;
-        }
+function handleProCheckoutClick() {
+    if (!currentUser) {
+        if (plansModal) plansModal.classList.add("hidden");
+        if (authModal) authModal.classList.remove("hidden");
+        alert("Por favor inicia sesión o crea una cuenta antes de activar el plan PRO.");
+        return;
+    }
 
-        try {
-            const userEmail = encodeURIComponent(currentUser.email || "");
-            const userName = encodeURIComponent(userProfile?.full_name || currentUser.user_metadata?.full_name || "");
-            const userId = encodeURIComponent(currentUser.id);
-            const checkoutUrl = `${LEMON_SQUEEZY_CHECKOUT_URL}?checkout[email]=${userEmail}&checkout[name]=${userName}&checkout[custom][user_id]=${userId}`;
-            
-            if (window.LemonSqueezy && typeof window.LemonSqueezy.Url?.Open === "function") {
-                if (plansModal) plansModal.classList.add("hidden");
-                window.LemonSqueezy.Url.Open(checkoutUrl);
-            } else {
-                window.open(checkoutUrl, "_blank");
-            }
-        } catch (err) {
-            console.error("Error abriendo checkout de Lemon Squeezy:", err);
-            window.open(LEMON_SQUEEZY_CHECKOUT_URL, "_blank");
+    try {
+        const userEmail = encodeURIComponent(currentUser.email || "");
+        const userName = encodeURIComponent(userProfile?.full_name || currentUser.user_metadata?.full_name || "");
+        const userId = encodeURIComponent(currentUser.id);
+        const checkoutUrl = `${LEMON_SQUEEZY_CHECKOUT_URL}?checkout[email]=${userEmail}&checkout[name]=${userName}&checkout[custom][user_id]=${userId}`;
+        
+        if (window.LemonSqueezy && typeof window.LemonSqueezy.Url?.Open === "function") {
+            if (plansModal) plansModal.classList.add("hidden");
+            window.LemonSqueezy.Url.Open(checkoutUrl);
+        } else {
+            window.open(checkoutUrl, "_blank");
         }
-    });
+    } catch (err) {
+        console.error("Error abriendo checkout de Lemon Squeezy:", err);
+        window.open(LEMON_SQUEEZY_CHECKOUT_URL, "_blank");
+    }
+}
+
+if (startProCheckoutBtn) {
+    startProCheckoutBtn.addEventListener("click", handleProCheckoutClick);
+}
+
+if (upgradeProBtn) {
+    upgradeProBtn.addEventListener("click", handleProCheckoutClick);
 }
 
 window.openVaultModal = function() {
