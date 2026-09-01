@@ -95,6 +95,8 @@ const openVaultBtn = document.getElementById("openVaultBtn");
 const closeVaultModalBtn = document.getElementById("closeVaultModalBtn");
 const vaultModal = document.getElementById("vaultModal");
 const vaultProjectsList = document.getElementById("vaultProjectsList");
+const vaultSearchInput = document.getElementById("vaultSearchInput");
+const repertoireCountLabel = document.getElementById("repertoireCountLabel");
 const refreshVaultBtn = document.getElementById("refreshVaultBtn");
 const saveToVaultBtn = document.getElementById("saveToVaultBtn");
 
@@ -105,6 +107,7 @@ const upgradeProBtn = document.getElementById("upgradeProBtn");
 
 let currentJobId = null;
 let currentFileName = "audio.wav";
+let cachedRepertoireProjects = [];
 
 // Controles Musicales
 const bpmInput = document.getElementById("bpmInput");
@@ -2918,7 +2921,7 @@ if (presetGuitarlessBtn) presetGuitarlessBtn.addEventListener("click", () => app
 if (presetVocalsBtn) presetVocalsBtn.addEventListener("click", () => applyMixPreset("vocals_only"));
 if (presetResetBtn) presetResetBtn.addEventListener("click", () => applyMixPreset("reset"));
 
-// --- Lógica de Modales: Bóveda Cloud 50TB y Planes PRO ---
+// --- Lógica de Mi Repertorio (Biblioteca de Canciones) y Planes PRO ---
 if (openPlansModalBtn) {
     openPlansModalBtn.addEventListener("click", () => {
         if (plansModal) plansModal.classList.remove("hidden");
@@ -2931,7 +2934,7 @@ if (closePlansModalBtn) {
 }
 if (upgradeProBtn) {
     upgradeProBtn.addEventListener("click", () => {
-        alert("¡Gracias por tu interés en AuraSplit PRO VIP! El almacenamiento Cloud de 50TB y los beneficios exclusivos estarán disponibles al instante.");
+        alert("¡Gracias por tu interés en AuraSplit PRO VIP! El repertorio permanente y los beneficios exclusivos estarán disponibles al instante.");
     });
 }
 
@@ -2952,78 +2955,114 @@ if (refreshVaultBtn) {
     });
 }
 
+if (vaultSearchInput) {
+    vaultSearchInput.addEventListener("input", (e) => {
+        const query = (e.target.value || "").toLowerCase().trim();
+        renderFilteredRepertoire(query);
+    });
+}
+
 async function loadVaultProjects() {
     if (!vaultProjectsList) return;
     vaultProjectsList.innerHTML = `
         <div class="text-center py-12 text-zinc-500 font-mono text-xs flex flex-col items-center gap-2">
-            <svg class="w-8 h-8 text-amber-500 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
-            Consultando proyectos en tu Bóveda Cloud de 50TB en Google Drive...
+            <svg class="w-8 h-8 text-red-500 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
+            Cargando tu repertorio de canciones...
         </div>
     `;
 
     try {
         const res = await fetch(`${BACKEND_URL}/vault/list`);
-        if (!res.ok) throw new Error("No se pudo conectar con el servicio de Bóveda.");
+        if (!res.ok) throw new Error("No se pudo conectar con el servidor.");
         const data = await res.json();
         
-        if (!data.projects || data.projects.length === 0) {
-            vaultProjectsList.innerHTML = `
-                <div class="text-center py-12 text-zinc-500 font-mono text-xs space-y-2">
-                    <svg class="w-10 h-10 mx-auto text-zinc-700 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
-                    <p class="text-zinc-400 font-bold">Tu Bóveda Cloud está lista pero vacía</p>
-                    <p class="text-zinc-600 text-[11px]">Separa una canción y haz clic en "GUARDAR EN BÓVEDA" para guardarla permanentemente.</p>
-                </div>
-            `;
-            return;
+        cachedRepertoireProjects = data.projects || [];
+        if (repertoireCountLabel) {
+            repertoireCountLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> ${cachedRepertoireProjects.length} canciones en tu repertorio`;
         }
 
-        let html = "";
-        data.projects.forEach(proj => {
-            const meta = proj.metadata || {};
-            const bpm = meta.bpm ? `${parseFloat(meta.bpm).toFixed(1)} BPM` : "";
-            const compas = meta.timeSignature || "4/4";
-            const dateStr = proj.created_time ? new Date(proj.created_time).toLocaleDateString() : "";
+        const query = vaultSearchInput ? vaultSearchInput.value.toLowerCase().trim() : "";
+        renderFilteredRepertoire(query);
 
-            html += `
-                <div class="bg-zinc-900/60 border border-zinc-800/80 hover:border-amber-500/40 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all" data-vault-id="${proj.folder_id}">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-amber-400">
-                            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-                        </div>
-                        <div>
-                            <h4 class="text-xs font-bold text-white uppercase tracking-wider">${proj.name}</h4>
-                            <div class="flex items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-500">
-                                <span>📅 ${dateStr}</span>
-                                ${bpm ? `<span>• ⚡ ${bpm}</span>` : ""}
-                                <span>• 🎼 ${compas}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        ${proj.web_view_link ? `
-                            <a href="${proj.web_view_link}" target="_blank" class="px-3 py-1.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl border border-zinc-800 text-xs font-mono" title="Abrir carpeta en Google Drive">
-                                📁 Drive
-                            </a>
-                        ` : ""}
-                        <button onclick="loadProjectFromVault('${proj.folder_id}')" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-mono font-bold transition-all">
-                            Cargar
-                        </button>
-                        <button onclick="deleteProjectFromVault('${proj.folder_id}')" class="p-1.5 bg-zinc-950 hover:bg-red-950/40 text-zinc-500 hover:text-red-400 rounded-xl border border-zinc-800 text-xs font-mono" title="Eliminar de la Bóveda">
-                            🗑️
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
-
-        vaultProjectsList.innerHTML = html;
     } catch (err) {
         vaultProjectsList.innerHTML = `
             <div class="text-center py-8 text-red-400 font-mono text-xs">
-                No se pudo consultar la Bóveda: ${err.message}
+                No se pudo cargar el repertorio: ${err.message}
             </div>
         `;
     }
+}
+
+function renderFilteredRepertoire(query = "") {
+    if (!vaultProjectsList) return;
+    
+    let filtered = cachedRepertoireProjects;
+    if (query) {
+        filtered = cachedRepertoireProjects.filter(p => p.name.toLowerCase().includes(query));
+    }
+
+    if (filtered.length === 0) {
+        if (cachedRepertoireProjects.length === 0) {
+            vaultProjectsList.innerHTML = `
+                <div class="text-center py-12 text-zinc-500 font-mono text-xs space-y-2">
+                    <svg class="w-10 h-10 mx-auto text-zinc-700 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                    <p class="text-zinc-300 font-bold">Tu repertorio está vacío</p>
+                    <p class="text-zinc-500 text-[11px]">Separa una canción y haz clic en "GUARDAR EN REPERTORIO" para tenerla siempre lista.</p>
+                </div>
+            `;
+        } else {
+            vaultProjectsList.innerHTML = `
+                <div class="text-center py-10 text-zinc-500 font-mono text-xs">
+                    No se encontraron canciones que coincidan con "${query}".
+                </div>
+            `;
+        }
+        return;
+    }
+
+    let html = "";
+    filtered.forEach(proj => {
+        const meta = proj.metadata || {};
+        const bpm = meta.bpm ? `${parseFloat(meta.bpm).toFixed(1)} BPM` : "";
+        const compas = meta.timeSignature || "4/4";
+        const pitch = meta.pitchShift ? (meta.pitchShift > 0 ? `+${meta.pitchShift} st` : `${meta.pitchShift} st`) : "0 st";
+        const dateStr = proj.created_time ? new Date(proj.created_time).toLocaleDateString() : "";
+        
+        // Limpiar el nombre visual eliminando prefijos de fecha si los tiene
+        let displayName = proj.name;
+        if (displayName.includes(" - ")) {
+            displayName = displayName.split(" - ").slice(1).join(" - ");
+        }
+
+        html += `
+            <div class="bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/40 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all group" data-vault-id="${proj.folder_id}">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-zinc-950 border border-zinc-800 group-hover:border-red-500/40 rounded-xl text-red-500 transition-colors">
+                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-white uppercase tracking-wider">${displayName}</h4>
+                        <div class="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-400">
+                            <span>📅 ${dateStr}</span>
+                            ${bpm ? `<span>• ⚡ ${bpm}</span>` : ""}
+                            <span>• 🎼 ${compas}</span>
+                            ${pitch !== "0 st" ? `<span class="text-purple-400 font-bold">• 🎹 ${pitch}</span>` : ""}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="loadProjectFromVault('${proj.folder_id}')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-mono font-bold tracking-wider transition-all shadow-md shadow-red-600/20 flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> ABRIR Y ENSAYAR
+                    </button>
+                    <button onclick="deleteProjectFromVault('${proj.folder_id}')" class="p-2 bg-zinc-950 hover:bg-red-950/40 text-zinc-500 hover:text-red-400 rounded-xl border border-zinc-800 text-xs font-mono transition-colors" title="Eliminar de mi repertorio">
+                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    vaultProjectsList.innerHTML = html;
 }
 
 window.loadProjectFromVault = async function(folderId) {
@@ -3034,16 +3073,16 @@ window.loadProjectFromVault = async function(folderId) {
     if (resultsSection) resultsSection.classList.add("hidden");
     if (processing) processing.classList.remove("hidden");
     
-    updateStatus("CARGANDO DE BÓVEDA...", "Obteniendo proyecto de Google Drive...", 30);
+    updateStatus("CARGANDO CANCIÓN...", "Obteniendo pistas y configuración de tu repertorio...", 30);
 
     try {
         const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`);
-        if (!res.ok) throw new Error("No se pudo obtener el proyecto de la Bóveda.");
+        if (!res.ok) throw new Error("No se pudo obtener la canción.");
         const projData = await res.json();
         
         const zipFile = (projData.files || []).find(f => f.name.endsWith(".zip"));
         if (zipFile) {
-            updateStatus("DESCARGANDO STEMS...", "Obteniendo archivos de audio...", 65);
+            updateStatus("DESCARGANDO PISTAS...", "Cargando audio multicanal...", 65);
             const zipRes = await fetch(`${BACKEND_URL}/vault/file/${zipFile.id}`);
             const zipBlob = await zipRes.blob();
             
@@ -3067,26 +3106,29 @@ window.loadProjectFromVault = async function(folderId) {
                     currentOffsetSec = parseFloat(meta.offset);
                     updatePhaseDisplay();
                 }
+                if (meta.pitchShift !== undefined) {
+                    applyPitchShift(parseInt(meta.pitchShift, 10) || 0);
+                }
                 syncClickAndGuide();
             }
 
-            updateStatus("LISTO", "Proyecto cargado desde la Bóveda Cloud.", 100);
+            updateStatus("LISTO", "Canción lista en consola.", 100);
             if (processing) processing.classList.add("hidden");
             if (mixerSection) mixerSection.classList.remove("hidden");
             if (resultsSection) resultsSection.classList.remove("hidden");
         } else {
-            throw new Error("No se encontró el paquete de stems en el proyecto.");
+            throw new Error("No se encontró el paquete de pistas en esta canción.");
         }
     } catch (err) {
-        showError("Error al cargar el proyecto de la Bóveda: " + err.message);
+        showError("Error al cargar la canción del repertorio: " + err.message);
     }
 };
 
 window.deleteProjectFromVault = async function(folderId) {
-    if (!confirm("¿Seguro que deseas eliminar este proyecto de tu Bóveda Cloud de Google Drive?")) return;
+    if (!confirm("¿Seguro que deseas eliminar esta canción de tu repertorio?")) return;
     try {
         const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("Error eliminando el proyecto.");
+        if (!res.ok) throw new Error("Error al eliminar la canción.");
         loadVaultProjects();
     } catch (err) {
         alert("Error al eliminar: " + err.message);
@@ -3095,7 +3137,7 @@ window.deleteProjectFromVault = async function(folderId) {
 
 async function saveCurrentProjectToVault() {
     if (!currentJobId) {
-        alert("Debes procesar una canción primero para poder guardarla en tu Bóveda Cloud.");
+        alert("Debes separar una canción antes de poder guardarla en tu repertorio.");
         return;
     }
 
@@ -3103,7 +3145,7 @@ async function saveCurrentProjectToVault() {
     const origHtml = saveToVaultBtn.innerHTML;
     saveToVaultBtn.disabled = true;
     saveToVaultBtn.innerHTML = `
-        <svg class="w-4 h-4 text-amber-400 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg> GUARDANDO...
+        <svg class="w-4 h-4 text-red-500 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg> GUARDANDO...
     `;
 
     try {
@@ -3129,22 +3171,22 @@ async function saveCurrentProjectToVault() {
 
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.detail || "Error al subir a Google Drive.");
+            throw new Error(errData.detail || "Error al guardar en el repertorio.");
         }
 
-        saveToVaultBtn.classList.remove("bg-zinc-900", "text-amber-300");
+        saveToVaultBtn.classList.remove("bg-zinc-900", "text-zinc-200");
         saveToVaultBtn.classList.add("bg-emerald-600", "text-white");
-        saveToVaultBtn.innerHTML = `✓ ¡GUARDADO EN BÓVEDA!`;
+        saveToVaultBtn.innerHTML = `✓ ¡GUARDADO EN TU REPERTORIO!`;
 
         setTimeout(() => {
             saveToVaultBtn.classList.remove("bg-emerald-600", "text-white");
-            saveToVaultBtn.classList.add("bg-zinc-900", "text-amber-300");
+            saveToVaultBtn.classList.add("bg-zinc-900", "text-zinc-200");
             saveToVaultBtn.innerHTML = origHtml;
             saveToVaultBtn.disabled = false;
         }, 4000);
 
     } catch (err) {
-        alert("Error al guardar en la Bóveda Cloud: " + err.message);
+        alert("Error al guardar en tu repertorio: " + err.message);
         saveToVaultBtn.innerHTML = origHtml;
         saveToVaultBtn.disabled = false;
     }

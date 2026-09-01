@@ -130,10 +130,10 @@
             <img src="iconlogo_aurasplit.svg" alt="AuraSplit Logo" class="h-9 w-auto filter drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]"/>
         </div>
         <div class="flex items-center gap-2.5">
-            <button id="openVaultBtn" type="button" class="px-3.5 py-1.5 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-amber-300 text-xs font-bold font-mono tracking-wider rounded-xl transition-all flex items-center gap-2 btn-tactile shadow-sm" title="Abrir proyectos guardados en tu Bóveda de 50TB">
-                <svg class="w-4 h-4 text-amber-400 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
-                <span class="hidden sm:inline">BÓVEDA 50TB</span>
-                <span class="sm:hidden">BÓVEDA</span>
+            <button id="openVaultBtn" type="button" class="px-3.5 py-1.5 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/40 text-zinc-200 text-xs font-bold font-mono tracking-wider rounded-xl transition-all flex items-center gap-2 btn-tactile shadow-sm" title="Ver mi repertorio de canciones guardadas">
+                <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                <span class="hidden sm:inline">MI REPERTORIO</span>
+                <span class="sm:hidden">REPERTORIO</span>
             </button>
             <button id="openPlansModalBtn" type="button" class="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold font-mono tracking-wider rounded-xl transition-all shadow-md shadow-red-600/20 flex items-center gap-1.5 btn-tactile">
                 👑 <span class="hidden sm:inline">PLANES PRO</span>
@@ -347,10 +347,10 @@
                         </button>
                     </div>
 
-                    <!-- Descargas y Guardado Cloud -->
+                    <!-- Descargas y Guardado en Repertorio -->
                     <div class="flex flex-wrap items-center gap-2">
-                        <button id="saveToVaultBtn" class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-850 text-amber-300 font-bold text-xs tracking-widest rounded-xl transition-all flex items-center gap-2 btn-tactile" title="Guardar proyecto completo en tu Bóveda Cloud de 50TB">
-                            <svg class="w-4 h-4 fill-current text-amber-400" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg> GUARDAR EN BÓVEDA
+                        <button id="saveToVaultBtn" class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-red-500/50 hover:bg-zinc-850 text-zinc-200 font-bold text-xs tracking-widest rounded-xl transition-all flex items-center gap-2 btn-tactile" title="Guardar canción con sus pistas, guías y faders en Mi Repertorio">
+                            <svg class="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg> GUARDAR EN REPERTORIO
                         </button>
                         <button id="downloadMixBtn" class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 text-white font-bold text-xs tracking-widest rounded-xl transition-colors flex items-center gap-2 btn-tactile">
                             <svg class="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"/></svg> MEZCLA
@@ -600,33 +600,41 @@
         </section>
     </main>
 
-    <!-- Modal: Bóveda Cloud 50TB (Google Drive) -->
-    <div id="vaultModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 md:p-8 space-y-6 shadow-2xl relative max-h-[85vh] flex flex-col">
+    <!-- Modal: Mi Repertorio (Biblioteca de Canciones y Ensayos) -->
+    <div id="vaultModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 md:p-8 space-y-4 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <!-- Modal Header -->
             <div class="flex items-center justify-between border-b border-zinc-900 pb-4">
                 <div class="flex items-center gap-3">
-                    <div class="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
-                        <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+                    <div class="p-2.5 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-500">
+                        <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                     </div>
                     <div>
-                        <h3 class="text-lg font-bold text-white tracking-wide">Bóveda Cloud 50TB</h3>
-                        <p class="text-xs text-zinc-400">Tus proyectos guardados con stems, metrónomo y guías en Google Drive</p>
+                        <h3 class="text-lg font-black text-white tracking-wide">Mi Repertorio</h3>
+                        <p class="text-xs text-zinc-400">Tus canciones listas para ensayar con guías, click y faders</p>
                     </div>
                 </div>
                 <button id="closeVaultModalBtn" class="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold">✕</button>
             </div>
 
-            <!-- Lista de Proyectos Guardados -->
-            <div id="vaultProjectsList" class="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+            <!-- Buscador de Canciones en el Repertorio -->
+            <div class="relative">
+                <svg class="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 fill-current" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" id="vaultSearchInput" placeholder="Buscar por nombre de canción..." class="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-red-500/50 transition-colors font-mono"/>
+            </div>
+
+            <!-- Lista de Canciones del Repertorio -->
+            <div id="vaultProjectsList" class="flex-1 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin">
                 <div class="text-center py-12 text-zinc-500 font-mono text-xs flex flex-col items-center gap-2">
-                    <svg class="w-8 h-8 text-zinc-700 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
-                    Cargando proyectos de tu Bóveda Cloud...
+                    <svg class="w-8 h-8 text-red-500 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
+                    Cargando tu repertorio...
                 </div>
             </div>
 
-            <div class="pt-4 border-t border-zinc-900 flex justify-between items-center text-[11px] text-zinc-500 font-mono">
-                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Conectado a Google Drive 50TB</span>
-                <button id="refreshVaultBtn" class="text-amber-400 hover:text-amber-300 transition-colors uppercase font-bold">Actualizar Lista</button>
+            <!-- Modal Footer -->
+            <div class="pt-3.5 border-t border-zinc-900 flex justify-between items-center text-[11px] text-zinc-500 font-mono">
+                <span id="repertoireCountLabel" class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Canciones guardadas en tu repertorio</span>
+                <button id="refreshVaultBtn" class="text-red-400 hover:text-red-300 transition-colors uppercase font-bold">Actualizar</button>
             </div>
         </div>
     </div>
@@ -639,7 +647,7 @@
                     <h3 class="text-xl font-black text-white tracking-wide flex items-center gap-2">
                         Elige tu Plan <span class="text-xs bg-red-600/20 border border-red-500/40 text-red-400 px-2 py-0.5 rounded-md font-mono">AuraSplit</span>
                     </h3>
-                    <p class="text-xs text-zinc-400 mt-0.5">Separación de audio profesional y almacenamiento ilimitado</p>
+                    <p class="text-xs text-zinc-400 mt-0.5">Separación de audio profesional y repertorio ilimitado</p>
                 </div>
                 <button id="closePlansModalBtn" class="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold">✕</button>
             </div>
@@ -660,7 +668,7 @@
                             <li class="flex items-center gap-2">✓ Hasta <strong>6 canciones al mes</strong></li>
                             <li class="flex items-center gap-2">✓ Exportación en MP3 Alta Calidad</li>
                             <li class="flex items-center gap-2">✓ Metrónomo y Guías Inteligentes</li>
-                            <li class="flex items-center gap-2 text-zinc-600">✕ Bóveda Cloud Persistente (50TB)</li>
+                            <li class="flex items-center gap-2 text-zinc-600">✕ Repertorio Cloud Permanente</li>
                             <li class="flex items-center gap-2 text-zinc-600">✕ Descargas WAV 24-bit sin compresión</li>
                         </ul>
                     </div>
@@ -684,7 +692,7 @@
                         </div>
                         <p class="text-xs text-zinc-400 mb-4">Para directores de banda, productores y estudios</p>
                         <ul class="space-y-2.5 text-xs text-zinc-200 font-sans">
-                            <li class="flex items-center gap-2 text-amber-300 font-semibold">★ Bóveda Cloud 50TB (Guarda tus proyectos)</li>
+                            <li class="flex items-center gap-2 text-red-400 font-semibold">★ Repertorio Cloud Permanente (Tus ensayos guardados)</li>
                             <li class="flex items-center gap-2 text-red-400 font-semibold">★ Canciones ILIMITADAS al mes</li>
                             <li class="flex items-center gap-2 text-red-400 font-semibold">★ Sin límite de duración (canciones largas/mixes)</li>
                             <li class="flex items-center gap-2">✓ Cola GPU Dedicada de Alta Prioridad</li>
@@ -717,6 +725,6 @@
     </footer>
 
     <!-- Script principal -->
-    <script src="app.js?v=3.6.0"></script>
+    <script src="app.js?v=3.7.0"></script>
 </body>
 </html>
