@@ -1880,6 +1880,19 @@ function seekToTime(newTime) {
 
     if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(newTime);
     if (masterSeekbar) masterSeekbar.value = (newTime / duration) * 100;
+
+    if (activeView === "timeline") {
+        const playPercent = Math.max(0, Math.min(1, newTime / duration));
+        for (const id of Object.keys(tracks)) {
+            const canvas = document.getElementById(`canvas-timeline-${id}`);
+            const playhead = document.getElementById(`playhead-${id}`);
+            if (canvas && playhead) {
+                const cursorX = canvas.width * playPercent;
+                playhead.style.transform = `translateX(${cursorX}px)`;
+                playhead.classList.remove("hidden");
+            }
+        }
+    }
 }
 
 function updateMasterPlayBtn() {
@@ -2049,28 +2062,19 @@ function drawMeters() {
             }
             ctx.stroke();
         }
+    }
 
-        // Dibujar aguja de reproducción (playhead) en la línea de tiempo
-        const timelineCanvas = document.getElementById(`canvas-timeline-${id}`);
-        if (timelineCanvas && timelineCanvas.waveformImage) {
-            const tCtx = timelineCanvas.getContext("2d");
-            const w = timelineCanvas.width;
-            const h = timelineCanvas.height;
-            
-            tCtx.putImageData(timelineCanvas.waveformImage, 0, 0);
-            
-            const playPercent = playOffset / duration;
-            const cursorX = w * playPercent;
-            
-            tCtx.strokeStyle = "#ffffff";
-            tCtx.lineWidth = 1.5;
-            tCtx.shadowColor = "#ef4444";
-            tCtx.shadowBlur = 4;
-            tCtx.beginPath();
-            tCtx.moveTo(cursorX, 0);
-            tCtx.lineTo(cursorX, h);
-            tCtx.stroke();
-            tCtx.shadowBlur = 0;
+    // Actualizar aguja de reproducción visual en la línea de tiempo (Ultra-rápido vía CSS, 0% memoria Canvas)
+    if (duration > 0 && activeView === "timeline") {
+        const playPercent = Math.max(0, Math.min(1, playOffset / duration));
+        for (const id of Object.keys(tracks)) {
+            const canvas = document.getElementById(`canvas-timeline-${id}`);
+            const playhead = document.getElementById(`playhead-${id}`);
+            if (canvas && playhead) {
+                const cursorX = canvas.width * playPercent;
+                playhead.style.transform = `translateX(${cursorX}px)`;
+                playhead.classList.remove("hidden");
+            }
         }
     }
 
@@ -2641,7 +2645,8 @@ function createTimelineTrackUI(id) {
 
             <!-- 3. Waveform Timeline Canvas Contenedor con soporte de Zoom Horizontal -->
             <div class="flex-1 bg-zinc-950/80 rounded-xl border border-zinc-900/60 h-20 relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-thin">
-                <canvas class="h-20 block cursor-pointer transition-all duration-150" id="canvas-timeline-${id}" height="72" style="height: 72px;"></canvas>
+                <canvas class="h-20 block cursor-pointer transition-all duration-150 relative z-0" id="canvas-timeline-${id}" height="72" style="height: 72px;"></canvas>
+                <div id="playhead-${id}" class="absolute top-0 bottom-0 left-0 w-[2px] bg-red-500 shadow-[0_0_8px_#ef4444] pointer-events-none z-10 hidden" style="height: 100%;"></div>
             </div>
         </div>
     `;
@@ -2817,8 +2822,6 @@ function drawWaveformWithGrid(id, track, canvas) {
         }
         ctx.stroke();
     }
-    
-    canvas.waveformImage = ctx.getImageData(0, 0, w, h);
 }
 
 // Bind seekbar input
