@@ -1836,7 +1836,30 @@ function setupSingleTrackAudioNode(id) {
         track.gainNode.gain.setValueAtTime(track.volume, audioCtx.currentTime);
         
         const sourceNode = audioCtx.createMediaElementSource(track.audio);
-        sourceNode.connect(track.gainNode);
+
+        // Integración de Pitch Shifter en tiempo real (manteniendo tempo/velocidad 1.0x intactos)
+        if (window.Tone && typeof Tone.PitchShift === "function") {
+            try {
+                if (Tone.getContext().rawContext !== audioCtx) {
+                    Tone.setContext(audioCtx);
+                }
+                track.pitchShift = new Tone.PitchShift({
+                    pitch: currentPitchShift || 0,
+                    windowSize: 0.08,
+                    delayTime: 0
+                });
+                track.pitchShift.wet.value = (currentPitchShift === 0) ? 0 : 1.0;
+                
+                Tone.connect(sourceNode, track.pitchShift);
+                Tone.connect(track.pitchShift, track.gainNode);
+            } catch (err) {
+                console.warn("Tone PitchShift fallback:", err);
+                sourceNode.connect(track.gainNode);
+            }
+        } else {
+            sourceNode.connect(track.gainNode);
+        }
+
         track.gainNode.connect(track.analyser);
         
         // Conectar a través del compresor limitador maestro
@@ -2761,7 +2784,7 @@ if (syncCursorBtn) {
     });
 }
 
-// --- Cambio de Tono en Tiempo Real (Pitch Shifter en Semitonos) ---
+// --- Cambio de Tono en Tiempo Real (Pitch Shifter en Semitonos sin alterar velocidad) ---
 let currentPitchShift = 0; // -6 a +6 semitonos
 
 function applyPitchShift(semitones) {
@@ -2771,11 +2794,22 @@ function applyPitchShift(semitones) {
         pitchDisplayVal.textContent = `${sign} st`;
     }
 
-    const rate = Math.pow(2, currentPitchShift / 12);
     for (const [id, track] of Object.entries(tracks)) {
-        if (track && track.audio) {
-            track.audio.preservesPitch = false;
-            track.audio.playbackRate = rate;
+        if (track) {
+            // Mantener velocidad y tempo EXACTAMENTE al 100% (1.0x)
+            if (track.audio) {
+                track.audio.preservesPitch = true;
+                track.audio.playbackRate = 1.0;
+            }
+            if (track.pitchShift) {
+                if (currentPitchShift === 0) {
+                    track.pitchShift.wet.value = 0;
+                    track.pitchShift.pitch = 0;
+                } else {
+                    track.pitchShift.wet.value = 1.0;
+                    track.pitchShift.pitch = currentPitchShift;
+                }
+            }
         }
     }
 }
