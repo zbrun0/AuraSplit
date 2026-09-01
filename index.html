@@ -99,6 +99,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <!-- Tone.js Library (Pitch Shifter en tiempo real manteniendo el tempo intacto) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Tailwind Configuration -->
     <script id="tailwind-config">
       tailwind.config = {
@@ -136,10 +138,24 @@
                 <span class="sm:hidden">REPERTORIO</span>
             </button>
             <button id="openPlansModalBtn" type="button" class="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold font-mono tracking-wider rounded-xl transition-all shadow-md shadow-red-600/20 flex items-center gap-1.5 btn-tactile">
-                👑 <span class="hidden sm:inline">PLANES PRO</span>
+                👑 <span class="hidden sm:inline">PRO 5 DÍAS GRATIS</span>
                 <span class="sm:hidden">PRO</span>
             </button>
-            <span id="engineBadge" class="hidden md:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg">
+            <!-- Perfil / Login Auth Widget -->
+            <div id="authNavContainer" class="flex items-center">
+                <button id="openAuthModalBtn" type="button" class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-1.5 btn-tactile">
+                    <svg class="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span class="hidden sm:inline">ACCEDER</span>
+                </button>
+                <!-- Menú Usuario Autenticado -->
+                <div id="userProfileMenu" class="hidden flex items-center gap-2 bg-zinc-900/90 border border-zinc-800/80 px-2.5 py-1 rounded-xl">
+                    <div id="userAvatar" class="w-5 h-5 rounded-full bg-red-600/40 text-red-300 font-mono text-[10px] font-black flex items-center justify-center border border-red-500/30 uppercase">U</div>
+                    <span id="userNameLabel" class="text-xs font-medium text-zinc-200 max-w-[100px] truncate hidden md:inline">Usuario</span>
+                    <span id="userProBadge" class="text-[9px] bg-red-600 text-white font-mono font-extrabold px-1.5 py-0.5 rounded shadow-xs hidden">PRO</span>
+                    <button id="signOutBtn" type="button" title="Cerrar Sesión" class="text-zinc-500 hover:text-red-400 text-xs font-mono ml-1">✕</button>
+                </div>
+            </div>
+            <span id="engineBadge" class="hidden lg:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg">
                 Demucs v4
             </span>
         </div>
@@ -700,11 +716,70 @@
                             <li class="flex items-center gap-2">✓ Cambio de tono y tempo ilimitado</li>
                             <li class="flex items-center gap-2">✓ Exportar mezcla completa personalizada</li>
                         </ul>
+                        <div class="bg-red-950/40 border border-red-500/30 rounded-xl p-3 text-[11px] text-zinc-300 font-mono flex items-center gap-2">
+                            <span class="text-amber-400 text-sm">🎁</span>
+                            <span><strong>Prueba 5 días GRATIS</strong>. $0 hoy, luego $6.99/mes. Cancela cuando quieras.</span>
+                        </div>
                     </div>
-                    <button id="upgradeProBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black font-mono tracking-wider transition-all shadow-lg shadow-red-600/30 btn-tactile">
-                        MEJORAR A PRO AHORA 👑
+                    <button id="upgradeProBtn" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-red-600 via-amber-600 to-red-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black font-mono tracking-wider transition-all shadow-lg shadow-red-600/30 btn-tactile">
+                        PROBAR 5 DÍAS GRATIS 👑
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Autenticación / Registro (Supabase Auth) -->
+    <div id="authModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 md:p-8 space-y-5 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-zinc-900 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <img src="iconlogo_aurasplit.svg" alt="AuraSplit" class="h-6 w-auto"/>
+                    <h3 id="authModalTitle" class="text-base font-black text-white tracking-wide">Acceso a AuraSplit</h3>
+                </div>
+                <button id="closeAuthModalBtn" class="text-zinc-400 hover:text-white p-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold">✕</button>
+            </div>
+
+            <p id="authModalSubtitle" class="text-xs text-zinc-400">Inicia sesión o regístrate para activar tu <strong>prueba de 5 días gratis de AuraSplit Pro</strong> y procesar en GPU dedicada.</p>
+
+            <!-- Botón Google OAuth 1-Click -->
+            <button id="googleLoginBtn" type="button" class="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold font-sans flex items-center justify-center gap-2.5 transition-all shadow-md">
+                <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+                <span>Continuar con Google</span>
+            </button>
+
+            <div class="flex items-center gap-3 my-2">
+                <div class="flex-1 h-px bg-zinc-800"></div>
+                <span class="text-[10px] uppercase font-mono text-zinc-500">O con tu correo</span>
+                <div class="flex-1 h-px bg-zinc-800"></div>
+            </div>
+
+            <!-- Formulario Email / Password -->
+            <form id="authEmailForm" class="space-y-3">
+                <div id="authNameGroup" class="hidden space-y-1">
+                    <label class="text-[10px] font-mono text-zinc-400 uppercase font-bold">Nombre Completo</label>
+                    <input id="authNameInput" type="text" placeholder="Ej. Alex Músico" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 transition-colors"/>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-mono text-zinc-400 uppercase font-bold">Correo Electrónico</label>
+                    <input id="authEmailInput" type="email" required placeholder="tu@correo.com" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 transition-colors"/>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-mono text-zinc-400 uppercase font-bold">Contraseña</label>
+                    <input id="authPasswordInput" type="password" required placeholder="••••••••" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 transition-colors"/>
+                </div>
+                <p id="authErrorMsg" class="hidden text-[11px] text-red-400 font-mono bg-red-950/40 border border-red-800/50 p-2 rounded-lg"></p>
+                <p id="authSuccessMsg" class="hidden text-[11px] text-emerald-400 font-mono bg-emerald-950/40 border border-emerald-800/50 p-2 rounded-lg"></p>
+
+                <button id="authSubmitBtn" type="submit" class="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black font-mono tracking-wider transition-all shadow-md shadow-red-600/20 btn-tactile mt-2">
+                    INICIAR SESIÓN
+                </button>
+            </form>
+
+            <div class="text-center pt-2 border-t border-zinc-900">
+                <button id="authToggleModeBtn" type="button" class="text-xs text-zinc-400 hover:text-red-400 transition-colors">
+                    ¿No tienes cuenta? <span class="text-red-500 font-bold underline">Regístrate gratis</span>
+                </button>
             </div>
         </div>
     </div>

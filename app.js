@@ -1,5 +1,22 @@
-// URL de la API del Backend (Hugging Face Space de AuraSplit)
+// URLs de la API del Backend (Hugging Face Free vs Modal Pro GPU)
 const BACKEND_URL = "https://zbrun0-aurasplit.hf.space"; 
+const PRO_BACKEND_URL = "https://zbrun0--aurasplit-pro-fastapi-app.modal.run";
+
+// Configuración de Supabase Auth & Database
+const SUPABASE_URL = "https://axyvfsgepyswfffmmtuq.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5_r0HfMfD2KyoccFHHInfA_FHrxsCJP";
+
+let supabaseClient = null;
+let currentUser = null;
+let userProfile = null;
+
+try {
+    if (window.supabase && typeof window.supabase.createClient === "function") {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+} catch (e) {
+    console.warn("No se pudo instanciar Supabase client:", e);
+}
 
 // --- Estado Global del Reproductor ---
 let audioCtx = null;
@@ -332,12 +349,18 @@ function uploadAndSeparate(file) {
         userConfiguredAutoGuide = autoGenerateGuideCheck.checked;
     }
 
-    updateStatus("SUBIENDO AUDIO DE ORIGEN...", "Enviando archivo a la memoria temporal del servidor...", 10);
-
     const modelSelect = document.getElementById("modelSelect");
     const formatSelect = document.getElementById("formatSelect");
     const selectedModel = modelSelect ? modelSelect.value : "htdemucs_6s";
     const selectedFormat = formatSelect ? formatSelect.value : "mp3";
+
+    // Si el usuario es PRO o está en su Periodo de Prueba de 5 días -> GPU en Modal
+    if (isUserPro()) {
+        processProWithModal(file, selectedModel, selectedFormat);
+        return;
+    }
+
+    updateStatus("SUBIENDO AUDIO DE ORIGEN...", "Enviando archivo a la memoria temporal del servidor...", 10);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -383,6 +406,62 @@ function uploadAndSeparate(file) {
 
     xhr.responseType = "json";
     xhr.send(formData);
+}
+
+// --- Procesamiento Exclusivo PRO con GPU en Modal (~10-15 seg) ---
+async function processProWithModal(file, selectedModel, selectedFormat) {
+    if (file && file.name) currentFileName = file.name;
+    updateStatus("⚡ PRO GPU DEDICADA (MODAL)...", "Conectando con GPU Nvidia T4 Serverless...", 15);
+    if (progressBar) progressBar.classList.add("animate-pulse");
+
+    let prog = 15;
+    const progressTimer = setInterval(() => {
+        if (prog < 90) {
+            prog += 6;
+            updateStatus("⚡ SEPARANDO EN GPU (MODAL)...", `Aislando canales con IA Demucs en GPU (~10s)... ${prog}%`, prog);
+        }
+    }, 700);
+
+    try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("model_name", selectedModel || "htdemucs_6s");
+        formData.append("output_format", selectedFormat || "mp3");
+        formData.append("shifts", "1");
+
+        const session = supabaseClient ? (await supabaseClient.auth.getSession()).data.session : null;
+        const headers = {};
+        if (session && session.access_token) {
+            headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+
+        const res = await fetch(`${PRO_BACKEND_URL}/api/separate-pro`, {
+            method: "POST",
+            body: formData,
+            headers: headers
+        });
+
+        clearInterval(progressTimer);
+
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Error de GPU Serverless (${res.status}): ${errText}`);
+        }
+
+        updateStatus("DECODIFICANDO CANALES...", "Pistas aisladas con éxito en GPU. Cargando en mezclador...", 95);
+        const zipBlobResponse = await res.blob();
+        zipBlob = zipBlobResponse;
+
+        await decodeAndSetupMixer(zipBlobResponse);
+
+        if (processing) processing.classList.add("hidden");
+        if (mixerState) mixerState.classList.remove("hidden");
+        if (viewTimelineBtn) viewTimelineBtn.classList.remove("hidden");
+    } catch (err) {
+        clearInterval(progressTimer);
+        console.error("Error en procesamiento Pro:", err);
+        showError("Ocurrió un error en el servidor Pro GPU: " + err.message);
+    }
 }
 
 function updateStatus(title, subtitle, percentage) {
@@ -2921,7 +3000,254 @@ if (presetGuitarlessBtn) presetGuitarlessBtn.addEventListener("click", () => app
 if (presetVocalsBtn) presetVocalsBtn.addEventListener("click", () => applyMixPreset("vocals_only"));
 if (presetResetBtn) presetResetBtn.addEventListener("click", () => applyMixPreset("reset"));
 
-// --- Lógica de Mi Repertorio (Biblioteca de Canciones) y Planes PRO ---
+// --- Lógica de Autenticación con Supabase, Perfil y Planes PRO (5 Días Trial) ---
+
+function isUserPro() {
+    if (!userProfile) return false;
+    if (userProfile.is_pro === true) return true;
+    if (userProfile.subscription_status === "active" || userProfile.subscription_status === "trialing") {
+        // Verificar si la fecha de trial sigue vigente
+        if (userProfile.trial_end) {
+            const trialEnd = new Date(userProfile.trial_end);
+            return trialEnd > new Date();
+        }
+        return true;
+    }
+    return false;
+}
+
+async function loadUserProfile(userId) {
+    if (!supabaseClient || !userId) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .single();
+
+        if (!error && data) {
+            userProfile = data;
+        } else {
+            userProfile = { id: userId, is_pro: false, subscription_status: "none" };
+        }
+    } catch (e) {
+        console.warn("Error consultando tabla profiles:", e);
+        userProfile = { id: userId, is_pro: false, subscription_status: "none" };
+    }
+}
+
+function updateAuthUI() {
+    const openAuthBtn = document.getElementById("openAuthModalBtn");
+    const userProfileMenu = document.getElementById("userProfileMenu");
+    const userNameLabel = document.getElementById("userNameLabel");
+    const userAvatar = document.getElementById("userAvatar");
+    const userProBadge = document.getElementById("userProBadge");
+    const engineBadge = document.getElementById("engineBadge");
+
+    if (currentUser) {
+        if (openAuthBtn) openAuthBtn.classList.add("hidden");
+        if (userProfileMenu) userProfileMenu.classList.remove("hidden");
+
+        const name = userProfile?.full_name || currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Usuario";
+        if (userNameLabel) userNameLabel.textContent = name;
+        if (userAvatar) {
+            userAvatar.textContent = name.charAt(0).toUpperCase();
+        }
+
+        const isPro = isUserPro();
+        if (userProBadge) {
+            if (isPro) {
+                userProBadge.classList.remove("hidden");
+                if (userProfile?.subscription_status === "trialing") {
+                    userProBadge.textContent = "TRIAL 5D";
+                    userProBadge.className = "text-[9px] bg-amber-500 text-black font-mono font-extrabold px-1.5 py-0.5 rounded shadow-xs";
+                } else {
+                    userProBadge.textContent = "PRO VIP";
+                    userProBadge.className = "text-[9px] bg-red-600 text-white font-mono font-extrabold px-1.5 py-0.5 rounded shadow-xs";
+                }
+            } else {
+                userProBadge.classList.add("hidden");
+            }
+        }
+
+        if (engineBadge) {
+            if (isPro) {
+                engineBadge.textContent = "⚡ GPU SERVERLESS (MODAL)";
+                engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-amber-300 bg-amber-950/60 border border-amber-500/40 px-3 py-1 uppercase tracking-widest rounded-lg";
+            } else {
+                engineBadge.textContent = "Demucs v4 (CPU)";
+                engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg";
+            }
+        }
+    } else {
+        if (openAuthBtn) openAuthBtn.classList.remove("hidden");
+        if (userProfileMenu) userProfileMenu.classList.add("hidden");
+        if (engineBadge) {
+            engineBadge.textContent = "Demucs v4";
+            engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg";
+        }
+    }
+}
+
+async function initAuth() {
+    if (!supabaseClient) return;
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session && session.user) {
+            currentUser = session.user;
+            await loadUserProfile(session.user.id);
+        }
+        updateAuthUI();
+
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+            if (session && session.user) {
+                currentUser = session.user;
+                await loadUserProfile(session.user.id);
+            } else {
+                currentUser = null;
+                userProfile = null;
+            }
+            updateAuthUI();
+        });
+    } catch (err) {
+        console.warn("Error al inicializar sesión Supabase:", err);
+    }
+}
+
+// Inicializar Auth de inmediato
+initAuth();
+
+// --- Event Listeners para Modales de Auth y Planes ---
+let isAuthRegisterMode = false;
+const authModal = document.getElementById("authModal");
+const openAuthModalBtn = document.getElementById("openAuthModalBtn");
+const closeAuthModalBtn = document.getElementById("closeAuthModalBtn");
+const googleLoginBtn = document.getElementById("googleLoginBtn");
+const authEmailForm = document.getElementById("authEmailForm");
+const authToggleModeBtn = document.getElementById("authToggleModeBtn");
+const authModalTitle = document.getElementById("authModalTitle");
+const authNameGroup = document.getElementById("authNameGroup");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const authErrorMsg = document.getElementById("authErrorMsg");
+const authSuccessMsg = document.getElementById("authSuccessMsg");
+const signOutBtn = document.getElementById("signOutBtn");
+
+if (openAuthModalBtn) {
+    openAuthModalBtn.addEventListener("click", () => {
+        if (authModal) authModal.classList.remove("hidden");
+    });
+}
+if (closeAuthModalBtn) {
+    closeAuthModalBtn.addEventListener("click", () => {
+        if (authModal) authModal.classList.add("hidden");
+        if (authErrorMsg) authErrorMsg.classList.add("hidden");
+        if (authSuccessMsg) authSuccessMsg.classList.add("hidden");
+    });
+}
+
+if (authToggleModeBtn) {
+    authToggleModeBtn.addEventListener("click", () => {
+        isAuthRegisterMode = !isAuthRegisterMode;
+        if (authErrorMsg) authErrorMsg.classList.add("hidden");
+        if (authSuccessMsg) authSuccessMsg.classList.add("hidden");
+        
+        if (isAuthRegisterMode) {
+            if (authModalTitle) authModalTitle.textContent = "Crear Cuenta en AuraSplit";
+            if (authNameGroup) authNameGroup.classList.remove("hidden");
+            if (authSubmitBtn) authSubmitBtn.textContent = "CREAR CUENTA Y ACTIVAR 5 DÍAS";
+            authToggleModeBtn.innerHTML = "¿Ya tienes cuenta? <span class=\"text-red-500 font-bold underline\">Inicia sesión</span>";
+        } else {
+            if (authModalTitle) authModalTitle.textContent = "Acceso a AuraSplit";
+            if (authNameGroup) authNameGroup.classList.add("hidden");
+            if (authSubmitBtn) authSubmitBtn.textContent = "INICIAR SESIÓN";
+            authToggleModeBtn.innerHTML = "¿No tienes cuenta? <span class=\"text-red-500 font-bold underline\">Regístrate gratis</span>";
+        }
+    });
+}
+
+if (googleLoginBtn) {
+    googleLoginBtn.addEventListener("click", async () => {
+        if (!supabaseClient) {
+            alert("Cliente de Supabase no configurado.");
+            return;
+        }
+        try {
+            const { error } = await supabaseClient.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: window.location.origin
+                }
+            });
+            if (error) throw error;
+        } catch (err) {
+            if (authErrorMsg) {
+                authErrorMsg.textContent = "Error al conectar con Google: " + err.message;
+                authErrorMsg.classList.remove("hidden");
+            }
+        }
+    });
+}
+
+if (authEmailForm) {
+    authEmailForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!supabaseClient) return;
+
+        const email = document.getElementById("authEmailInput").value.trim();
+        const password = document.getElementById("authPasswordInput").value;
+        const fullName = document.getElementById("authNameInput") ? document.getElementById("authNameInput").value.trim() : "";
+
+        if (authErrorMsg) authErrorMsg.classList.add("hidden");
+        if (authSuccessMsg) authSuccessMsg.classList.add("hidden");
+        if (authSubmitBtn) authSubmitBtn.disabled = true;
+
+        try {
+            if (isAuthRegisterMode) {
+                // Registro
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: { full_name: fullName }
+                    }
+                });
+                if (error) throw error;
+
+                if (authSuccessMsg) {
+                    authSuccessMsg.textContent = "¡Cuenta creada! Ya puedes iniciar sesión y disfrutar de tu prueba.";
+                    authSuccessMsg.classList.remove("hidden");
+                }
+            } else {
+                // Inicio de sesión
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                if (error) throw error;
+
+                if (authModal) authModal.classList.add("hidden");
+            }
+        } catch (err) {
+            if (authErrorMsg) {
+                authErrorMsg.textContent = err.message || "Error de autenticación.";
+                authErrorMsg.classList.remove("hidden");
+            }
+        } finally {
+            if (authSubmitBtn) authSubmitBtn.disabled = false;
+        }
+    });
+}
+
+if (signOutBtn) {
+    signOutBtn.addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        userProfile = null;
+        updateAuthUI();
+    });
+}
+
 if (openPlansModalBtn) {
     openPlansModalBtn.addEventListener("click", () => {
         if (plansModal) plansModal.classList.remove("hidden");
@@ -2932,9 +3258,55 @@ if (closePlansModalBtn) {
         if (plansModal) plansModal.classList.add("hidden");
     });
 }
+
+// Botón de activación de los 5 días de prueba Pro
 if (upgradeProBtn) {
-    upgradeProBtn.addEventListener("click", () => {
-        alert("¡Gracias por tu interés en AuraSplit PRO VIP! El repertorio permanente y los beneficios exclusivos estarán disponibles al instante.");
+    upgradeProBtn.addEventListener("click", async () => {
+        // 1. Si no ha iniciado sesión, abrir modal de registro
+        if (!currentUser) {
+            if (plansModal) plansModal.classList.add("hidden");
+            if (authModal) authModal.classList.remove("hidden");
+            if (authModalSubtitle) {
+                authModalSubtitle.innerHTML = "Crea tu cuenta para activar tu <strong>prueba gratuita de 5 días de AuraSplit Pro</strong> (GPU Serverless ultrarrápida).";
+            }
+            // Activar modo registro por defecto
+            if (!isAuthRegisterMode && authToggleModeBtn) {
+                authToggleModeBtn.click();
+            }
+            return;
+        }
+
+        // 2. Si ya está autenticado, activar la prueba de 5 días en Supabase
+        try {
+            upgradeProBtn.disabled = true;
+            upgradeProBtn.textContent = "ACTIVANDO PRUEBA...";
+
+            const trialEnd = new Date();
+            trialEnd.setDate(trialEnd.getDate() + 5);
+
+            const { error } = await supabaseClient
+                .from("profiles")
+                .update({
+                    is_pro: true,
+                    subscription_status: "trialing",
+                    trial_end: trialEnd.toISOString()
+                })
+                .eq("id", currentUser.id);
+
+            if (error) throw error;
+
+            await loadUserProfile(currentUser.id);
+            updateAuthUI();
+
+            if (plansModal) plansModal.classList.add("hidden");
+            alert("👑 ¡FELICITACIONES! Has activado tus 5 DÍAS DE PRUEBA GRATIS en AuraSplit Pro.\n\nTus separaciones ahora se procesarán en GPU ultrarrápida en ~10 segundos.");
+        } catch (err) {
+            console.error("Error activando trial:", err);
+            alert("No se pudo activar la prueba: " + err.message);
+        } finally {
+            upgradeProBtn.disabled = false;
+            upgradeProBtn.textContent = "PROBAR 5 DÍAS GRATIS 👑";
+        }
     });
 }
 
