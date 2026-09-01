@@ -3294,7 +3294,11 @@ if (signOutBtn) {
         await supabaseClient.auth.signOut();
         currentUser = null;
         userProfile = null;
+        cachedRepertoireProjects = [];
         updateAuthUI();
+        if (vaultModal && !vaultModal.classList.contains("hidden")) {
+            loadVaultProjects();
+        }
     });
 }
 
@@ -3339,38 +3343,28 @@ if (typeof window !== "undefined") {
             });
         }
     };
-    window.addEventListener("DOMContentLoaded", () => {
-        if (window.createLemonSqueezy) window.createLemonSqueezy();
-    });
+    if (window.LemonSqueezy) {
+        window.createLemonSqueezy();
+    }
 }
 
-// Botón de activación de los 5 días de prueba Pro (Lemon Squeezy Checkout)
-if (upgradeProBtn) {
-    upgradeProBtn.addEventListener("click", async () => {
-        // 1. Si no ha iniciado sesión, abrir modal de registro primero
+if (startProCheckoutBtn) {
+    startProCheckoutBtn.addEventListener("click", () => {
         if (!currentUser) {
             if (plansModal) plansModal.classList.add("hidden");
             if (authModal) authModal.classList.remove("hidden");
-            if (authModalSubtitle) {
-                authModalSubtitle.innerHTML = "Inicia sesión o crea tu cuenta para comenzar tu <strong>prueba gratuita de 5 días de AuraSplit Pro</strong>.";
-            }
-            if (!isAuthRegisterMode && authToggleModeBtn) {
-                authToggleModeBtn.click();
-            }
+            alert("Por favor inicia sesión o crea una cuenta antes de activar el plan PRO.");
             return;
         }
 
-        // 2. Si ya está autenticado, abrir Lemon Squeezy Checkout pasando sus datos
         try {
             const userEmail = encodeURIComponent(currentUser.email || "");
             const userName = encodeURIComponent(userProfile?.full_name || currentUser.user_metadata?.full_name || "");
             const userId = encodeURIComponent(currentUser.id);
-
-            const checkoutUrl = `${LEMON_SQUEEZY_CHECKOUT_URL}?checkout[custom][user_id]=${userId}&checkout[email]=${userEmail}&checkout[name]=${userName}&embed=1`;
-
-            if (plansModal) plansModal.classList.add("hidden");
-
+            const checkoutUrl = `${LEMON_SQUEEZY_CHECKOUT_URL}?checkout[email]=${userEmail}&checkout[name]=${userName}&checkout[custom][user_id]=${userId}`;
+            
             if (window.LemonSqueezy && typeof window.LemonSqueezy.Url?.Open === "function") {
+                if (plansModal) plansModal.classList.add("hidden");
                 window.LemonSqueezy.Url.Open(checkoutUrl);
             } else {
                 window.open(checkoutUrl, "_blank");
@@ -3416,7 +3410,7 @@ async function loadVaultProjects() {
                     <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
                 </div>
                 <p class="text-zinc-200 font-bold text-sm">Tu Repertorio es Personal y Privado</p>
-                <p class="text-zinc-500 text-[11px] max-w-xs mx-auto">Inicia sesión o regístrate con tu cuenta para guardar y acceder a tus canciones personalizadas.</p>
+                <p class="text-zinc-500 text-[11px] max-w-xs mx-auto">Inicia sesión con tu cuenta para acceder a tu repertorio personal.</p>
                 <button onclick="if (document.getElementById('authModal')) document.getElementById('authModal').classList.remove('hidden');" class="mt-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs font-mono transition-all shadow-lg shadow-red-600/20">
                     INICIAR SESIÓN / REGISTRARSE
                 </button>
@@ -3424,6 +3418,32 @@ async function loadVaultProjects() {
         `;
         if (repertoireCountLabel) {
             repertoireCountLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-zinc-600"></span> Inicia sesión para ver tu repertorio`;
+        }
+        return;
+    }
+
+    // Si el usuario está registrado pero NO es PRO
+    if (!isUserPro()) {
+        vaultProjectsList.innerHTML = `
+            <div class="text-center py-12 text-zinc-400 font-mono text-xs space-y-3">
+                <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner shadow-amber-500/10">
+                    <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-zinc-100 font-bold text-sm tracking-wider uppercase">Bóveda Cloud Exclusiva del Plan PRO</h3>
+                    <p class="text-zinc-400 text-[11px] max-w-sm mx-auto mt-1 leading-relaxed">
+                        El repertorio personal en la nube (50TB) para guardar tus canciones separadas, tempos, compases y guías de ensayo está disponible únicamente para suscriptores PRO.
+                    </p>
+                </div>
+                <div class="pt-2">
+                    <button onclick="if (document.getElementById('plansModal')) document.getElementById('plansModal').classList.remove('hidden');" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-extrabold rounded-xl text-xs font-mono transition-all shadow-lg shadow-amber-500/20 tracking-wider">
+                        ⭐ DESBLOQUEAR REPERTORIO CON PLAN PRO
+                    </button>
+                </div>
+            </div>
+        `;
+        if (repertoireCountLabel) {
+            repertoireCountLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span> Función Exclusiva PRO`;
         }
         return;
     }
@@ -3603,6 +3623,12 @@ async function saveCurrentProjectToVault() {
     if (!currentUser) {
         if (authModal) authModal.classList.remove("hidden");
         alert("Debes iniciar sesión con tu cuenta para guardar canciones en tu repertorio personal.");
+        return;
+    }
+
+    if (!isUserPro()) {
+        if (plansModal) plansModal.classList.remove("hidden");
+        alert("Guardar en la Bóveda de Repertorio de 50TB es una función exclusiva del Plan PRO.");
         return;
     }
 
