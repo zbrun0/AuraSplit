@@ -2547,7 +2547,6 @@ function syncClickAndGuide() {
     const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
 
     generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-    detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
     if (tracks.guide) {
         generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
     }
@@ -2663,35 +2662,67 @@ function executeAutoSnap() {
     const sampleRate = drumBuffer.sampleRate;
     const data = drumBuffer.getChannelData(0);
     const beatInterval = 60 / currentBpm;
-    const searchCenter = playOffset > 0 ? playOffset : (currentOffsetSec || 0);
-    const startSec = Math.max(0, searchCenter - beatInterval * 0.8);
-    const endSec = Math.min(drumBuffer.duration, searchCenter + beatInterval * 0.8);
     
-    const startIdx = Math.floor(startSec * sampleRate);
-    const endIdx = Math.floor(endSec * sampleRate);
-    
+    let peakSample = 0;
     let maxEnergy = 0;
-    let peakSample = startIdx;
     const win = 128;
-    
-    for (let i = startIdx; i < endIdx - win; i += win) {
-        let sumSq = 0;
-        for (let j = 0; j < win; j++) {
-            const v = data[i + j];
-            sumSq += v * v;
+
+    if (playOffset > 0.1) {
+        // Calzar alrededor de la posición actual del cursor de reproducción
+        const searchCenter = playOffset;
+        const startSec = Math.max(0, searchCenter - beatInterval * 0.8);
+        const endSec = Math.min(drumBuffer.duration, searchCenter + beatInterval * 0.8);
+        const startIdx = Math.floor(startSec * sampleRate);
+        const endIdx = Math.floor(endSec * sampleRate);
+
+        for (let i = startIdx; i < endIdx - win; i += win) {
+            let sumSq = 0;
+            for (let j = 0; j < win; j++) {
+                const v = data[i + j];
+                sumSq += v * v;
+            }
+            if (sumSq > maxEnergy) {
+                maxEnergy = sumSq;
+                peakSample = i;
+            }
         }
-        if (sumSq > maxEnergy) {
-            maxEnergy = sumSq;
-            peakSample = i;
+    } else {
+        // Calzar con el primer transitorio claro de batería en los primeros 15 segundos
+        const maxSearchSec = Math.min(drumBuffer.duration, 15.0);
+        const endIdx = Math.floor(maxSearchSec * sampleRate);
+        
+        let totalEnergy = 0;
+        let count = 0;
+        for (let i = 0; i < endIdx - win; i += win * 4) {
+            let sumSq = 0;
+            for (let j = 0; j < win; j++) {
+                const v = data[i + j];
+                sumSq += v * v;
+            }
+            totalEnergy += sumSq;
+            count++;
+        }
+        const avgEnergy = (count > 0) ? (totalEnergy / count) : 0.01;
+        const threshold = avgEnergy * 2.0;
+
+        for (let i = 0; i < endIdx - win; i += win) {
+            let sumSq = 0;
+            for (let j = 0; j < win; j++) {
+                const v = data[i + j];
+                sumSq += v * v;
+            }
+            if (sumSq > threshold && sumSq > maxEnergy) {
+                maxEnergy = sumSq;
+                peakSample = i;
+                if (sumSq > threshold * 3) break;
+            }
         }
     }
     
     const exactPeakSec = peakSample / sampleRate;
     currentOffsetSec = exactPeakSec % beatInterval;
     updatePhaseDisplay();
-    if (typeof renderAllWaveforms === "function") {
-        renderAllWaveforms();
-    }
+    renderAllWaveforms();
     debounceSyncClickAndGuide(50);
 }
 
@@ -2841,8 +2872,8 @@ function createTimelineTrackUI(id) {
             </div>
 
             <!-- 3. Waveform Timeline Canvas Contenedor con soporte de Zoom Horizontal -->
-            <div class="flex-1 bg-zinc-950/80 rounded-xl border border-zinc-900/60 h-20 relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-thin">
-                <canvas class="h-20 block cursor-pointer transition-all duration-150 relative z-0" id="canvas-timeline-${id}" height="72" style="height: 72px;"></canvas>
+            <div class="flex-1 bg-zinc-950/90 rounded-xl border border-zinc-900/80 h-28 relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-thin">
+                <canvas class="h-28 block cursor-pointer transition-all duration-150 relative z-0" id="canvas-timeline-${id}" height="100" style="height: 100px;"></canvas>
                 <div id="playhead-${id}" class="absolute top-0 bottom-0 left-0 w-[2px] bg-red-500 shadow-[0_0_8px_#ef4444] pointer-events-none z-10 hidden" style="height: 100%;"></div>
             </div>
         </div>
@@ -2874,14 +2905,112 @@ function createTimelineTrackUI(id) {
 
     const canvas = document.getElementById(`canvas-timeline-${id}`);
     if (canvas) {
+        attachSectionDragHandlers(canvas);
         canvas.addEventListener("click", (e) => {
-            if (!duration) return;
+            if (!duration || isDraggingOnCanvas) return;
             const rect = canvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickPercent = clickX / rect.width;
             seekToTime(clickPercent * duration);
         });
     }
+}
+
+// --- Arrastre Magnético de Guías sobre las Ondas de Audio (Snap a Tiempos y Compases) ---
+let activeDragSection = null;
+let isDraggingOnCanvas = false;
+
+function attachSectionDragHandlers(canvas) {
+    if (!canvas || canvas.dataset.dragAttached) return;
+    canvas.dataset.dragAttached = "true";
+
+    canvas.addEventListener("mousedown", (e) => {
+        if (!duration || !songSections || songSections.length === 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const scale = canvas.width / rect.width;
+        const canvasX = clickX * scale;
+
+        // Comprobar si el clic cayó sobre el marcador o bandera de alguna sección
+        for (const sec of songSections) {
+            const secX = (sec.startTime / duration) * canvas.width;
+            if (Math.abs(canvasX - secX) <= 20 || (canvasX >= secX && canvasX <= secX + 60 && e.offsetY <= 30)) {
+                activeDragSection = sec;
+                isDraggingOnCanvas = true;
+                canvas.style.cursor = "grabbing";
+                e.stopPropagation();
+                e.preventDefault();
+                break;
+            }
+        }
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+        if (!isDraggingOnCanvas || !activeDragSection || !duration) {
+            if (duration && songSections && songSections.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const scale = canvas.width / rect.width;
+                const canvasX = clickX * scale;
+                let onSec = false;
+                for (const sec of songSections) {
+                    const secX = (sec.startTime / duration) * canvas.width;
+                    if (Math.abs(canvasX - secX) <= 16 || (canvasX >= secX && canvasX <= secX + 60 && e.offsetY <= 24)) {
+                        onSec = true;
+                        break;
+                    }
+                }
+                canvas.style.cursor = onSec ? "grab" : "pointer";
+            }
+            return;
+        }
+
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+        const rawTime = (mouseX / rect.width) * duration;
+
+        // Imán magnético: calzar a compás o a tiempo más cercano
+        const beatInterval = 60 / currentBpm;
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        const barDuration = beatInterval * beatsPerBar;
+
+        const nearestBar = Math.round((rawTime - currentOffsetSec) / barDuration) * barDuration + (currentOffsetSec % barDuration);
+        const nearestBeat = Math.round((rawTime - currentOffsetSec) / beatInterval) * beatInterval + (currentOffsetSec % beatInterval);
+
+        let targetTime = (Math.abs(rawTime - nearestBar) < (beatInterval * 0.45)) ? nearestBar : nearestBeat;
+        targetTime = Math.max(0, Math.min(duration - 0.5, targetTime));
+
+        activeDragSection.startTime = targetTime;
+        activeDragSection.startBar = Math.round(targetTime / barDuration);
+
+        renderAllWaveforms();
+    });
+
+    window.addEventListener("mouseup", () => {
+        if (isDraggingOnCanvas && activeDragSection) {
+            isDraggingOnCanvas = false;
+            canvas.style.cursor = "pointer";
+
+            songSections.sort((a, b) => a.startTime - b.startTime);
+            for (let i = 0; i < songSections.length; i++) {
+                if (i < songSections.length - 1) {
+                    songSections[i].endTime = songSections[i + 1].startTime;
+                } else {
+                    songSections[i].endTime = duration;
+                }
+            }
+
+            renderSectionMarkers();
+            renderAllWaveforms();
+
+            const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+            const barDuration = (60 / currentBpm) * beatsPerBar;
+            const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+            generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+
+            activeDragSection = null;
+        }
+    });
 }
 
 function switchView(viewName) {
@@ -2928,7 +3057,7 @@ function renderAllWaveforms() {
 function drawWaveformWithGrid(id, track, canvas) {
     const parentWidth = canvas.parentElement.clientWidth || 600;
     const w = Math.max(300, Math.round(parentWidth * timelineZoom));
-    const h = 72;
+    const h = 100;
     
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
