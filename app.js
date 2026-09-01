@@ -3168,26 +3168,69 @@ if (authToggleModeBtn) {
     });
 }
 
-if (googleLoginBtn) {
-    googleLoginBtn.addEventListener("click", async () => {
-        if (!supabaseClient) {
-            alert("Cliente de Supabase no configurado.");
-            return;
-        }
-        try {
-            const { error } = await supabaseClient.auth.signInWithOAuth({
-                provider: "google",
-                options: {
-                    redirectTo: window.location.origin
-                }
+const GOOGLE_CLIENT_ID = "325105260753-98kcps42emo3cs1l0uej4pn4537fm6f5.apps.googleusercontent.com";
+
+function initGoogleIdentityServices() {
+    if (typeof window === "undefined" || !window.google || !window.google.accounts || !window.google.accounts.id) {
+        setTimeout(initGoogleIdentityServices, 400);
+        return;
+    }
+
+    try {
+        window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleSignInCallback,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            context: "signin"
+        });
+
+        const btnContainer = document.getElementById("googleBtnContainer");
+        if (btnContainer) {
+            btnContainer.innerHTML = "";
+            window.google.accounts.id.renderButton(btnContainer, {
+                type: "standard",
+                shape: "pill",
+                theme: "filled_black",
+                text: "continue_with",
+                size: "large",
+                logo_alignment: "left",
+                width: 320
             });
-            if (error) throw error;
-        } catch (err) {
-            if (authErrorMsg) {
-                authErrorMsg.textContent = "Error al conectar con Google: " + err.message;
-                authErrorMsg.classList.remove("hidden");
-            }
         }
+    } catch (err) {
+        console.warn("Error inicializando Google Identity:", err);
+    }
+}
+
+async function handleGoogleSignInCallback(response) {
+    if (!response || !response.credential || !supabaseClient) return;
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithIdToken({
+            provider: "google",
+            token: response.credential
+        });
+
+        if (error) throw error;
+
+        if (data && data.user) {
+            currentUser = data.user;
+            await loadUserProfile(data.user.id);
+            updateAuthUI();
+            if (authModal) authModal.classList.add("hidden");
+        }
+    } catch (err) {
+        console.error("Error autenticando con Google IdToken:", err);
+        if (authErrorMsg) {
+            authErrorMsg.textContent = "Error al iniciar con Google: " + (err.message || err);
+            authErrorMsg.classList.remove("hidden");
+        }
+    }
+}
+
+if (typeof window !== "undefined") {
+    window.addEventListener("load", () => {
+        initGoogleIdentityServices();
     });
 }
 
