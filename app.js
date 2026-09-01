@@ -1168,6 +1168,9 @@ const editorBadgeColor = document.getElementById("editorBadgeColor");
 const editorSectionTitle = document.getElementById("editorSectionTitle");
 const editorSectionTiming = document.getElementById("editorSectionTiming");
 const addSectionMarkerBtn = document.getElementById("addSectionMarkerBtn");
+const modalMoveBarLeftBtn = document.getElementById("modalMoveBarLeftBtn");
+const modalMoveBarRightBtn = document.getElementById("modalMoveBarRightBtn");
+const modalMoveToCursorBtn = document.getElementById("modalMoveToCursorBtn");
 
 function openSectionEditor(sectionId) {
     const sec = songSections.find(s => s.id === sectionId);
@@ -1223,6 +1226,91 @@ function renderSectionTypeButtons() {
             renderSectionTypeButtons();
         });
         sectionTypeButtonsContainer.appendChild(btn);
+    });
+}
+
+// --- Funciones para Mover Guías y Secciones en la Línea de Tiempo ---
+function moveSection(sectionId, deltaBars) {
+    if (!songSections || songSections.length === 0 || !duration) return;
+    const secIndex = songSections.findIndex(s => s.id === sectionId);
+    if (secIndex === -1) return;
+
+    const sec = songSections[secIndex];
+    const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+    const barDuration = (60 / currentBpm) * beatsPerBar;
+    
+    let newStartTime = sec.startTime + (deltaBars * barDuration);
+    newStartTime = Math.max(0, Math.min(duration - 0.5, newStartTime));
+    
+    sec.startTime = newStartTime;
+    sec.startBar = Math.round(newStartTime / barDuration);
+    
+    songSections.sort((a, b) => a.startTime - b.startTime);
+    for (let i = 0; i < songSections.length; i++) {
+        if (i < songSections.length - 1) {
+            songSections[i].endTime = songSections[i + 1].startTime;
+        } else {
+            songSections[i].endTime = duration;
+        }
+    }
+
+    renderSectionMarkers();
+    
+    if (editingSectionId === sectionId && editorSectionTiming) {
+        editorSectionTiming.textContent = `Inicio: ${formatTime(sec.startTime)} - Fin: ${formatTime(sec.endTime)}`;
+    }
+
+    debounceSyncClickAndGuide(100);
+}
+
+function moveSectionToTime(sectionId, targetTime) {
+    if (!songSections || songSections.length === 0 || !duration) return;
+    const secIndex = songSections.findIndex(s => s.id === sectionId);
+    if (secIndex === -1) return;
+
+    const sec = songSections[secIndex];
+    const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+    const barDuration = (60 / currentBpm) * beatsPerBar;
+    
+    const nearestBar = Math.round(targetTime / barDuration);
+    const snappedTime = Math.max(0, Math.min(duration - 0.5, nearestBar * barDuration));
+    
+    sec.startTime = snappedTime;
+    sec.startBar = nearestBar;
+
+    songSections.sort((a, b) => a.startTime - b.startTime);
+    for (let i = 0; i < songSections.length; i++) {
+        if (i < songSections.length - 1) {
+            songSections[i].endTime = songSections[i + 1].startTime;
+        } else {
+            songSections[i].endTime = duration;
+        }
+    }
+
+    renderSectionMarkers();
+    
+    if (editingSectionId === sectionId && editorSectionTiming) {
+        editorSectionTiming.textContent = `Inicio: ${formatTime(sec.startTime)} - Fin: ${formatTime(sec.endTime)}`;
+    }
+
+    debounceSyncClickAndGuide(100);
+}
+
+if (modalMoveBarLeftBtn) {
+    modalMoveBarLeftBtn.addEventListener("click", () => {
+        if (editingSectionId) moveSection(editingSectionId, -1);
+    });
+}
+
+if (modalMoveBarRightBtn) {
+    modalMoveBarRightBtn.addEventListener("click", () => {
+        if (editingSectionId) moveSection(editingSectionId, 1);
+    });
+}
+
+if (modalMoveToCursorBtn) {
+    modalMoveToCursorBtn.addEventListener("click", () => {
+        if (editingSectionId) moveSectionToTime(editingSectionId, playOffset);
     });
 }
 
@@ -1311,24 +1399,35 @@ function renderSectionMarkers() {
     if (!sectionMarkersBar) return;
     sectionMarkersBar.innerHTML = "";
 
-    songSections.forEach((sec, idx) => {
+    songSections.forEach((sec) => {
         const startFormatted = formatTime(sec.startTime);
         const badge = document.createElement("div");
         badge.id = `marker-${sec.id}`;
-        badge.className = "section-badge group px-2.5 py-1 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider text-white border border-zinc-800 bg-zinc-900/90 hover:bg-zinc-800 flex items-center gap-1.5 shadow-md cursor-pointer transition-all";
+        badge.className = "section-badge group px-2 py-1 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider text-white border border-zinc-800 bg-zinc-900/90 hover:bg-zinc-800 flex items-center gap-1 shadow-md cursor-pointer transition-all select-none";
         badge.style.borderLeft = `3px solid ${sec.color}`;
         badge.innerHTML = `
-            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${sec.color};"></span>
-            <span>${sec.name}</span>
-            <span class="text-zinc-500 font-normal">(${startFormatted})</span>
-            <span class="edit-icon text-zinc-500 hover:text-white ml-0.5 p-0.5 rounded hover:bg-zinc-700 transition-colors" title="Editar tipo de sección">
+            <button class="btn-nudge-left text-zinc-500 hover:text-white px-1 py-0.5 font-mono text-[9px] hover:bg-zinc-700/60 rounded transition-colors" title="Mover guía 1 compás antes (◀)">◀</button>
+            <span class="w-1.5 h-1.5 rounded-full mx-0.5" style="background-color: ${sec.color};"></span>
+            <span class="section-title hover:text-red-400 transition-colors">${sec.name}</span>
+            <span class="text-zinc-500 font-normal text-[9px]">(${startFormatted})</span>
+            <button class="btn-nudge-right text-zinc-500 hover:text-white px-1 py-0.5 font-mono text-[9px] hover:bg-zinc-700/60 rounded transition-colors" title="Mover guía 1 compás después (▶)">▶</button>
+            <span class="edit-icon text-zinc-500 hover:text-white ml-0.5 p-0.5 rounded hover:bg-zinc-700 transition-colors" title="Editar tipo o cambiar nombre">
                 <svg class="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </span>
         `;
 
         badge.addEventListener("click", (e) => {
+            const leftBtn = e.target.closest(".btn-nudge-left");
+            const rightBtn = e.target.closest(".btn-nudge-right");
             const editBtn = e.target.closest(".edit-icon");
-            if (editBtn) {
+
+            if (leftBtn) {
+                e.stopPropagation();
+                moveSection(sec.id, -1);
+            } else if (rightBtn) {
+                e.stopPropagation();
+                moveSection(sec.id, 1);
+            } else if (editBtn) {
                 e.stopPropagation();
                 openSectionEditor(sec.id);
             } else {
