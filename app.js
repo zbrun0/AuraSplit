@@ -880,7 +880,7 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
     }
 }
 
-// Sintetizador de Click Pro con acentos según métrica
+// Sintetizador de Click Profesional Unificado (Mismo sonido limpio y nítido para todos los beats)
 function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate, timeSig = "4/4") {
     const numSamples = Math.floor(duration * sampleRate);
     const metronomeBuffer = audioCtx.createBuffer(2, numSamples, sampleRate);
@@ -888,20 +888,15 @@ function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate, timeSig 
     const left = metronomeBuffer.getChannelData(0);
     const right = metronomeBuffer.getChannelData(1);
     
-    const clickDuration = 0.035; // 35ms
+    const clickDuration = 0.030; // 30ms nítido
     const clickSamples = Math.floor(clickDuration * sampleRate);
-
-    const downbeatSignal = new Float32Array(clickSamples);
-    const midbeatSignal = new Float32Array(clickSamples);
-    const offbeatSignal = new Float32Array(clickSamples);
+    const clickSignal = new Float32Array(clickSamples);
 
     for (let i = 0; i < clickSamples; i++) {
         const t = i / sampleRate;
-        const envDown = Math.exp(-t * 150);
-        const envOff = Math.exp(-t * 120);
-        downbeatSignal[i] = Math.sin(2 * Math.PI * 1350 * t) * envDown * 0.90;
-        midbeatSignal[i] = Math.sin(2 * Math.PI * 1050 * t) * envOff * 0.70;
-        offbeatSignal[i] = Math.sin(2 * Math.PI * 850 * t) * envOff * 0.55;
+        const env = Math.exp(-t * 140);
+        // Sonido de click balanceado y seco de estudio (1100Hz) sin remate estridente
+        clickSignal[i] = Math.sin(2 * Math.PI * 1100 * t) * env * 0.85;
     }
 
     for (let b = 0; b < beatTimes.length; b++) {
@@ -909,21 +904,11 @@ function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate, timeSig 
         const startSample = Math.floor(time * sampleRate);
         if (startSample >= numSamples) continue;
 
-        let sig = offbeatSignal;
-        if (timeSig === "3/4") {
-            if (b % 3 === 0) sig = downbeatSignal;
-        } else if (timeSig === "6/8") {
-            if (b % 6 === 0) sig = downbeatSignal;
-            else if (b % 6 === 3) sig = midbeatSignal;
-        } else {
-            if (b % 4 === 0) sig = downbeatSignal;
-        }
-
         for (let i = 0; i < clickSamples; i++) {
             const idx = startSample + i;
             if (idx < numSamples) {
-                left[idx] += sig[i];
-                right[idx] += sig[i];
+                left[idx] += clickSignal[i];
+                right[idx] += clickSignal[i];
             }
         }
     }
@@ -1442,12 +1427,21 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
         const blobUrl = URL.createObjectURL(wavBlob);
 
         if (tracks.guide) {
-            tracks.guide.audio.src = blobUrl;
-            tracks.guide.audio.load();
             tracks.guide.blobUrl = blobUrl;
             tracks.guide.sizeBytes = wavBlob.size;
             tracks.guide.volume = 0.85;
             tracks.guide.audioBuffer = guideBuffer;
+
+            if (tracks.guide.audio) {
+                const wasPlaying = isPlaying;
+                const curPos = (playOffset > 0) ? playOffset : (tracks.guide.audio.currentTime || 0);
+                tracks.guide.audio.src = blobUrl;
+                tracks.guide.audio.load();
+                tracks.guide.audio.currentTime = curPos;
+                if (wasPlaying) {
+                    tracks.guide.audio.play().catch(e => console.warn("Guía play warning:", e));
+                }
+            }
 
             const dlLink = document.getElementById("download-guide");
             if (dlLink) dlLink.href = blobUrl;
@@ -1472,9 +1466,9 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
             createTrackUI("guide");
             createTimelineTrackUI("guide");
             createResultUI("guide");
+            setupSingleTrackAudioNode("guide");
         }
 
-        setupSingleTrackAudioNode("guide");
         updateTrackGains();
 
         if (activeView === "timeline" && typeof renderAllWaveforms === "function") {
