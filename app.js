@@ -644,16 +644,43 @@ async function decodeAndSetupMixer(blob) {
                     bpmInput.value = currentBpm.toFixed(1);
                 }
 
-                // 2. Detección Dinámica de Secciones Analizando Energía de Stems
-                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, decodedStemBuffers);
+                // 2. Pre-Roll / Lead-in Real: Adelantar la canción después del conteo de metrónomo y guía
+                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+                const barDuration = (60 / currentBpm) * beatsPerBar;
+                const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
 
-                // 3. Generar Metrónomo Pro Sincronizado
+                if (leadInSec > 0) {
+                    for (const stemId of Object.keys(decodedStemBuffers)) {
+                        const origBuf = decodedStemBuffers[stemId];
+                        const paddedBuf = padAudioBufferWithLeadIn(origBuf, leadInSec);
+                        decodedStemBuffers[stemId] = paddedBuf;
+
+                        if (tracks[stemId]) {
+                            const paddedWav = bufferToWav(paddedBuf);
+                            const paddedUrl = URL.createObjectURL(paddedWav);
+                            tracks[stemId].blobUrl = paddedUrl;
+                            tracks[stemId].audio.src = paddedUrl;
+                            tracks[stemId].audio.load();
+                            tracks[stemId].audioBuffer = paddedBuf;
+                            tracks[stemId].sizeBytes = paddedWav.size;
+
+                            const dlLink = document.getElementById(`download-${stemId}`);
+                            if (dlLink) dlLink.href = paddedUrl;
+                        }
+                    }
+                    duration += leadInSec;
+                }
+
+                // 3. Detección Dinámica de Secciones por Análisis de Energía Multi-Stem
+                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, decodedStemBuffers, leadInSec);
+
+                // 4. Generar Metrónomo Pro Sincronizado
                 await generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
 
-                // 4. Si está habilitado, Generar Pista Guía Vocal con Samples Reales
+                // 5. Si está habilitado, Generar Pista Guía Vocal con Samples Reales
                 if (userConfiguredAutoGuide) {
                     const lang = guideLangSelect ? guideLangSelect.value : "es";
-                    await generateGuideTrack(lang, userConfiguredPreRoll);
+                    await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
                 }
 
             } catch (err) {
@@ -678,8 +705,25 @@ async function decodeAndSetupMixer(blob) {
 
 // Variables de Configuración de Usuario para la sesión de carga
 let userConfiguredBpm = null;
-let userConfiguredPreRoll = 4;
+let userConfiguredPreRoll = 1;
 let userConfiguredAutoGuide = true;
+
+// Helper para insertar silencio inicial en los stems (Lead-in Pre-roll)
+function padAudioBufferWithLeadIn(audioBuffer, leadInSeconds) {
+    if (!audioBuffer || leadInSeconds <= 0 || !audioCtx) return audioBuffer;
+    const sampleRate = audioBuffer.sampleRate;
+    const leadInSamples = Math.floor(leadInSeconds * sampleRate);
+    const totalSamples = audioBuffer.length + leadInSamples;
+    const numChannels = audioBuffer.numberOfChannels;
+    const padded = audioCtx.createBuffer(numChannels, totalSamples, sampleRate);
+    
+    for (let c = 0; c < numChannels; c++) {
+        const origData = audioBuffer.getChannelData(c);
+        const paddedData = padded.getChannelData(c);
+        paddedData.set(origData, leadInSamples);
+    }
+    return padded;
+}
 
 // Cache en memoria para los samples de audio de la voz guía
 const CUE_SAMPLE_CACHE = {};
@@ -713,7 +757,6 @@ function calculateDownbeatOffset(audioBuffer, bpm) {
     const sampleRate = audioBuffer.sampleRate;
     const data = audioBuffer.getChannelData(0);
     
-    // Analizar los primeros 12 segundos para correlación de transitorios (Kick/Snare)
     const maxSec = Math.min(12.0, audioBuffer.duration);
     const maxSamples = Math.floor(maxSec * sampleRate);
     const hop = Math.floor(sampleRate * 0.005); // Resolución de 5ms
@@ -736,7 +779,6 @@ function calculateDownbeatOffset(audioBuffer, bpm) {
         onsets[h] = Math.max(0, envelope[h] - envelope[h - 1]);
     }
 
-    // Buscar la fase óptima phi en [0, T) con resolución sub-milisegundo
     const steps = 120;
     let bestPhi = 0;
     let maxCorrelation = -1;
@@ -775,7 +817,6 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
     const sampleRate = audioCtx.sampleRate || 44100;
     const interval = 60 / bpm;
     
-    // Lista de beats sincronizados con el offset inicial
     const beatTimes = [];
     let t = offsetSec;
     while (t - interval >= 0) {
@@ -875,7 +916,6 @@ function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate, timeSig 
             if (b % 6 === 0) sig = downbeatSignal;
             else if (b % 6 === 3) sig = midbeatSignal;
         } else {
-            // 4/4
             if (b % 4 === 0) sig = downbeatSignal;
         }
 
@@ -916,23 +956,27 @@ function calculateStemRmsPerBar(stemAudioBuffer, bpm, offsetSec, totalBars, barD
     return rmsValues;
 }
 
-// --- Detección Dinámica de Secciones por Macro-Estructura Musical (Sin números repetitivos) ---
-async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuffers = {}) {
+// --- Detección Dinámica de Secciones con Granularidad Musical Exacta ---
+async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuffers = {}, leadInSec = 0) {
     if (!totalDuration || totalDuration <= 0) return;
 
     const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
     const barDuration = (60 / bpm) * beatsPerBar;
-    const totalBars = Math.floor((totalDuration - offsetSec) / barDuration);
+    
+    // Inicio efectivo de la música (después del lead-in)
+    const effectiveStartSec = leadInSec > 0 ? leadInSec : offsetSec;
+    const musicDuration = totalDuration - effectiveStartSec;
+    const totalBars = Math.floor(musicDuration / barDuration);
     if (totalBars <= 0) return;
 
     songSections = [];
 
-    // Calcular RMS por compás para cada canal
-    const vocalRms = calculateStemRmsPerBar(stemBuffers.vocals, bpm, offsetSec, totalBars, barDuration);
-    const drumRms = calculateStemRmsPerBar(stemBuffers.drums, bpm, offsetSec, totalBars, barDuration);
-    const bassRms = calculateStemRmsPerBar(stemBuffers.bass, bpm, offsetSec, totalBars, barDuration);
-    const otherRms = calculateStemRmsPerBar(stemBuffers.other, bpm, offsetSec, totalBars, barDuration);
-    const guitarRms = calculateStemRmsPerBar(stemBuffers.guitar, bpm, offsetSec, totalBars, barDuration);
+    // Calcular RMS compás a compás (resolución de 1 compás)
+    const vocalRms = calculateStemRmsPerBar(stemBuffers.vocals, bpm, effectiveStartSec, totalBars, barDuration);
+    const drumRms = calculateStemRmsPerBar(stemBuffers.drums, bpm, effectiveStartSec, totalBars, barDuration);
+    const bassRms = calculateStemRmsPerBar(stemBuffers.bass, bpm, effectiveStartSec, totalBars, barDuration);
+    const otherRms = calculateStemRmsPerBar(stemBuffers.other, bpm, effectiveStartSec, totalBars, barDuration);
+    const guitarRms = calculateStemRmsPerBar(stemBuffers.guitar, bpm, effectiveStartSec, totalBars, barDuration);
 
     const maxVocal = Math.max(0.001, ...vocalRms);
     const maxDrum = Math.max(0.001, ...drumRms);
@@ -940,107 +984,100 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
     const maxOther = Math.max(0.001, ...otherRms);
     const maxGuitar = Math.max(0.001, ...guitarRms);
 
-    const vocalSilenceThresh = maxVocal * 0.15;
-    const vocalChorusThresh = maxVocal * 0.55;
-    const drumActiveThresh = maxDrum * 0.20;
-    const otherSoloThresh = maxOther * 0.45;
+    const vocalSilenceThresh = maxVocal * 0.18;
+    const vocalChorusThresh = maxVocal * 0.52;
+    const drumActiveThresh = maxDrum * 0.22;
     const guitarSoloThresh = maxGuitar * 0.45;
+    const otherSoloThresh = maxOther * 0.45;
 
-    // Macro-bloques limpios de al menos 8 compases (o 4 para canciones muy breves)
-    const stepBars = (totalBars >= 32) ? 8 : 4;
-    const rawSegments = [];
+    // Primer pase: etiquetar compás a compás
+    const barTypes = [];
+    for (let b = 0; b < totalBars; b++) {
+        const v = vocalRms[b];
+        const d = drumRms[b];
+        const b_rms = bassRms[b];
+        const g = guitarRms[b];
+        const o = otherRms[b];
 
-    for (let b = 0; b < totalBars; b += stepBars) {
-        const endB = Math.min(totalBars, b + stepBars);
-        
-        let avgV = 0, avgD = 0, avgB = 0, avgO = 0, avgG = 0;
-        const count = endB - b;
-        for (let k = b; k < endB; k++) {
-            avgV += vocalRms[k];
-            avgD += drumRms[k];
-            avgB += bassRms[k];
-            avgO += otherRms[k];
-            avgG += guitarRms[k];
-        }
-        avgV /= count;
-        avgD /= count;
-        avgB /= count;
-        avgO /= count;
-        avgG /= count;
-
-        let type = "VERSO";
-        let cueKey = "verso";
-        let color = "#10b981";
-
-        if (b === 0 || (b < 8 && avgV < vocalSilenceThresh)) {
-            type = "INTRO";
-            cueKey = "intro";
-            color = "#3b82f6";
-        } else if (b >= totalBars - 8 && (avgV < vocalSilenceThresh || (avgD < drumActiveThresh && avgB < maxBass * 0.2))) {
-            type = "FINAL";
-            cueKey = "final";
-            color = "#06b6d4";
-        } else if (avgV < vocalSilenceThresh) {
-            // Sección Instrumental o Solos (sin voz)
-            if (avgG > guitarSoloThresh) {
-                type = "SOLO DE GUITARRA";
-                cueKey = "guitarra";
-                color = "#ec4899";
-            } else if (avgO > otherSoloThresh && avgD > drumActiveThresh) {
-                type = "SOLO";
-                cueKey = "solo";
-                color = "#ec4899";
-            } else if (avgB > maxBass * 0.5 && avgO < otherSoloThresh * 0.5) {
-                type = "SOLO DE BAJO";
-                cueKey = "bass";
-                color = "#f43f5e";
+        if (b < 8 && v < vocalSilenceThresh) {
+            barTypes.push({ type: "INTRO", cueKey: "intro", color: "#3b82f6" });
+        } else if (b >= totalBars - 6 && (v < vocalSilenceThresh || d < drumActiveThresh)) {
+            barTypes.push({ type: "FINAL", cueKey: "final", color: "#06b6d4" });
+        } else if (v < vocalSilenceThresh) {
+            // Instrumental o Solo
+            if (g > guitarSoloThresh) {
+                barTypes.push({ type: "SOLO DE GUITARRA", cueKey: "guitarra", color: "#ec4899" });
+            } else if (o > otherSoloThresh && d > drumActiveThresh) {
+                barTypes.push({ type: "SOLO", cueKey: "solo", color: "#ec4899" });
+            } else if (b_rms > maxBass * 0.5 && o < otherSoloThresh * 0.5) {
+                barTypes.push({ type: "SOLO DE BAJO", cueKey: "bass", color: "#f43f5e" });
             } else {
-                type = "INSTRUMENTAL";
-                cueKey = "instrumental";
-                color = "#8b5cf6";
+                barTypes.push({ type: "INSTRUMENTAL", cueKey: "instrumental", color: "#8b5cf6" });
             }
         } else {
-            // Sección con Voz
-            if (avgV >= vocalChorusThresh && avgD >= drumActiveThresh) {
-                type = "CORO";
-                cueKey = "coro";
-                color = "#ef4444";
-            } else if (b > totalBars * 0.55 && b < totalBars * 0.85 && avgV > vocalSilenceThresh && avgD < drumActiveThresh) {
-                type = "PUENTE";
-                cueKey = "puente";
-                color = "#a855f7";
+            // Secciones con Voz
+            if (v >= vocalChorusThresh && d >= drumActiveThresh) {
+                barTypes.push({ type: "CORO", cueKey: "coro", color: "#ef4444" });
+            } else if (b > totalBars * 0.55 && b < totalBars * 0.85 && v > vocalSilenceThresh && d < drumActiveThresh) {
+                barTypes.push({ type: "PUENTE", cueKey: "puente", color: "#a855f7" });
             } else {
-                type = "VERSO";
-                cueKey = "verso";
-                color = "#10b981";
+                barTypes.push({ type: "VERSO", cueKey: "verso", color: "#10b981" });
             }
         }
-
-        rawSegments.push({
-            startBar: b,
-            endBar: endB,
-            type,
-            cueKey,
-            color
-        });
     }
 
-    // Unificar segmentos contiguos del mismo tipo (Macro-Estructura)
+    // Detectar Pre-Coros (2 a 4 compases de subida antes de un Coro)
+    for (let b = 2; b < totalBars; b++) {
+        if (barTypes[b].type === "CORO") {
+            const preLen = Math.min(4, b);
+            let isPrevVerse = false;
+            for (let k = b - preLen; k < b; k++) {
+                if (barTypes[k].type === "VERSO") isPrevVerse = true;
+            }
+            if (isPrevVerse) {
+                const preCoroStart = Math.max(0, b - 4);
+                for (let k = preCoroStart; k < b; k++) {
+                    if (barTypes[k].type === "VERSO") {
+                        barTypes[k] = { type: "PRE-CORO", cueKey: "precoro", color: "#f59e0b" };
+                    }
+                }
+            }
+        }
+    }
+
+    // Agrupar compases contiguos en bloques limpios de al menos 4 compases
+    const rawSegments = [];
+    let curSeg = { ...barTypes[0], startBar: 0, endBar: 1 };
+
+    for (let b = 1; b < totalBars; b++) {
+        if (barTypes[b].type === curSeg.type) {
+            curSeg.endBar = b + 1;
+        } else {
+            rawSegments.push(curSeg);
+            curSeg = { ...barTypes[b], startBar: b, endBar: b + 1 };
+        }
+    }
+    rawSegments.push(curSeg);
+
+    // Suavizar fragmentos aislados menores a 2 compases
     const merged = [];
     for (let i = 0; i < rawSegments.length; i++) {
         const seg = rawSegments[i];
-        if (merged.length > 0 && merged[merged.length - 1].type === seg.type) {
+        const len = seg.endBar - seg.startBar;
+        if (len < 2 && merged.length > 0 && i < rawSegments.length - 1) {
+            merged[merged.length - 1].endBar = seg.endBar;
+        } else if (merged.length > 0 && merged[merged.length - 1].type === seg.type) {
             merged[merged.length - 1].endBar = seg.endBar;
         } else {
             merged.push({ ...seg });
         }
     }
 
-    // Guardar secciones limpias SIN números repetitivos
+    // Crear las secciones con marcas exactas de tiempo
     for (let i = 0; i < merged.length; i++) {
         const m = merged[i];
-        const startTime = offsetSec + (m.startBar * barDuration);
-        const endTime = Math.min(totalDuration, offsetSec + (m.endBar * barDuration));
+        const startTime = effectiveStartSec + (m.startBar * barDuration);
+        const endTime = Math.min(totalDuration, effectiveStartSec + (m.endBar * barDuration));
 
         songSections.push({
             id: `sec-${i}`,
@@ -1111,8 +1148,8 @@ function updateActiveSectionBadge(currentTime) {
     }
 }
 
-// --- Generador de Guías Vocales con Banco de Samples de Estudio ("Intro, 2, 3, 4" o "Intro, 2, 3") ---
-async function generateGuideTrack(lang = "es", preRollBars = 1) {
+// --- Generador de Guías Vocales con Banco de Samples de Estudio Sincronizado 1 Compás Antes ---
+async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
     if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AudioContextClass();
@@ -1151,17 +1188,44 @@ async function generateGuideTrack(lang = "es", preRollBars = 1) {
             await getCueAudioBuffer("4")
         ];
 
+        // 1. Conteo Inicial en el Pre-Roll (de 0:00 a leadInSec):
+        if (leadInSec > 0 || preRollBars >= 1) {
+            const introCue = await getCueAudioBuffer("intro");
+            if (introCue) {
+                insertAudioBufferToChannel(left, right, introCue, 0);
+            }
+            if (beatsPerBar === 4) {
+                for (let b = 2; b <= 4; b++) {
+                    const countTime = (b - 1) * beatInterval;
+                    if (countTime < duration && countSamples[b]) {
+                        insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
+                    }
+                }
+            } else if (beatsPerBar === 3) {
+                for (let b = 2; b <= 3; b++) {
+                    const countTime = (b - 1) * beatInterval;
+                    if (countTime < duration && countSamples[b]) {
+                        insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
+                    }
+                }
+            }
+        }
+
+        // 2. Insertar avisos vocales 1 compás antes de cada sección subsiguiente
         for (let s = 0; s < songSections.length; s++) {
             const sec = songSections[s];
+            if (s === 0 && (leadInSec > 0 || sec.startBar === 0)) {
+                // La Intro ya fue cantada en el conteo previo inicial
+                continue;
+            }
+
             const sectionTargetTime = sec.startTime;
             const preMeasureTime = sectionTargetTime - barDuration;
 
-            // Obtener el buffer del sample correspondiente a la sección limpia
-            let sampleCue = await getCueAudioBuffer(sec.cueKey || "intro");
-            if (!sampleCue) sampleCue = await getCueAudioBuffer("intro");
+            let sampleCue = await getCueAudioBuffer(sec.cueKey || "verso");
+            if (!sampleCue) sampleCue = await getCueAudioBuffer("verso");
 
             if (preMeasureTime >= 0) {
-                // 1 compás antes de la sección:
                 if (beatsPerBar === 4) {
                     // 4/4: Beat 1 = Sección, Beat 2 = Silencio (respiración), Beat 3 = "3", Beat 4 = "4"
                     if (sampleCue) {
@@ -1191,26 +1255,6 @@ async function generateGuideTrack(lang = "es", preRollBars = 1) {
                     }
                     if (countSamples[4]) {
                         insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
-                    }
-                }
-            } else if (sec.startBar === 0 && preRollBars >= 1) {
-                // Si la canción empieza en 0.0 (Intro al inicio) y tenemos conteo de entrada:
-                if (sampleCue) {
-                    insertAudioBufferToChannel(left, right, sampleCue, 0);
-                }
-                if (beatsPerBar === 4) {
-                    for (let b = 2; b <= 4; b++) {
-                        const countTime = (b - 1) * beatInterval;
-                        if (countTime < duration && countSamples[b]) {
-                            insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
-                        }
-                    }
-                } else if (beatsPerBar === 3) {
-                    for (let b = 2; b <= 3; b++) {
-                        const countTime = (b - 1) * beatInterval;
-                        if (countTime < duration && countSamples[b]) {
-                            insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
-                        }
                     }
                 }
             }
@@ -2083,11 +2127,15 @@ let cachedDecodedStemBuffers = {};
 
 // Helper para sincronizar click, secciones y guía vocal al ajustar controles
 function syncClickAndGuide() {
+    const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+    const barDuration = (60 / currentBpm) * beatsPerBar;
+    const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+
     generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-    detectSongSections(currentBpm, currentOffsetSec, duration);
+    detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
     if (tracks.guide) {
         const lang = guideLangSelect ? guideLangSelect.value : "es";
-        generateGuideTrack(lang, userConfiguredPreRoll);
+        generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
     }
 }
 
