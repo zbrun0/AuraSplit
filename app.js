@@ -637,11 +637,15 @@ if ("Notification" in window && Notification.permission === "default") {
     }, { once: true });
 }
 
-// // --- Restablecer Audio y Mezclador ---
+// --- Restablecer Audio y Mezclador ---
 function resetAudio() {
     pauseTracks();
     stopProcessingProgress();
     
+    if (typeof setStudioExpanded === "function" && isStudioExpanded) {
+        setStudioExpanded(false);
+    }
+
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.pause();
@@ -663,11 +667,19 @@ function resetAudio() {
     currentPreviewTrack = null;
     songSections = [];
     activeSectionId = null;
+    currentJobId = null;
+    currentFileName = "";
     
     const studioWrapper = document.getElementById("studioContainerWrapper");
     if (studioWrapper) {
         studioWrapper.classList.remove("max-w-[1720px]", "max-w-full", "px-2", "md:px-8", "px-1");
         studioWrapper.classList.add("max-w-5xl");
+    }
+
+    // Restaurar barra de navegación superior
+    const mainHeader = document.getElementById("mainHeader");
+    if (mainHeader) {
+        mainHeader.classList.remove("hidden");
     }
 
     if (controlPanel) controlPanel.classList.add("hidden");
@@ -676,6 +688,9 @@ function resetAudio() {
     if (mixerSection) mixerSection.classList.add("hidden");
     if (timelineTracksList) timelineTracksList.innerHTML = "";
     if (sectionMarkersBar) sectionMarkersBar.innerHTML = "";
+    
+    if (fileInput) fileInput.value = "";
+    resetToUploadState();
     
     waveformsRendered = false;
     switchView("mixer");
@@ -738,7 +753,9 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 isSoloed: false,
                 blobUrl: blobUrl,
                 sizeBytes: sizeBytes,
-                extension: fileExtension
+                extension: fileExtension,
+                audioBuffer: null,
+                peaks: null
             };
 
             audio.addEventListener("loadedmetadata", () => {
@@ -751,6 +768,28 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             createTimelineTrackUI(stemId);
             createResultUI(stemId);
         }
+
+        // --- Decodificar los buffers de audio para análisis de energía, formas de onda y BPM ---
+        const decodedStemBuffers = {};
+        for (const stemId of ["drums", "vocals", "bass", "guitar", "other", "piano"]) {
+            if (tracks[stemId] && tracks[stemId].blobUrl) {
+                try {
+                    const res = await fetch(tracks[stemId].blobUrl);
+                    const arrayBuf = await res.arrayBuffer();
+                    const decBuf = await audioCtx.decodeAudioData(arrayBuf);
+                    decodedStemBuffers[stemId] = decBuf;
+                    tracks[stemId].audioBuffer = decBuf;
+                    tracks[stemId].peaks = extractPeaks(decBuf, 2400);
+                    if (!duration && decBuf.duration) {
+                        duration = decBuf.duration;
+                    }
+                } catch (e) {
+                    console.warn(`No se pudo decodificar buffer de ${stemId}:`, e);
+                }
+            }
+        }
+
+        cachedDecodedStemBuffers = decodedStemBuffers;
 
         // --- Configuración Rápida con Metadatos Existentes o Análisis Completo ---
         if (presetMetadata) {
@@ -780,22 +819,6 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             try {
                 updateStatus("ANALIZANDO RITMO Y ESTRUCTURA...", "Detectando tempo, solos y secciones musicales...", 99);
                 
-                // Decodificar los buffers de audio para análisis de energía y ritmo
-                const decodedStemBuffers = {};
-                for (const stemId of ["drums", "vocals", "bass", "guitar", "other", "piano"]) {
-                    if (tracks[stemId] && tracks[stemId].blobUrl) {
-                        try {
-                            const res = await fetch(tracks[stemId].blobUrl);
-                            const arrayBuf = await res.arrayBuffer();
-                            decodedStemBuffers[stemId] = await audioCtx.decodeAudioData(arrayBuf);
-                        } catch (e) {
-                            console.warn(`No se pudo decodificar buffer de ${stemId}:`, e);
-                        }
-                    }
-                }
-
-                cachedDecodedStemBuffers = decodedStemBuffers;
-
                 // Detección automática de BPM si no se especificó
                 const drumBuffer = decodedStemBuffers.drums || decodedStemBuffers.bass || decodedStemBuffers.other;
                 let detectedBpm = 120.0;
@@ -816,8 +839,36 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 currentOffsetSec = calculatedOffset;
                 updatePhaseDisplay();
 
+                // Conteo previo / Pre-Roll según configuración de compases
+                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+                const barDuration = (60 / currentBpm) * beatsPerBar;
+                const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+
+                // Si hay conteo previo, insertar silencio inicial en los stems para sincronía perfecta de ensayo
+                if (leadInSec > 0) {
+                    for (const stemId of Object.keys(decodedStemBuffers)) {
+                        const origBuf = decodedStemBuffers[stemId];
+                        const paddedBuf = padAudioBufferWithLeadIn(origBuf, leadInSec);
+                        decodedStemBuffers[stemId] = paddedBuf;
+
+                        if (tracks[stemId]) {
+                            const paddedWav = bufferToWav(paddedBuf);
+                            const paddedUrl = URL.createObjectURL(paddedWav);
+                            tracks[stemId].blobUrl = paddedUrl;
+                            tracks[stemId].audio.src = paddedUrl;
+                            tracks[stemId].audio.load();
+                            tracks[stemId].audioBuffer = paddedBuf;
+                            tracks[stemId].peaks = extractPeaks(paddedBuf, 2400);
+                            tracks[stemId].sizeBytes = paddedWav.size;
+
+                            const dlLink = document.getElementById(`download-${stemId}`);
+                            if (dlLink) dlLink.href = paddedUrl;
+                        }
+                    }
+                    duration += leadInSec;
+                }
+
                 // Análisis Estructural con IA (Intro, Versos, Coros, Puente, Solos, Final)
-                const leadInSec = (userConfiguredPreRoll * (60 / currentBpm) * (currentTimeSignature === "3/4" ? 3 : 4));
                 await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration || 180, decodedStemBuffers, leadInSec);
 
                 // Generar Metrónomo Sintetizado y Guía Vocal Cues
@@ -841,6 +892,12 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
         if (controlPanel) controlPanel.classList.remove("hidden");
         resultsSection.classList.remove("hidden");
 
+        // Ocultar barra superior de navegación flotante mientras la consola está activa
+        const mainHeader = document.getElementById("mainHeader");
+        if (mainHeader) {
+            mainHeader.classList.add("hidden");
+        }
+
         // Expandir el contenedor a formato de estudio profesional ultra ancho
         const studioWrapper = document.getElementById("studioContainerWrapper");
         if (studioWrapper) {
@@ -850,6 +907,13 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
 
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         drawMeters();
+
+        // Renderizar todas las ondas visuales de todos los stems en la línea de tiempo
+        setTimeout(() => {
+            if (typeof renderAllWaveforms === "function") {
+                renderAllWaveforms();
+            }
+        }, 100);
 
     } catch (e) {
         throw new Error("Error al extraer o decodificar el ZIP de audio: " + e.message);
