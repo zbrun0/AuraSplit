@@ -686,12 +686,10 @@ async function decodeAndSetupMixer(blob) {
                 await generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
 
                 // 5. Generar Pista Guía Vocal con Samples Reales
-                if (userConfiguredAutoGuide !== false) {
-                    try {
-                        await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
-                    } catch (guideErr) {
-                        console.error("Error al generar guía vocal:", guideErr);
-                    }
+                try {
+                    await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+                } catch (guideErr) {
+                    console.error("Error al generar guía vocal:", guideErr);
                 }
 
             } catch (err) {
@@ -739,6 +737,28 @@ function padAudioBufferWithLeadIn(audioBuffer, leadInSeconds) {
 // Cache en memoria para los samples de audio de la voz guía
 const CUE_SAMPLE_CACHE = {};
 
+function createSynthesizedCueFallback(sampleKey, sampleRate = 44100) {
+    const dur = 0.28;
+    const len = Math.floor(dur * sampleRate);
+    const buf = audioCtx.createBuffer(1, len, sampleRate);
+    const d = buf.getChannelData(0);
+    
+    // Frecuencias distintivas por tipo de sample si no se encuentra el audio
+    const freqMap = {
+        "1": 523.25, "2": 587.33, "3": 659.25, "4": 698.46,
+        "intro": 440, "verso": 493.88, "coro": 880, "precoro": 783.99,
+        "puente": 659.25, "solo": 987.77, "final": 392
+    };
+    const f = freqMap[sampleKey] || 600;
+
+    for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-t * 14);
+        d[i] = (Math.sin(2 * Math.PI * f * t) * 0.7 + Math.sin(2 * Math.PI * f * 2 * t) * 0.3) * env * 0.8;
+    }
+    return buf;
+}
+
 async function getCueAudioBuffer(sampleKey) {
     if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -768,8 +788,10 @@ async function getCueAudioBuffer(sampleKey) {
         }
     }
 
-    console.warn(`No se pudo cargar cue sample "${sampleKey}"`);
-    return null;
+    console.warn(`Sample "${sampleKey}" no encontrado en disco, usando oscilador sintetizado.`);
+    const fallbackBuf = createSynthesizedCueFallback(sampleKey, audioCtx.sampleRate || 44100);
+    CUE_SAMPLE_CACHE[sampleKey] = fallbackBuf;
+    return fallbackBuf;
 }
 
 // Cálculo del downbeat offset (primer pulso) con correlación de envolvente de transitorios de alta precisión
@@ -1520,16 +1542,23 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
 }
 
 function insertAudioBufferToChannel(leftTarget, rightTarget, sourceBuffer, startSample) {
-    const srcLeft = sourceBuffer.getChannelData(0);
-    const srcRight = (sourceBuffer.numberOfChannels > 1) ? sourceBuffer.getChannelData(1) : srcLeft;
-    const len = srcLeft.length;
+    if (!sourceBuffer || !leftTarget || !rightTarget) return;
+    if (isNaN(startSample) || startSample < 0) startSample = 0;
+    
+    try {
+        const srcLeft = sourceBuffer.getChannelData(0);
+        const srcRight = (sourceBuffer.numberOfChannels > 1) ? sourceBuffer.getChannelData(1) : srcLeft;
+        const len = srcLeft.length;
 
-    for (let i = 0; i < len; i++) {
-        const idx = startSample + i;
-        if (idx < leftTarget.length) {
-            leftTarget[idx] += srcLeft[i] * 0.9;
-            rightTarget[idx] += srcRight[i] * 0.9;
+        for (let i = 0; i < len; i++) {
+            const idx = startSample + i;
+            if (idx < leftTarget.length) {
+                leftTarget[idx] += srcLeft[i] * 0.9;
+                rightTarget[idx] += srcRight[i] * 0.9;
+            }
         }
+    } catch (e) {
+        console.warn("insertAudioBufferToChannel error:", e);
     }
 }
 
