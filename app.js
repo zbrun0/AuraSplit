@@ -805,9 +805,41 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             currentBpm = parseFloat(presetMetadata.bpm) || 120.0;
             currentTimeSignature = presetMetadata.timeSignature || "4/4";
             currentOffsetSec = presetMetadata.offset !== undefined ? parseFloat(presetMetadata.offset) : 0.0;
+            if (presetMetadata.preRoll !== undefined) {
+                userConfiguredPreRoll = parseInt(presetMetadata.preRoll, 10);
+            }
             if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
             if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
             updatePhaseDisplay();
+
+            // Conteo previo / Pre-Roll según configuración guardada
+            const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+            const barDuration = (60 / currentBpm) * beatsPerBar;
+            const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+
+            // Si hay conteo previo guardado (1 o 2 compases), insertar silencio inicial en los stems
+            if (leadInSec > 0) {
+                for (const stemId of Object.keys(decodedStemBuffers)) {
+                    const origBuf = decodedStemBuffers[stemId];
+                    const paddedBuf = padAudioBufferWithLeadIn(origBuf, leadInSec);
+                    decodedStemBuffers[stemId] = paddedBuf;
+
+                    if (tracks[stemId]) {
+                        const paddedWav = bufferToWav(paddedBuf);
+                        const paddedUrl = URL.createObjectURL(paddedWav);
+                        tracks[stemId].blobUrl = paddedUrl;
+                        tracks[stemId].audio.src = paddedUrl;
+                        tracks[stemId].audio.load();
+                        tracks[stemId].audioBuffer = paddedBuf;
+                        tracks[stemId].peaks = extractPeaks(paddedBuf, 2400);
+                        tracks[stemId].sizeBytes = paddedWav.size;
+
+                        const dlLink = document.getElementById(`download-${stemId}`);
+                        if (dlLink) dlLink.href = paddedUrl;
+                    }
+                }
+                duration += leadInSec;
+            }
 
             if (presetMetadata.songSections && Array.isArray(presetMetadata.songSections) && presetMetadata.songSections.length > 0) {
                 songSections = presetMetadata.songSections;
@@ -817,12 +849,10 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 renderSectionMarkers();
             }
 
-            const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-            const barDuration = (60 / currentBpm) * beatsPerBar;
-            const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
             await generateMetronomeTrack(currentBpm, currentOffsetSec, duration || 180, currentTimeSignature);
             try {
-                await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+                const lang = presetMetadata.guideLang || (guideLangSelect ? guideLangSelect.value : "es");
+                await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
             } catch (e) {}
 
         } else if (tracks.drums || tracks.vocals || tracks.bass || tracks.other) {
