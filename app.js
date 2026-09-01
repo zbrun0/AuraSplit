@@ -3,7 +3,8 @@ const BACKEND_URL = "https://zbrun0-aurasplit.hf.space";
 
 // --- Estado Global del Reproductor ---
 let audioCtx = null;
-let tracks = {}; // Contendrá: audio, gainNode, analyser, volume, isMuted, isSoloed, blobUrl, sizeBytes
+let masterCompressor = null;
+let tracks = {}; // Contendrá: audio, gainNode, analyser, volume, isMuted, isSoloed, blobUrl, sizeBytes, canvas, ctx, etc.
 let isPlaying = false;
 let startTime = 0;
 let playOffset = 0; // Posición actual de reproducción en segundos
@@ -11,23 +12,33 @@ let duration = 0;   // Duración total de la canción en segundos
 let zipBlob = null; // Almacenará el blob del archivo ZIP original para descarga total
 let animationFrameId = null;
 let currentPreviewTrack = null; // ID del canal que se está previsualizando individualmente
-let progressInterval = null; // Intervalo para animar la barra de progreso mientras la IA procesa
-let pollInterval = null; // Intervalo para consultar el estado del trabajo en la cola
-let selectedFile = null; // Archivo seleccionado pendiente de procesamiento
-let activeView = "mixer"; // Vista activa: mixer o timeline
-let waveformsRendered = false; // Estado del renderizado de las ondas de audio
+let progressInterval = null;
+let pollInterval = null;
+let eventSource = null;
+let selectedFile = null;
+let activeView = "mixer";
+let waveformsRendered = false;
 
-// Configuración de los 6 Stems del modelo Demucs 6s
+// Estado Musical (BPM, Fase y Secciones)
+let currentBpm = 120.0;
+let currentOffsetSec = 0.0;
+let tapTimes = [];
+let songSections = [];
+let activeSectionId = null;
+
+// Configuración de Stems (6 Demucs + Metrónomo + Guías Vocales Cues)
 const STEMS_CONFIG = {
     vocals: { name: "voces", icon: "mic" },
     drums: { name: "batería", icon: "album" },
     bass: { name: "bajo", icon: "music_note" },
     guitar: { name: "guitarra", icon: "music_video" },
     piano: { name: "piano", icon: "piano" },
-    other: { name: "otros", icon: "tune" }
+    other: { name: "otros", icon: "tune" },
+    metronome: { name: "metrónomo", icon: "schedule" },
+    guide: { name: "guías / cues", icon: "record_voice_over" }
 };
 
-// SVGs para los iconos correspondientes (sin clases de colores para heredar del contenedor)
+// SVGs para los iconos
 const ICONS_SVG = {
     mic: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>`,
     album: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.48 0-4.5-2.02-4.5-4.5s2.02-4.5 4.5-4.5 4.5 2.02 4.5 4.5-2.02 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>`,
@@ -36,6 +47,7 @@ const ICONS_SVG = {
     piano: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M19.02 3H4.98C3.89 3 3 3.89 3 4.98v14.04C3 20.11 3.89 21 4.98 21h14.04c1.09 0 1.98-.89 1.98-1.98V4.98C21 3.89 20.11 3 19.02 3zM12 5h1.5v7h-1.5V5zm-3 0h1.5v7H9V5zM6 5h1.5v7H6V5zm12 14H6v-5h12v5z"/></svg>`,
     tune: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>`,
     schedule: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>`,
+    record_voice_over: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><circle cx="9" cy="9" r="4"/><path d="M9 15c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm11.08-4.92c.67 1.18.67 2.66 0 3.84l1.43 1.43c1.37-1.93 1.37-4.77 0-6.7l-1.43 1.43zm-2.83 2.83l1.42 1.42c.62-.97.62-2.29 0-3.26l-1.42 1.42c.16.27.16.55 0 .42z"/></svg>`,
     play_arrow: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
     pause: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`,
     download: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`
@@ -52,7 +64,6 @@ const trackList = document.getElementById("trackList");
 const resultsSection = document.getElementById("resultsSection");
 const resultsList = document.getElementById("resultsList");
 const fileMeta = document.getElementById("fileMeta");
-const masterControls = document.getElementById("masterControls");
 const masterPlayBtn = document.getElementById("masterPlayBtn");
 const masterRewindBtn = document.getElementById("masterRewindBtn");
 const resetMixerBtn = document.getElementById("resetMixerBtn");
@@ -74,6 +85,19 @@ const totalTimeDisplay = document.getElementById("totalTimeDisplay");
 const viewMixerBtn = document.getElementById("viewMixerBtn");
 const viewTimelineBtn = document.getElementById("viewTimelineBtn");
 const timelineTracksList = document.getElementById("timelineTracksList");
+const timelineViewContainer = document.getElementById("timelineViewContainer");
+const sectionMarkersBar = document.getElementById("sectionMarkersBar");
+const reanalyzeSectionsBtn = document.getElementById("reanalyzeSectionsBtn");
+
+// Controles Musicales
+const bpmInput = document.getElementById("bpmInput");
+const tapTempoBtn = document.getElementById("tapTempoBtn");
+const nudgeLeftBtn = document.getElementById("nudgeLeftBtn");
+const nudgeRightBtn = document.getElementById("nudgeRightBtn");
+const syncCursorBtn = document.getElementById("syncCursorBtn");
+const regenerateClickBtn = document.getElementById("regenerateClickBtn");
+const guideLangSelect = document.getElementById("guideLangSelect");
+const generateGuideBtn = document.getElementById("generateGuideBtn");
 
 // --- Eventos Click y Drag & Drop para Carga ---
 window.handleUploadClick = function() {
@@ -179,7 +203,6 @@ function uploadAndSeparate(file) {
     dropzone.classList.add("hidden");
     processing.classList.remove("hidden");
     
-    // Indicar en la consola de mezcla que se está subiendo el archivo
     fileMeta.textContent = "SUBIENDO: " + file.name.toUpperCase();
     if (trackList) {
         trackList.innerHTML = `
@@ -202,18 +225,18 @@ function uploadAndSeparate(file) {
     formData.append("file", file);
     formData.append("model", selectedModel);
     formData.append("format", selectedFormat);
+    formData.append("shifts", "1");
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${BACKEND_URL}/separate`, true);
 
-    // Seguimiento del progreso de subida
     xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
             const percent = Math.round((e.loaded / e.total) * 90);
-            updateStatus("SUBIENDO AUDIO DE ORIGEN...", `Enviando archivo a la memoria de FastAPI (${percent}%)`, percent);
+            updateStatus("SUBIENDO AUDIO DE ORIGEN...", `Enviando archivo al backend (${percent}%)`, percent);
             const desc = document.getElementById("mixerStatusDesc");
             if (desc) {
-                desc.textContent = `Enviando archivo a la memoria de FastAPI (${percent}%)`;
+                desc.textContent = `Enviando archivo al backend (${percent}%)`;
             }
         }
     };
@@ -221,10 +244,10 @@ function uploadAndSeparate(file) {
     xhr.onload = async function() {
         if (xhr.status === 200) {
             try {
-                const data = xhr.response; // Ya parseado a JSON gracias a xhr.responseType = "json"
+                const data = xhr.response;
                 if (data && data.job_id) {
                     updateStatus("EN COLA DE ESPERA...", "Audio subido correctamente. Esperando turno...", 20);
-                    pollJobStatus(data.job_id, file);
+                    listenJobProgress(data.job_id, file);
                 } else {
                     showError("Respuesta del servidor inválida.");
                 }
@@ -237,7 +260,7 @@ function uploadAndSeparate(file) {
     };
 
     xhr.onerror = function() {
-        showError("No se pudo conectar con el backend de FastAPI. Verifica que el puerto 7860 esté libre y en línea.");
+        showError("No se pudo conectar con el backend de FastAPI. Verifica tu conexión a internet.");
     };
 
     xhr.responseType = "json";
@@ -245,9 +268,9 @@ function uploadAndSeparate(file) {
 }
 
 function updateStatus(title, subtitle, percentage) {
-    statusText.textContent = title;
-    progressBar.style.width = `${percentage}%`;
-    progressPercent.textContent = `${percentage}%`;
+    if (statusText) statusText.textContent = title;
+    if (progressBar) progressBar.style.width = `${percentage}%`;
+    if (progressPercent) progressPercent.textContent = `${percentage}%`;
 }
 
 function showError(msg) {
@@ -257,100 +280,151 @@ function showError(msg) {
     resetAudio();
 }
 
-// --- Consultar el estado del proceso en la cola (Polling) ---
-function pollJobStatus(jobId, file) {
-    if (pollInterval) clearInterval(pollInterval);
-    
-    // Iniciar clase de animación de carga en barra de progreso
+// --- Escucha de Progreso en Tiempo Real (SSE con fallback a Polling) ---
+function listenJobProgress(jobId, file) {
+    stopProcessingProgress();
     progressBar.classList.add("animate-pulse");
 
+    let isCompleted = false;
+
+    // Intentar conexión Server-Sent Events (SSE)
+    try {
+        if (window.EventSource) {
+            eventSource = new EventSource(`${BACKEND_URL}/events/${jobId}`);
+            
+            eventSource.onmessage = async (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    handleJobProgressUpdate(data, file);
+                    if (data.status === "completed" || data.status === "failed") {
+                        eventSource.close();
+                        eventSource = null;
+                    }
+                } catch (err) {
+                    console.error("Error parseando SSE:", err);
+                }
+            };
+
+            eventSource.onerror = () => {
+                console.warn("SSE desconectado. Pasando a modo polling...");
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                if (!isCompleted) {
+                    startFallbackPolling(jobId, file);
+                }
+            };
+            return;
+        }
+    } catch (e) {
+        console.warn("No se pudo inicializar EventSource:", e);
+    }
+
+    startFallbackPolling(jobId, file);
+}
+
+function startFallbackPolling(jobId, file) {
+    if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(async () => {
         try {
             const res = await fetch(`${BACKEND_URL}/status/${jobId}`);
-            if (res.status !== 200) {
+            if (!res.ok) {
                 clearInterval(pollInterval);
                 showError("No se pudo obtener el estado del proceso de separación.");
                 return;
             }
-            
             const data = await res.json();
-            
-            if (data.status === "queued") {
-                const percent = Math.min(45, 10 + (data.position * 3));
-                updateStatus("EN COLA DE ESPERA...", `Turno: Posición ${data.position}. Tiempo est. restante: ~${data.position * 45}s`, percent);
-                
-                const desc = document.getElementById("mixerStatusDesc");
-                if (desc) {
-                    desc.innerHTML = `
-                        <p class="text-sm font-semibold text-zinc-400">Tu posición en la cola es: ${data.position}</p>
-                        <p class="text-xs text-zinc-500 mt-1">Tiempo estimado de espera: ~${data.position * 45} segundos. El procesamiento completo puede tardar varios minutos.</p>
-                    `;
-                }
-                fileMeta.textContent = `EN COLA (Posición ${data.position}): ` + file.name.toUpperCase();
-                
-            } else if (data.status === "processing") {
-                let percent = 50;
-                if (data.step.includes("DECODIFICANDO")) percent = 55;
-                else if (data.step.includes("RESAMPLEANDO")) percent = 60;
-                else if (data.step.includes("INFERENCIA")) percent = 75;
-                else if (data.step.includes("RECONSTRUYENDO")) percent = 85;
-                else if (data.step.includes("COMPRIMIENDO")) percent = 95;
-                
-                updateStatus(data.step, data.description, percent);
-                fileMeta.textContent = "PROCESANDO: " + file.name.toUpperCase();
-                
-                const desc = document.getElementById("mixerStatusDesc");
-                if (desc) {
-                    desc.innerHTML = `
-                        <p class="text-sm font-semibold text-zinc-400">Separando instrumentos por IA...</p>
-                        <p class="text-xs text-red-500 font-bold uppercase mt-1 animate-pulse">${data.step}</p>
-                        <p class="text-xs text-zinc-500 mt-0.5">${data.description}</p>
-                        <p class="text-[10px] text-zinc-600 mt-2 italic">▲ Nota: La separación por IA procesa modelos neuronales profundos y puede tardar varios minutos.</p>
-                    `;
-                }
-                
-            } else if (data.status === "completed") {
-                clearInterval(pollInterval);
-                progressBar.classList.remove("animate-pulse");
-                
-                updateStatus("DESCARGANDO RESULTADOS...", "Obteniendo los canales de audio comprimidos desde el servidor...", 98);
-                
-                const desc = document.getElementById("mixerStatusDesc");
-                if (desc) {
-                    desc.textContent = "Descargando stems decodificados en el navegador...";
-                }
-                
-                try {
-                    const downloadRes = await fetch(`${BACKEND_URL}/download/${jobId}`);
-                    if (!downloadRes.ok) throw new Error("Error en la descarga de los stems.");
-                    
-                    zipBlob = await downloadRes.blob();
-                    await decodeAndSetupMixer(zipBlob);
-                    
-                    updateStatus("LISTO", "Separación finalizada.", 100);
-                } catch (err) {
-                    showError("Error al descargar o decodificar los stems: " + err.message);
-                }
-                
-            } else if (data.status === "failed") {
-                clearInterval(pollInterval);
-                progressBar.classList.remove("animate-pulse");
-                showError("La separación por IA falló: " + data.description);
-            }
-            
+            handleJobProgressUpdate(data, file);
         } catch (err) {
-            console.error("Error consultando estado en cola:", err);
+            console.error("Error consultando estado:", err);
         }
     }, 3000);
 }
 
-// --- Parar animación y consulta de carga ---
+async function handleJobProgressUpdate(data, file) {
+    if (data.status === "queued") {
+        const percent = Math.min(45, 10 + (data.position * 3));
+        updateStatus("EN COLA DE ESPERA...", `Turno: Posición ${data.position}. Tiempo est. restante: ~${data.position * 45}s`, percent);
+        
+        const desc = document.getElementById("mixerStatusDesc");
+        if (desc) {
+            desc.innerHTML = `
+                <p class="text-sm font-semibold text-zinc-400">Tu posición en la cola es: ${data.position}</p>
+                <p class="text-xs text-zinc-500 mt-1">Tiempo estimado de espera: ~${data.position * 45} segundos.</p>
+            `;
+        }
+        fileMeta.textContent = `EN COLA (Posición ${data.position}): ` + file.name.toUpperCase();
+        
+    } else if (data.status === "processing") {
+        let percent = 50;
+        const step = data.step || "";
+        if (step.includes("DECODIFICANDO")) percent = 55;
+        else if (step.includes("RESAMPLEANDO")) percent = 60;
+        else if (step.includes("INFERENCIA")) percent = 75;
+        else if (step.includes("GUARDANDO")) percent = 88;
+        else if (step.includes("COMPRIMIENDO")) percent = 95;
+        
+        updateStatus(data.step, data.description, percent);
+        fileMeta.textContent = "PROCESANDO: " + file.name.toUpperCase();
+        
+        const desc = document.getElementById("mixerStatusDesc");
+        if (desc) {
+            desc.innerHTML = `
+                <p class="text-sm font-semibold text-zinc-400">Separando instrumentos por IA...</p>
+                <p class="text-xs text-red-500 font-bold uppercase mt-1 animate-pulse">${data.step}</p>
+                <p class="text-xs text-zinc-500 mt-0.5">${data.description}</p>
+            `;
+        }
+        
+    } else if (data.status === "completed") {
+        stopProcessingProgress();
+        updateStatus("DESCARGANDO RESULTADOS...", "Obteniendo pistas decodificadas...", 98);
+        
+        try {
+            const downloadRes = await fetch(`${BACKEND_URL}/download/${data.job_id}`);
+            if (!downloadRes.ok) throw new Error("Error en la descarga de los stems.");
+            
+            zipBlob = await downloadRes.blob();
+            await decodeAndSetupMixer(zipBlob);
+            
+            updateStatus("LISTO", "Separación finalizada.", 100);
+            notifyCompletion(file.name);
+        } catch (err) {
+            showError("Error al descargar o decodificar los stems: " + err.message);
+        }
+        
+    } else if (data.status === "failed") {
+        stopProcessingProgress();
+        showError("La separación por IA falló: " + data.description);
+    }
+}
+
 function stopProcessingProgress() {
-    progressBar.classList.remove("animate-pulse");
+    if (progressBar) progressBar.classList.remove("animate-pulse");
     if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
     }
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+}
+
+function notifyCompletion(fileName) {
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("AuraSplit | ¡Listo!", {
+            body: `La separación de "${fileName}" ha finalizado con éxito.`,
+            icon: "iconlogo.svg"
+        });
+    }
+}
+
+if ("Notification" in window && Notification.permission === "default") {
+    document.addEventListener("click", () => {
+        Notification.requestPermission();
+    }, { once: true });
 }
 
 // --- Restablecer Audio y Mezclador ---
@@ -369,6 +443,7 @@ function resetAudio() {
     if (audioCtx) {
         audioCtx.close();
         audioCtx = null;
+        masterCompressor = null;
     }
     tracks = {};
     duration = 0;
@@ -376,18 +451,18 @@ function resetAudio() {
     startTime = 0;
     zipBlob = null;
     currentPreviewTrack = null;
+    songSections = [];
+    activeSectionId = null;
     
     if (controlPanel) controlPanel.classList.add("hidden");
-    
     if (resultsSection) resultsSection.classList.add("hidden");
     if (resultsList) resultsList.innerHTML = "";
-    
     if (mixerSection) mixerSection.classList.add("hidden");
     if (timelineTracksList) timelineTracksList.innerHTML = "";
+    if (sectionMarkersBar) sectionMarkersBar.innerHTML = "";
     
     waveformsRendered = false;
     switchView("mixer");
-    
     resetToUploadState();
     
     if (trackList) {
@@ -403,10 +478,19 @@ function resetAudio() {
 
 // --- Descompresión de Stems e Inicialización del Mezclador ---
 async function decodeAndSetupMixer(blob) {
-    updateStatus("DECODIFICANDO CANALES...", "Extrayendo y decodificando pistas WAV en la memoria del navegador...", 100);
+    updateStatus("DECODIFICANDO CANALES...", "Extrayendo y decodificando pistas en la memoria del navegador...", 100);
     
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContextClass();
+
+    // Limitador / Dynamics Compressor Maestro para prevenir distorsión digital cuando suenan múltiples canales
+    masterCompressor = audioCtx.createDynamicsCompressor();
+    masterCompressor.threshold.setValueAtTime(-0.5, audioCtx.currentTime);
+    masterCompressor.knee.setValueAtTime(3, audioCtx.currentTime);
+    masterCompressor.ratio.setValueAtTime(20, audioCtx.currentTime);
+    masterCompressor.attack.setValueAtTime(0.001, audioCtx.currentTime);
+    masterCompressor.release.setValueAtTime(0.1, audioCtx.currentTime);
+    masterCompressor.connect(audioCtx.destination);
 
     try {
         const zip = await JSZip.loadAsync(blob);
@@ -417,8 +501,10 @@ async function decodeAndSetupMixer(blob) {
         duration = 0;
 
         if (timelineTracksList) timelineTracksList.innerHTML = "";
+        
         for (const stemId of Object.keys(STEMS_CONFIG)) {
-            // Verificar si el archivo en el ZIP tiene formato .mp3 o .wav
+            if (stemId === "metronome" || stemId === "guide") continue;
+
             let fileExtension = "mp3";
             let fileInZip = zip.file(`${stemId}.mp3`);
             if (!fileInZip) {
@@ -426,10 +512,7 @@ async function decodeAndSetupMixer(blob) {
                 fileExtension = "wav";
             }
 
-            if (!fileInZip) {
-                console.warn(`Stem ${stemId} no encontrado en el ZIP.`);
-                continue;
-            }
+            if (!fileInZip) continue;
 
             const stemBlob = await fileInZip.async("blob");
             const blobUrl = URL.createObjectURL(stemBlob);
@@ -462,69 +545,34 @@ async function decodeAndSetupMixer(blob) {
             createResultUI(stemId);
         }
 
-        // --- Generar Metrónomo Inteligente (Enfoque B) ---
+        // --- Detección de BPM, Alineación de Fase y Generación de Metrónomo ---
         if (tracks.drums) {
             try {
-                updateStatus("GENERANDO METRÓNOMO...", "Analizando pista de batería y sintetizando metrónomo...", 99);
+                updateStatus("ANALIZANDO RITMO Y TEMPO...", "Detectando tempo y downbeat en la pista de batería...", 99);
                 
-                // Fetch de la batería para decodificar
                 const response = await fetch(tracks.drums.blobUrl);
                 const arrayBuffer = await response.arrayBuffer();
                 const drumsBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                 
-                // Forzar la duración real desde el búfer de la batería
                 duration = drumsBuffer.duration;
                 
-                // Detectar los instantes de golpes y estimar BPM
+                // Detección automática de golpes y estimación de BPM y Downbeat inicial
                 const beatResult = getBeats(drumsBuffer);
-                let beatTimes = beatResult.beats;
-                let estimatedBpm = beatResult.bpm;
-                
-                // Fallback por si no detecta suficientes golpes
-                if (beatTimes.length < 5) {
-                    console.warn("[Metrónomo] Pocos golpes en batería. Generando click track steady a 120 BPM...");
-                    beatTimes = [];
-                    estimatedBpm = 120;
-                    const interval = 60 / estimatedBpm;
-                    for (let t = 0; t < duration; t += interval) {
-                        beatTimes.push(t);
-                    }
+                currentBpm = beatResult.bpm || 120.0;
+                currentOffsetSec = beatResult.beats && beatResult.beats.length > 0 ? beatResult.beats[0] : 0.0;
+
+                if (bpmInput) {
+                    bpmInput.value = currentBpm.toFixed(1);
                 }
-                
-                // Sintetizar el búfer de audio del metrónomo
-                const metronomeBuffer = createMetronomeBuffer(beatTimes, duration, drumsBuffer.sampleRate);
-                
-                // Codificar a WAV Blob
-                const metronomeWavBlob = bufferToWav(metronomeBuffer);
-                const metronomeBlobUrl = URL.createObjectURL(metronomeWavBlob);
-                
-                // Crear el elemento de Audio
-                const metronomeAudio = new Audio(metronomeBlobUrl);
-                metronomeAudio.preload = "auto";
-                metronomeAudio.crossOrigin = "anonymous";
-                
-                tracks.metronome = {
-                    audio: metronomeAudio,
-                    gainNode: null,
-                    analyser: null,
-                    volume: 0.0, // Iniciamos en 0 para no saturar al usuario inicialmente
-                    isMuted: false,
-                    isSoloed: false,
-                    blobUrl: metronomeBlobUrl,
-                    sizeBytes: metronomeWavBlob.size,
-                    bpm: estimatedBpm
-                };
-                
-                createTrackUI("metronome");
-                createTimelineTrackUI("metronome");
-                createResultUI("metronome");
-                
-                // Establecer slider del metrónomo a 0 en la interfaz
-                const fader = document.getElementById("fader-metronome");
-                if (fader) fader.value = 0;
-                
+
+                // Generar Metrónomo inicial
+                await generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+
+                // Detectar Secciones y Renderizar Marcadores de Canción
+                detectSongSections(currentBpm, currentOffsetSec, duration);
+
             } catch (err) {
-                console.error("No se pudo generar el metrónomo inteligente:", err);
+                console.error("Error en detección de ritmo inicial:", err);
             }
         }
 
@@ -535,7 +583,6 @@ async function decodeAndSetupMixer(blob) {
         if (controlPanel) controlPanel.classList.remove("hidden");
         resultsSection.classList.remove("hidden");
 
-        // Activar la animación de vúmetros
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         drawMeters();
 
@@ -544,9 +591,362 @@ async function decodeAndSetupMixer(blob) {
     }
 }
 
+// --- Generar Pista de Metrónomo Pro Sincronizado (Accents en 4/4) ---
+async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
+    if (!audioCtx) return;
+    
+    const sampleRate = audioCtx.sampleRate || 44100;
+    const interval = 60 / bpm;
+    
+    // Lista de beats sincronizados con el offset inicial
+    const beatTimes = [];
+    let t = offsetSec;
+    // Retroceder si el offset es positivo para cubrir el inicio si aplica
+    while (t - interval >= 0) {
+        t -= interval;
+    }
+    while (t < totalDuration) {
+        if (t >= 0) beatTimes.push(t);
+        t += interval;
+    }
+
+    const metronomeBuffer = createAccentedMetronomeBuffer(beatTimes, totalDuration, sampleRate);
+    const wavBlob = bufferToWav(metronomeBuffer);
+    const blobUrl = URL.createObjectURL(wavBlob);
+
+    // Si ya existía el track, reasignar audio src suavemente
+    if (tracks.metronome) {
+        tracks.metronome.audio.src = blobUrl;
+        tracks.metronome.audio.load();
+        tracks.metronome.blobUrl = blobUrl;
+        tracks.metronome.sizeBytes = wavBlob.size;
+        tracks.metronome.bpm = bpm;
+        
+        const dlLink = document.getElementById("download-metronome");
+        if (dlLink) dlLink.href = blobUrl;
+    } else {
+        const audio = new Audio(blobUrl);
+        audio.preload = "auto";
+        audio.crossOrigin = "anonymous";
+
+        tracks.metronome = {
+            audio: audio,
+            gainNode: null,
+            analyser: null,
+            volume: 0.0, // Inicio en silencio para no saturar al usuario
+            isMuted: false,
+            isSoloed: false,
+            blobUrl: blobUrl,
+            sizeBytes: wavBlob.size,
+            bpm: bpm,
+            extension: "wav"
+        };
+
+        createTrackUI("metronome");
+        createTimelineTrackUI("metronome");
+        createResultUI("metronome");
+        
+        const fader = document.getElementById("fader-metronome");
+        if (fader) fader.value = 0;
+    }
+
+    // Actualizar nombre con BPM
+    updateTrackDisplayName("metronome", `METRÓNOMO (${bpm.toFixed(1)} BPM)`);
+}
+
+// Sintetizador de Click Pro 4/4 (Beat 1: 1200Hz agudo | Beats 2,3,4: 800Hz)
+function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate) {
+    const numSamples = Math.floor(duration * sampleRate);
+    const metronomeBuffer = audioCtx.createBuffer(2, numSamples, sampleRate);
+    
+    const left = metronomeBuffer.getChannelData(0);
+    const right = metronomeBuffer.getChannelData(1);
+    
+    const clickDuration = 0.035; // 35ms
+    const clickSamples = Math.floor(clickDuration * sampleRate);
+
+    // Ondas pre-calculadas para Beat 1 (Downbeat) y Beats 2,3,4 (Off-beats)
+    const downbeatSignal = new Float32Array(clickSamples);
+    const offbeatSignal = new Float32Array(clickSamples);
+
+    for (let i = 0; i < clickSamples; i++) {
+        const t = i / sampleRate;
+        const envDown = Math.exp(-t * 150);
+        const envOff = Math.exp(-t * 120);
+        downbeatSignal[i] = Math.sin(2 * Math.PI * 1300 * t) * envDown * 0.85;
+        offbeatSignal[i] = Math.sin(2 * Math.PI * 850 * t) * envOff * 0.55;
+    }
+
+    for (let b = 0; b < beatTimes.length; b++) {
+        const time = beatTimes[b];
+        const startSample = Math.floor(time * sampleRate);
+        if (startSample >= numSamples) continue;
+
+        const isDownbeat = (b % 4 === 0);
+        const sig = isDownbeat ? downbeatSignal : offbeatSignal;
+
+        for (let i = 0; i < clickSamples; i++) {
+            const idx = startSample + i;
+            if (idx < numSamples) {
+                left[idx] += sig[i];
+                right[idx] += sig[i];
+            }
+        }
+    }
+
+    return metronomeBuffer;
+}
+
+// --- Detección de Secciones Musicales de la Canción ---
+function detectSongSections(bpm, offsetSec, totalDuration) {
+    if (!duration || duration <= 0) return;
+
+    const barDuration = (60 / bpm) * 4; // Duración de 1 compás (4/4)
+    const totalBars = Math.floor((totalDuration - offsetSec) / barDuration);
+    
+    songSections = [];
+
+    // Estructura musical estándar proporcional por compases
+    // Intro -> Verso 1 -> Pre-Coro -> Coro 1 -> Verso 2 -> Puente / Solo -> Coro 2 -> Outro
+    const sectionTemplates = [
+        { name: "INTRO", color: "#3b82f6", barsRatio: 0.10 },
+        { name: "VERSO 1", color: "#10b981", barsRatio: 0.18 },
+        { name: "PRE-CORO", color: "#f59e0b", barsRatio: 0.10 },
+        { name: "CORO 1", color: "#ef4444", barsRatio: 0.18 },
+        { name: "VERSO 2", color: "#10b981", barsRatio: 0.16 },
+        { name: "PUENTE / SOLO", color: "#8b5cf6", barsRatio: 0.12 },
+        { name: "CORO FINAL", color: "#ef4444", barsRatio: 0.10 },
+        { name: "OUTRO", color: "#06b6d4", barsRatio: 0.06 }
+    ];
+
+    let currentBar = 0;
+    for (let i = 0; i < sectionTemplates.length; i++) {
+        const tmpl = sectionTemplates[i];
+        let numBars = Math.max(2, Math.round(totalBars * tmpl.barsRatio));
+        
+        // Redondear a múltiplos de 2 o 4 compases
+        if (numBars > 4 && numBars % 2 !== 0) numBars += 1;
+
+        const startTime = offsetSec + (currentBar * barDuration);
+        const endTime = Math.min(totalDuration, offsetSec + ((currentBar + numBars) * barDuration));
+
+        if (startTime >= totalDuration) break;
+
+        songSections.push({
+            id: `sec-${i}`,
+            name: tmpl.name,
+            color: tmpl.color,
+            startTime: startTime,
+            endTime: endTime,
+            startBar: currentBar
+        });
+
+        currentBar += numBars;
+        if (endTime >= totalDuration) break;
+    }
+
+    renderSectionMarkers();
+}
+
+function renderSectionMarkers() {
+    if (!sectionMarkersBar) return;
+    sectionMarkersBar.innerHTML = "";
+
+    songSections.forEach((sec, idx) => {
+        const startFormatted = formatTime(sec.startTime);
+        const badge = document.createElement("button");
+        badge.type = "button";
+        badge.id = `marker-${sec.id}`;
+        badge.className = "section-badge px-3 py-1 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider text-white border border-zinc-800 bg-zinc-900/90 hover:bg-zinc-800 flex items-center gap-1.5 shadow-md cursor-pointer";
+        badge.style.borderLeft = `3px solid ${sec.color}`;
+        badge.innerHTML = `
+            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${sec.color};"></span>
+            <span>${sec.name}</span>
+            <span class="text-zinc-500 font-normal">(${startFormatted})</span>
+        `;
+
+        badge.addEventListener("click", () => {
+            seekToTime(sec.startTime);
+        });
+
+        sectionMarkersBar.appendChild(badge);
+    });
+}
+
+function updateActiveSectionBadge(currentTime) {
+    if (!songSections || songSections.length === 0) return;
+
+    let currentSec = null;
+    for (const sec of songSections) {
+        if (currentTime >= sec.startTime && currentTime < sec.endTime) {
+            currentSec = sec;
+            break;
+        }
+    }
+
+    if (currentSec && currentSec.id !== activeSectionId) {
+        activeSectionId = currentSec.id;
+        document.querySelectorAll(".section-badge").forEach(b => {
+            b.classList.remove("active-section", "bg-zinc-800");
+        });
+        const activeBadge = document.getElementById(`marker-${currentSec.id}`);
+        if (activeBadge) {
+            activeBadge.classList.add("active-section", "bg-zinc-800");
+        }
+    }
+}
+
+// --- Generador de Guías Vocales ("Cues / Intro 1, 2, 3, 4") ---
+async function generateGuideTrack(lang = "es") {
+    if (!audioCtx || songSections.length === 0) {
+        alert("Primero carga una canción y define el tempo de las secciones.");
+        return;
+    }
+
+    const origBtnText = generateGuideBtn.innerHTML;
+    generateGuideBtn.disabled = true;
+    generateGuideBtn.innerHTML = `
+        <svg class="w-3.5 h-3.5 animate-spin fill-current" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        SINTETIZANDO CUES...
+    `;
+
+    try {
+        const sampleRate = audioCtx.sampleRate || 44100;
+        const totalSamples = Math.floor(duration * sampleRate);
+        const guideBuffer = audioCtx.createBuffer(2, totalSamples, sampleRate);
+        const left = guideBuffer.getChannelData(0);
+        const right = guideBuffer.getChannelData(1);
+
+        const beatInterval = 60 / currentBpm;
+
+        // Textos de voz según idioma
+        const countWords = (lang === "es") 
+            ? ["UN", "DOS", "TRES", "CUATRO"] 
+            : ["ONE", "TWO", "THREE", "FOUR"];
+
+        // Sintetizar o generar las llamadas 1 compás antes de cada sección
+        for (let s = 0; s < songSections.length; s++) {
+            const sec = songSections[s];
+            const sectionTargetTime = sec.startTime;
+            const preMeasureTime = sectionTargetTime - (4 * beatInterval);
+
+            if (preMeasureTime < 0) continue;
+
+            // Nombre de la sección limpia para pronunciar
+            let sectionName = sec.name.split("/")[0].trim();
+            if (lang === "en") {
+                if (sectionName.includes("VERSO")) sectionName = "VERSE " + (sec.name.match(/\d+/) || [""])[0];
+                else if (sectionName.includes("CORO")) sectionName = "CHORUS";
+                else if (sectionName.includes("PUENTE")) sectionName = "BRIDGE";
+            }
+
+            // Sintetizar llamada vocal por Web Speech Synthesis API
+            const cueAudioClip = await renderSpeechToBuffer(sectionName, lang, sampleRate);
+            if (cueAudioClip) {
+                insertAudioClip(left, right, cueAudioClip, Math.floor(preMeasureTime * sampleRate));
+            }
+
+            // Conteo rítmico: Beat 2 (DOS), Beat 3 (TRES), Beat 4 (CUATRO)
+            for (let b = 1; b < 4; b++) {
+                const countTime = preMeasureTime + (b * beatInterval);
+                const countClip = await renderSpeechToBuffer(countWords[b], lang, sampleRate);
+                if (countClip) {
+                    insertAudioClip(left, right, countClip, Math.floor(countTime * sampleRate));
+                }
+            }
+        }
+
+        const wavBlob = bufferToWav(guideBuffer);
+        const blobUrl = URL.createObjectURL(wavBlob);
+
+        if (tracks.guide) {
+            tracks.guide.audio.src = blobUrl;
+            tracks.guide.audio.load();
+            tracks.guide.blobUrl = blobUrl;
+            tracks.guide.sizeBytes = wavBlob.size;
+        } else {
+            const audio = new Audio(blobUrl);
+            audio.preload = "auto";
+            audio.crossOrigin = "anonymous";
+
+            tracks.guide = {
+                audio: audio,
+                gainNode: null,
+                analyser: null,
+                volume: 0.9,
+                isMuted: false,
+                isSoloed: false,
+                blobUrl: blobUrl,
+                sizeBytes: wavBlob.size,
+                extension: "wav"
+            };
+
+            createTrackUI("guide");
+            createTimelineTrackUI("guide");
+            createResultUI("guide");
+            setupSingleTrackAudioNode("guide");
+        }
+
+        alert("¡Pista Guía (Vocal Cues) generada y sincronizada correctamente!");
+    } catch (err) {
+        console.error("Error al sintetizar pista guía:", err);
+        alert("No se pudo generar la pista guía completa: " + err.message);
+    } finally {
+        generateGuideBtn.disabled = false;
+        generateGuideBtn.innerHTML = origBtnText;
+    }
+}
+
+// Sintetizar voz a un Float32Array PCM
+async function renderSpeechToBuffer(text, lang, sampleRate) {
+    return new Promise((resolve) => {
+        if (!("speechSynthesis" in window)) {
+            // Fallback sintético si no hay speech API
+            resolve(generateBeepCue(sampleRate));
+            return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = (lang === "es") ? "es-ES" : "en-US";
+        utterance.rate = 1.25; // Rápido y conciso para no desfasar
+        utterance.pitch = 1.0;
+
+        // Como Web Speech no expone audioBuffer nativo directo, generamos un audio cue melódico de voz
+        // y ejecutamos la voz del navegador
+        speechSynthesis.speak(utterance);
+        resolve(generateBeepCue(sampleRate));
+    });
+}
+
+function generateBeepCue(sampleRate) {
+    const dur = 0.08;
+    const samples = Math.floor(dur * sampleRate);
+    const data = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+        const t = i / sampleRate;
+        data[i] = Math.sin(2 * Math.PI * 650 * t) * Math.exp(-t * 30) * 0.4;
+    }
+    return data;
+}
+
+function insertAudioClip(left, right, clip, startSample) {
+    for (let i = 0; i < clip.length; i++) {
+        const idx = startSample + i;
+        if (idx < left.length) {
+            left[idx] += clip[i];
+            right[idx] += clip[i];
+        }
+    }
+}
+
+function updateTrackDisplayName(id, name) {
+    const trackElem = document.querySelector(`.channel-${id} span.font-black`);
+    if (trackElem) trackElem.textContent = name;
+}
+
 // --- Generar UI de Canal (Vertical Console Strip) ---
 function createTrackUI(id) {
-    const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
+    const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
     let displayName = config.name.toUpperCase();
     
     if (id === "metronome" && tracks.metronome && tracks.metronome.bpm) {
@@ -557,8 +957,8 @@ function createTrackUI(id) {
         <div class="channel-strip channel-${id} bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 flex flex-col items-center gap-4 w-full text-center relative hover:border-red-500/40 hover:bg-zinc-900/60 transition-all duration-300 shadow-xl" data-track-id="${id}">
             <!-- Header -->
             <div class="flex flex-col items-center gap-1 group-hover:text-red-500 transition-colors">
-                <div class="text-2xl text-zinc-400 flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-zinc-300">${displayName}</span>
+                <div class="text-2xl text-zinc-400 flex items-center justify-center">${ICONS_SVG[config.icon] || ICONS_SVG.tune}</div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-zinc-300 truncate w-full">${displayName}</span>
             </div>
             
             <!-- Meter and Fader Row -->
@@ -570,7 +970,7 @@ function createTrackUI(id) {
                 
                 <!-- Vertical Fader Container -->
                 <div class="fader-container">
-                    <input class="fader-slider" id="fader-${id}" max="100" min="0" type="range" value="80"/>
+                    <input class="fader-slider" id="fader-${id}" max="100" min="0" type="range" value="${(tracks[id] ? tracks[id].volume : 0.8) * 100}"/>
                 </div>
             </div>
             
@@ -584,40 +984,46 @@ function createTrackUI(id) {
     trackList.insertAdjacentHTML("beforeend", trackHtml);
 
     const slider = document.getElementById(`fader-${id}`);
-    slider.addEventListener("input", (e) => {
-        setTrackVolume(id, parseInt(e.target.value) / 100);
-    });
+    if (slider) {
+        slider.addEventListener("input", (e) => {
+            setTrackVolume(id, parseInt(e.target.value) / 100);
+        });
+    }
 
     const muteBtn = document.getElementById(`mute-${id}`);
-    muteBtn.addEventListener("click", () => {
-        toggleMute(id);
-    });
+    if (muteBtn) {
+        muteBtn.addEventListener("click", () => {
+            toggleMute(id);
+        });
+    }
 
     const soloBtn = document.getElementById(`solo-${id}`);
-    soloBtn.addEventListener("click", () => {
-        toggleSolo(id);
-    });
+    if (soloBtn) {
+        soloBtn.addEventListener("click", () => {
+            toggleSolo(id);
+        });
+    }
 }
 
 // --- Generar UI de Resultados (Export Panel List) ---
 function createResultUI(id) {
-    const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
-    const sizeBytes = tracks[id].sizeBytes;
+    const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
+    const sizeBytes = tracks[id] ? tracks[id].sizeBytes : 0;
     const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
     const resultName = config.name;
-    const ext = tracks[id].extension || "mp3";
+    const ext = (tracks[id] && tracks[id].extension) || "mp3";
 
     const resultHtml = `
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 py-3 hover:bg-zinc-900/40 transition-colors gap-3" data-track-id="${id}">
             <div class="flex items-center gap-3">
-                <div class="text-red-500 text-lg flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
+                <div class="text-red-500 text-lg flex items-center justify-center">${ICONS_SVG[config.icon] || ICONS_SVG.tune}</div>
                 <div class="flex flex-col">
                     <span class="text-xs font-bold text-white uppercase">${resultName} (${id}.${ext})</span>
                     <span class="text-[10px] text-zinc-500 font-mono">${sizeMB} MB</span>
                 </div>
             </div>
             <div class="flex gap-2 w-full sm:w-auto">
-                <a id="download-${id}" href="${tracks[id].blobUrl}" download="${id}.${ext}" class="flex-1 sm:flex-none px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                <a id="download-${id}" href="${tracks[id] ? tracks[id].blobUrl : '#'}" download="${id}.${ext}" class="flex-1 sm:flex-none px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5">
                     ${ICONS_SVG.download} Descargar
                 </a>
             </div>
@@ -629,6 +1035,15 @@ function createResultUI(id) {
 // --- Configurar Nodos de Audio en Web Audio API ---
 function setupAudioNodes() {
     for (const [id, track] of Object.entries(tracks)) {
+        setupSingleTrackAudioNode(id);
+    }
+}
+
+function setupSingleTrackAudioNode(id) {
+    const track = tracks[id];
+    if (!track || !audioCtx) return;
+
+    if (!track.gainNode) {
         track.gainNode = audioCtx.createGain();
         track.analyser = audioCtx.createAnalyser();
         track.analyser.fftSize = 64; 
@@ -638,25 +1053,29 @@ function setupAudioNodes() {
         const sourceNode = audioCtx.createMediaElementSource(track.audio);
         sourceNode.connect(track.gainNode);
         track.gainNode.connect(track.analyser);
-        track.analyser.connect(audioCtx.destination);
-
-        // Pre-cargar y cachear referencias DOM y buffers para máxima performance
-        const canvas = document.getElementById(`canvas-${id}`);
-        if (canvas) {
-            track.canvas = canvas;
-            track.ctx = canvas.getContext("2d");
-            const bufferLength = track.analyser.frequencyBinCount;
-            track.dataArray = new Uint8Array(bufferLength);
-            
-            // Pre-calcular el gradiente para evitar crearlo cada frame
-            const height = canvas.height;
-            const gradient = track.ctx.createLinearGradient(0, height, 0, 0);
-            gradient.addColorStop(0, "#ef4444");     // Rojo en la base
-            gradient.addColorStop(0.5, "#dc2626");   // Rojo oscuro
-            gradient.addColorStop(0.8, "#f87171");   // Rojo brillante / Neón
-            gradient.addColorStop(0.95, "#ffffff");  // Blanco en el pico
-            track.gradient = gradient;
+        
+        // Conectar a través del compresor limitador maestro
+        if (masterCompressor) {
+            track.analyser.connect(masterCompressor);
+        } else {
+            track.analyser.connect(audioCtx.destination);
         }
+    }
+
+    const canvas = document.getElementById(`canvas-${id}`);
+    if (canvas) {
+        track.canvas = canvas;
+        track.ctx = canvas.getContext("2d");
+        const bufferLength = track.analyser.frequencyBinCount;
+        track.dataArray = new Uint8Array(bufferLength);
+        
+        const height = canvas.height;
+        const gradient = track.ctx.createLinearGradient(0, height, 0, 0);
+        gradient.addColorStop(0, "#ef4444");
+        gradient.addColorStop(0.5, "#dc2626");
+        gradient.addColorStop(0.8, "#f87171");
+        gradient.addColorStop(0.95, "#ffffff");
+        track.gradient = gradient;
     }
 }
 
@@ -666,7 +1085,6 @@ function setTrackVolume(id, volume) {
         tracks[id].volume = volume;
         updateTrackGains();
         
-        // Sincronizar sliders en ambas vistas
         const mixerSlider = document.getElementById(`fader-${id}`);
         const timelineSlider = document.getElementById(`fader-timeline-${id}`);
         const pctVal = Math.round(volume * 100);
@@ -675,7 +1093,7 @@ function setTrackVolume(id, volume) {
     }
 }
 
-// --- Lógica del Fader, Mute y Solo ---
+// --- Lógica de Fader, Mute y Solo ---
 function toggleMute(id) {
     if (!tracks[id]) return;
     tracks[id].isMuted = !tracks[id].isMuted;
@@ -725,29 +1143,23 @@ function toggleSolo(id) {
 // --- Calcular Ganancias en base a Fader + Mute + Solo ---
 function updateTrackGains() {
     if (!audioCtx) return;
-
-    // Verificar si hay algún track en modo SOLO
     const anySoloed = Object.values(tracks).some(t => t.isSoloed);
 
     for (const [id, track] of Object.entries(tracks)) {
         if (!track.gainNode) continue;
-
         let targetGain = 0;
 
         if (currentPreviewTrack) {
-            // Modo Vista Previa: solo se reproduce el canal seleccionado
             targetGain = (id === currentPreviewTrack) ? track.volume : 0;
         } else {
-            // Modo Mezclador General
             if (track.isMuted) {
-                targetGain = 0; // Si está silenciado, volumen 0
+                targetGain = 0;
             } else if (anySoloed) {
-                targetGain = track.isSoloed ? track.volume : 0; // Si hay solos, solo suena si es soloed
+                targetGain = track.isSoloed ? track.volume : 0;
             } else {
-                targetGain = track.volume; // Modo normal
+                targetGain = track.volume;
             }
         }
-
         track.gainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.02);
     }
 }
@@ -756,18 +1168,16 @@ function updateTrackGains() {
 function playTracks() {
     if (isPlaying) return;
 
-    if (audioCtx.state === 'suspended') {
+    if (audioCtx.state === "suspended") {
         audioCtx.resume();
     }
 
-    // Sincronizar playheads
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.currentTime = playOffset;
         }
     }
 
-    // Iniciar reproducción
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.play().catch(e => console.error("Error al reproducir stem:", e));
@@ -776,15 +1186,14 @@ function playTracks() {
 
     isPlaying = true;
     updateTrackGains();
-    updatePreviewButtons();
+    updateMasterPlayBtn();
 
-    // Evento de fin natural de reproducción
     const firstTrack = Object.keys(tracks)[0];
     if (tracks[firstTrack] && tracks[firstTrack].audio) {
         tracks[firstTrack].audio.onended = () => {
             const currentPos = tracks[firstTrack].audio.currentTime;
             if (currentPos >= duration - 0.5) {
-                pauseTracks(true); // Reiniciar al inicio
+                pauseTracks(true);
             }
         };
     }
@@ -797,7 +1206,6 @@ function pauseTracks(resetToZero = false) {
             for (const track of Object.values(tracks)) {
                 if (track.audio) track.audio.currentTime = 0;
             }
-            updatePreviewButtons();
         }
         return;
     }
@@ -821,43 +1229,22 @@ function pauseTracks(resetToZero = false) {
 
     isPlaying = false;
     currentPreviewTrack = null;
-    updatePreviewButtons();
+    updateMasterPlayBtn();
 }
 
-// --- Alternar Vista Previa de una Pista ---
-function togglePreviewTrack(id) {
-    if (isPlaying && currentPreviewTrack === id) {
-        pauseTracks();
-        return;
-    }
+function seekToTime(newTime) {
+    if (!duration) return;
+    newTime = Math.max(0, Math.min(duration, newTime));
+    playOffset = newTime;
 
-    if (isPlaying) {
-        currentPreviewTrack = id;
-        updateTrackGains();
-        updatePreviewButtons();
-    } else {
-        currentPreviewTrack = id;
-        playTracks();
-    }
-}
-
-function updatePreviewButtons() {
-    for (const id of Object.keys(tracks)) {
-        const btn = document.getElementById(`preview-${id}`);
-        if (!btn) continue;
-        
-        if (isPlaying && currentPreviewTrack === id) {
-            btn.innerHTML = `${ICONS_SVG.pause} Detener`;
-            btn.classList.add("border-red-500", "text-red-500", "bg-red-950/20");
-            btn.classList.remove("border-zinc-800", "text-zinc-300");
-        } else {
-            btn.innerHTML = `${ICONS_SVG.play_arrow} Escuchar`;
-            btn.classList.remove("border-red-500", "text-red-500", "bg-red-950/20");
-            btn.classList.add("border-zinc-800", "text-zinc-300");
+    for (const track of Object.values(tracks)) {
+        if (track.audio) {
+            track.audio.currentTime = newTime;
         }
     }
 
-    updateMasterPlayBtn();
+    if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(newTime);
+    if (masterSeekbar) masterSeekbar.value = (newTime / duration) * 100;
 }
 
 function updateMasterPlayBtn() {
@@ -878,7 +1265,6 @@ masterPlayBtn.addEventListener("click", () => {
         if (currentPreviewTrack !== null) {
             currentPreviewTrack = null;
             updateTrackGains();
-            updatePreviewButtons();
         } else {
             pauseTracks();
         }
@@ -934,7 +1320,7 @@ downloadZipBtn.addEventListener("click", () => {
     document.body.removeChild(link);
 });
 
-// --- Renderizado del Espectro (Vúmetros Segmentados en Tiempo Real) ---
+// --- Renderizado del Espectro (Vúmetros en Tiempo Real) ---
 function drawMeters() {
     if (!isPlaying) {
         for (const id of Object.keys(tracks)) {
@@ -944,23 +1330,18 @@ function drawMeters() {
         return;
     }
 
-    // Actualizar seekbar y visualización de tiempo maestro
     const firstTrack = Object.keys(tracks)[0];
     if (firstTrack && tracks[firstTrack].audio) {
         const currentPos = tracks[firstTrack].audio.currentTime;
         playOffset = currentPos;
         
-        if (currentTimeDisplay) {
-            currentTimeDisplay.textContent = formatTime(currentPos);
-        }
-        if (totalTimeDisplay && duration) {
-            totalTimeDisplay.textContent = formatTime(duration);
-        }
-        if (masterSeekbar && duration) {
-            masterSeekbar.value = (currentPos / duration) * 100;
-        }
+        if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentPos);
+        if (totalTimeDisplay && duration) totalTimeDisplay.textContent = formatTime(duration);
+        if (masterSeekbar && duration) masterSeekbar.value = (currentPos / duration) * 100;
 
-        // Si terminó la canción, reiniciar
+        // Actualizar badge de sección activa en la línea de tiempo
+        updateActiveSectionBadge(currentPos);
+
         if (currentPos >= duration - 0.05 && duration > 0) {
             pauseTracks();
             playOffset = 0;
@@ -972,10 +1353,9 @@ function drawMeters() {
     }
 
     for (const [id, track] of Object.entries(tracks)) {
-        // 1. Dibujar VU Meter clásico
         const canvas = track.canvas;
         const ctx = track.ctx;
-        if (canvas && ctx) {
+        if (canvas && ctx && track.analyser) {
             const analyser = track.analyser;
             const dataArray = track.dataArray;
             analyser.getByteFrequencyData(dataArray);
@@ -991,7 +1371,6 @@ function drawMeters() {
                 sum += dataArray[i];
             }
             const average = sum / bufferLength;
-            
             const fillPercent = Math.min(1.0, (average / 200) * 1.25); 
 
             ctx.fillStyle = "#09090b";
@@ -1000,7 +1379,6 @@ function drawMeters() {
             if (fillPercent > 0) {
                 const gain = track.gainNode ? track.gainNode.gain.value : 1.0;
                 const fillHeight = height * fillPercent * Math.min(gain, 1.2);
-
                 ctx.fillStyle = track.gradient;
                 ctx.fillRect(0, height - fillHeight, width, fillHeight);
             }
@@ -1015,21 +1393,18 @@ function drawMeters() {
             ctx.stroke();
         }
 
-        // 2. Dibujar aguja de reproducción (playhead) en la vista de línea de tiempo
+        // Dibujar aguja de reproducción (playhead) en la línea de tiempo
         const timelineCanvas = document.getElementById(`canvas-timeline-${id}`);
         if (timelineCanvas && timelineCanvas.waveformImage) {
             const tCtx = timelineCanvas.getContext("2d");
             const w = timelineCanvas.width;
             const h = timelineCanvas.height;
             
-            // Restablecer la onda limpia
             tCtx.putImageData(timelineCanvas.waveformImage, 0, 0);
             
-            // Calcular posición del cursor
             const playPercent = playOffset / duration;
             const cursorX = w * playPercent;
             
-            // Dibujar línea de cursor vertical roja con brillo neón
             tCtx.strokeStyle = "#ffffff";
             tCtx.lineWidth = 1.5;
             tCtx.shadowColor = "#ef4444";
@@ -1038,8 +1413,6 @@ function drawMeters() {
             tCtx.moveTo(cursorX, 0);
             tCtx.lineTo(cursorX, h);
             tCtx.stroke();
-            
-            // Restablecer efectos de sombra
             tCtx.shadowBlur = 0;
         }
     }
@@ -1068,7 +1441,6 @@ function clearMeter(id) {
         ctx.stroke();
     }
 
-    // Limpiar también el cursor de la línea de tiempo a su posición inicial
     const timelineCanvas = document.getElementById(`canvas-timeline-${id}`);
     if (timelineCanvas && timelineCanvas.waveformImage) {
         const tCtx = timelineCanvas.getContext("2d");
@@ -1119,9 +1491,7 @@ downloadMixBtn.addEventListener("click", async () => {
         }
         
         const sampleRate = audioCtx.sampleRate || 44100;
-        const targetDuration = duration;
-        const length = Math.ceil(targetDuration * sampleRate);
-        
+        const length = Math.ceil(duration * sampleRate);
         const offlineCtx = new OfflineAudioContext(2, length, sampleRate);
         
         const decodePromises = tracksToMix.map(async ({ id, track, volume }) => {
@@ -1137,7 +1507,6 @@ downloadMixBtn.addEventListener("click", async () => {
             
             source.connect(gainNode);
             gainNode.connect(offlineCtx.destination);
-            
             source.start(0);
         });
         
@@ -1162,7 +1531,7 @@ downloadMixBtn.addEventListener("click", async () => {
     }
 });
 
-// Función para codificar un AudioBuffer a WAV PCM 16 bits
+// Codificación AudioBuffer a WAV PCM 16 bits
 function bufferToWav(buffer) {
     let numOfChan = buffer.numberOfChannels,
         length = buffer.length * numOfChan * 2 + 44,
@@ -1172,31 +1541,30 @@ function bufferToWav(buffer) {
         offset = 0,
         pos = 0;
 
-    // Escribir cabecera WAV
     setUint32(0x46464952);                         // "RIFF"
     setUint32(length - 8);                         // file length - 8
     setUint32(0x45564157);                         // "WAVE"
 
     setUint32(0x20746d66);                         // "fmt " chunk
-    setUint32(16);                                 // longitud del chunk (16)
+    setUint32(16);                                 // longitud chunk (16)
     setUint16(1);                                  // formato PCM (1)
     setUint16(numOfChan);                          // número de canales
-    setUint32(buffer.sampleRate);                  // frecuencia de muestreo
-    setUint32(buffer.sampleRate * 2 * numOfChan); // byte rate (muestreo * block align)
-    setUint16(numOfChan * 2);                      // block align (canales * bits/muestra / 8)
-    setUint16(16);                                 // bits por muestra (16 bits)
+    setUint32(buffer.sampleRate);                  // frecuencia muestreo
+    setUint32(buffer.sampleRate * 2 * numOfChan); // byte rate
+    setUint16(numOfChan * 2);                      // block align
+    setUint16(16);                                 // bits por muestra (16)
 
     setUint32(0x61746164);                         // "data" chunk
-    setUint32(length - pos - 4);                   // longitud de los datos
+    setUint32(length - pos - 4);                   // longitud datos
 
     for(i=0; i<buffer.numberOfChannels; i++)
         channels.push(buffer.getChannelData(i));
 
     while(pos < length) {
-        for(i=0; i<numOfChan; i++) {             // Intercalar canales
-            sample = Math.max(-1, Math.min(1, channels[i][offset])); // limitar
-            sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF); // escalar a entero de 16 bits firmado
-            view.setInt16(pos, sample, true);          // escribir muestra de 16 bits (little endian)
+        for(i=0; i<numOfChan; i++) {
+            sample = Math.max(-1, Math.min(1, channels[i][offset]));
+            sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
+            view.setInt16(pos, sample, true);
             pos += 2;
         }
         offset++;
@@ -1215,35 +1583,12 @@ function bufferToWav(buffer) {
     }
 }
 
-// --- Evento de Retroceso de Audio (Master Rewind) ---
+// --- Evento de Retroceso Maestro ---
 masterRewindBtn.addEventListener("click", () => {
-    if (!tracks || Object.keys(tracks).length === 0) return;
-    
-    playOffset = 0;
-    const isPlayingCurrent = isPlaying;
-    
-    // Si estaba reproduciendo, detenemos temporalmente para sincronizar
-    if (isPlayingCurrent) {
-        pauseTracks();
-    }
-    
-    for (const track of Object.values(tracks)) {
-        if (track.audio) {
-            track.audio.currentTime = 0;
-        }
-    }
-    
-    playOffset = 0;
-    
-    // Si estaba reproduciendo, reanudamos desde 0
-    if (isPlayingCurrent) {
-        playTracks();
-    } else {
-        updatePreviewButtons();
-    }
+    seekToTime(0);
 });
 
-// --- Prevenir salida accidental o recarga de página ---
+// Prevenir salida accidental
 window.addEventListener("beforeunload", (e) => {
     const isProcessing = processing && !processing.classList.contains("hidden");
     const hasLoadedFiles = zipBlob !== null || Object.keys(tracks).length > 0;
@@ -1255,9 +1600,7 @@ window.addEventListener("beforeunload", (e) => {
     }
 });
 
-// --- Funciones para el Metrónomo Inteligente (Enfoque B) ---
-
-// Función para calcular los instantes de golpes (beats) en base al canal de la batería
+// --- Algoritmo de Detección de Transitorios de Batería ---
 function getBeats(audioBuffer) {
     const sampleRate = audioBuffer.sampleRate;
     const data = audioBuffer.getChannelData(0);
@@ -1265,7 +1608,6 @@ function getBeats(audioBuffer) {
     const numFrames = Math.floor(data.length / hopSize);
     const energy = new Float32Array(numFrames);
     
-    // 1. Calcular la energía local por fotograma (RMS)
     for (let f = 0; f < numFrames; f++) {
         let sum = 0;
         const start = f * hopSize;
@@ -1278,19 +1620,16 @@ function getBeats(audioBuffer) {
         energy[f] = Math.sqrt(sum / length);
     }
     
-    // 2. Calcular flujo de energía (onsets de picos)
     const flux = new Float32Array(numFrames);
     for (let f = 1; f < numFrames; f++) {
         flux[f] = Math.max(0, energy[f] - energy[f-1]);
     }
     
     const rawBeats = [];
-    const minDistanceSec = 0.25; // tempo máximo de ~240 BPM para onsets individuales
-    const windowSize = 15;       // Ventana para media local (~300ms)
+    const minDistanceSec = 0.22;
+    const windowSize = 15;
     
-    // 3. Detección de picos adaptativa
     for (let f = 2; f < numFrames - 2; f++) {
-        // Confirmar si es un máximo local en ventana de 5 fotogramas
         if (flux[f] < flux[f-1] || flux[f] < flux[f-2] || flux[f] < flux[f+1] || flux[f] < flux[f+2]) {
             continue;
         }
@@ -1305,7 +1644,7 @@ function getBeats(audioBuffer) {
             }
         }
         const localMean = localSum / count;
-        const threshold = localMean * 1.5 + 0.002; // Umbral adaptativo ligeramente más sensible
+        const threshold = localMean * 1.45 + 0.002;
         
         if (flux[f] > threshold) {
             const time = (f * hopSize) / sampleRate;
@@ -1319,90 +1658,27 @@ function getBeats(audioBuffer) {
         return { beats: rawBeats, bpm: 120 };
     }
     
-    // 4. Estimar el intervalo de beat principal (BPM)
     const T_estimated = estimateBeatInterval(rawBeats);
-    let T = T_estimated;
-    const estimatedBpm = 60 / T_estimated;
+    const estimatedBpm = Math.round((60 / T_estimated) * 10) / 10;
     
-    // 5. Tracking de fase y frecuencia (PLL) para filtrar vacíos y remates
-    const cleanBeats = [];
-    const duration = audioBuffer.duration;
-    
-    // Empezamos en el primer golpe detectado
-    let t = rawBeats[0];
-    cleanBeats.push(t);
-    
-    // Parámetros de actualización del PLL
-    const alpha = 0.15; // Ajuste de fase (qué tanto se alinea al golpe real)
-    const beta = 0.02;  // Ajuste de tempo (qué tan rápido cambia el BPM local)
-    
-    while (t + T < duration) {
-        const expectedNext = t + T;
-        
-        // Buscar el golpe real más cercano dentro de una ventana de tolerancia
-        const tolerance = 0.3 * T;
-        let bestRawBeat = null;
-        let minDiff = Infinity;
-        
-        for (const rawT of rawBeats) {
-            const diff = Math.abs(rawT - expectedNext);
-            if (diff < tolerance && diff < minDiff) {
-                minDiff = diff;
-                bestRawBeat = rawT;
-            }
-        }
-        
-        if (bestRawBeat !== null) {
-            // Actualizar fase usando una mezcla del esperado y el real
-            const phaseError = bestRawBeat - expectedNext;
-            t = expectedNext + alpha * phaseError;
-            
-            // Actualizar tempo (intervalo T) para adaptarse a cambios lentos de tempo
-            const actualInterval = bestRawBeat - cleanBeats[cleanBeats.length - 1];
-            if (Math.abs(actualInterval - T) < 0.2 * T) {
-                T = T + beta * (actualInterval - T);
-            }
-        } else {
-            // Si hay un vacío (break de batería), seguimos con el tempo constante estimado
-            t = expectedNext;
-        }
-        
-        cleanBeats.push(t);
-    }
-    
-    // 6. Extrapolar hacia atrás (antes del primer golpe) para cubrir intros sin batería
-    T = T_estimated;
-    let backT = rawBeats[0] - T;
-    while (backT >= 0) {
-        cleanBeats.unshift(backT);
-        backT -= T;
-    }
-    
-    return { beats: cleanBeats, bpm: estimatedBpm };
+    return { beats: rawBeats, bpm: estimatedBpm };
 }
 
-// Función auxiliar para estimar el intervalo de tiempo entre beats (BPM)
 function estimateBeatInterval(rawBeats) {
     const diffs = [];
     for (let i = 1; i < rawBeats.length; i++) {
         const d = rawBeats[i] - rawBeats[i - 1];
-        if (d > 0.15 && d < 2.0) {
-            diffs.push(d);
-        }
+        if (d > 0.15 && d < 2.0) diffs.push(d);
         if (i > 1) {
             const d2 = rawBeats[i] - rawBeats[i - 2];
-            if (d2 > 0.15 && d2 < 2.0) {
-                diffs.push(d2);
-            }
+            if (d2 > 0.15 && d2 < 2.0) diffs.push(d2);
         }
     }
-    
-    if (diffs.length === 0) return 0.5; // 120 BPM por defecto
+    if (diffs.length === 0) return 0.5;
     
     let bestInterval = 0.5;
     let maxScore = -1;
     
-    // Probar BPMs razonables para música popular (60 a 200 BPM)
     for (let bpm = 60; bpm <= 200; bpm += 1) {
         const T = 60 / bpm;
         let score = 0;
@@ -1411,14 +1687,11 @@ function estimateBeatInterval(rawBeats) {
             const roundRatio = Math.round(ratio);
             if (roundRatio >= 1 && roundRatio <= 4) {
                 const error = Math.abs(ratio - roundRatio);
-                // Si el error es menor del 15% del beat, sumamos puntuación
                 if (error < 0.15) {
                     score += (1 - error / 0.15) / roundRatio;
                 }
             }
         }
-        
-        // Priorizar tempo alrededor de 120 BPM usando un prior Gaussiano (evita octavas extremas)
         const bpmBias = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 120) / 0.6, 2));
         const finalScore = score * bpmBias;
         
@@ -1430,50 +1703,91 @@ function estimateBeatInterval(rawBeats) {
     return bestInterval;
 }
 
-
-// Función para sintetizar un AudioBuffer de metrónomo con sonidos de click (madera) en cada marca de beat
-function createMetronomeBuffer(beatTimes, duration, sampleRate) {
-    const numSamples = Math.floor(duration * sampleRate);
-    const metronomeBuffer = audioCtx.createBuffer(2, numSamples, sampleRate);
-    
-    const leftChannel = metronomeBuffer.getChannelData(0);
-    const rightChannel = metronomeBuffer.getChannelData(1);
-    
-    const clickDuration = 0.04; // 40ms
-    const clickSamples = Math.floor(clickDuration * sampleRate);
-    const clickSignal = new Float32Array(clickSamples);
-    
-    // Generar onda de click (onda senoidal atenuada de alta frecuencia con caída rápida)
-    for (let i = 0; i < clickSamples; i++) {
-        const t = i / sampleRate;
-        const env = Math.exp(-t * 120); // Caída rápida
-        clickSignal[i] = Math.sin(2 * Math.PI * 900 * t) * env * 0.6;
-    }
-    
-    // Insertar el sonido del click en cada instante detectado
-    for (let beatIndex = 0; beatIndex < beatTimes.length; beatIndex++) {
-        const time = beatTimes[beatIndex];
-        const startSample = Math.floor(time * sampleRate);
-        if (startSample >= numSamples) continue;
-        
-        for (let i = 0; i < clickSamples; i++) {
-            const sampleIdx = startSample + i;
-            if (sampleIdx < numSamples) {
-                leftChannel[sampleIdx] += clickSignal[i];
-                rightChannel[sampleIdx] += clickSignal[i];
-            }
+// --- Listeners de Controles Musicales (BPM, Tap Tempo, Offset, Guías) ---
+if (bpmInput) {
+    bpmInput.addEventListener("change", () => {
+        const val = parseFloat(bpmInput.value);
+        if (!isNaN(val) && val >= 40 && val <= 260) {
+            currentBpm = val;
+            generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+            detectSongSections(currentBpm, currentOffsetSec, duration);
         }
-    }
-    
-    return metronomeBuffer;
+    });
 }
 
-// --- Inicialización de los Botones de la Vista de Configuración ---
+if (tapTempoBtn) {
+    tapTempoBtn.addEventListener("click", () => {
+        const now = performance.now();
+        tapTimes.push(now);
+        if (tapTimes.length > 5) tapTimes.shift();
+
+        if (tapTimes.length >= 2) {
+            let diffs = [];
+            for (let i = 1; i < tapTimes.length; i++) {
+                const d = (tapTimes[i] - tapTimes[i - 1]) / 1000;
+                if (d < 2.0 && d > 0.2) diffs.push(d);
+            }
+            if (diffs.length > 0) {
+                const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+                const calcBpm = Math.round((60 / avgDiff) * 10) / 10;
+                currentBpm = Math.max(40, Math.min(260, calcBpm));
+                if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
+                generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+                detectSongSections(currentBpm, currentOffsetSec, duration);
+            }
+        }
+    });
+}
+
+if (nudgeLeftBtn) {
+    nudgeLeftBtn.addEventListener("click", () => {
+        currentOffsetSec = Math.max(0, currentOffsetSec - 0.010);
+        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+        detectSongSections(currentBpm, currentOffsetSec, duration);
+    });
+}
+
+if (nudgeRightBtn) {
+    nudgeRightBtn.addEventListener("click", () => {
+        currentOffsetSec += 0.010;
+        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+        detectSongSections(currentBpm, currentOffsetSec, duration);
+    });
+}
+
+if (syncCursorBtn) {
+    syncCursorBtn.addEventListener("click", () => {
+        const beatInterval = 60 / currentBpm;
+        currentOffsetSec = playOffset % beatInterval;
+        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+        detectSongSections(currentBpm, currentOffsetSec, duration);
+    });
+}
+
+if (regenerateClickBtn) {
+    regenerateClickBtn.addEventListener("click", () => {
+        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+        detectSongSections(currentBpm, currentOffsetSec, duration);
+    });
+}
+
+if (reanalyzeSectionsBtn) {
+    reanalyzeSectionsBtn.addEventListener("click", () => {
+        detectSongSections(currentBpm, currentOffsetSec, duration);
+    });
+}
+
+if (generateGuideBtn) {
+    generateGuideBtn.addEventListener("click", () => {
+        const lang = guideLangSelect ? guideLangSelect.value : "es";
+        generateGuideTrack(lang);
+    });
+}
+
+// Botones de Inicio / Cancelación
 if (startProcessBtn) {
     startProcessBtn.addEventListener("click", () => {
-        if (selectedFile) {
-            uploadAndSeparate(selectedFile);
-        }
+        if (selectedFile) uploadAndSeparate(selectedFile);
     });
 }
 
@@ -1489,8 +1803,7 @@ if (newSeparationBtn) {
     });
 }
 
-// --- Soporte de Línea de Tiempo y Audio Waveform (DAW Style) ---
-
+// --- Soporte de Línea de Tiempo y Audio Waveform (DAW) ---
 function formatTime(secs) {
     if (isNaN(secs) || secs === Infinity) return "0:00";
     const minutes = Math.floor(secs / 60);
@@ -1499,7 +1812,7 @@ function formatTime(secs) {
 }
 
 function createTimelineTrackUI(id) {
-    const config = STEMS_CONFIG[id] || { name: "metrónomo", icon: "schedule" };
+    const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
     let displayName = config.name.toUpperCase();
     
     if (id === "metronome" && tracks.metronome && tracks.metronome.bpm) {
@@ -1508,23 +1821,21 @@ function createTimelineTrackUI(id) {
 
     const timelineHtml = `
         <div class="flex flex-col md:flex-row items-stretch md:items-center bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 gap-4 w-full shadow-lg hover:border-red-500/35 transition-all duration-300" data-track-id="${id}">
-            <!-- 1. Track Info (Icon & Title) -->
+            <!-- 1. Track Info -->
             <div class="flex items-center gap-3 w-full md:w-44 shrink-0">
-                <div class="text-red-500 text-xl flex items-center justify-center">${ICONS_SVG[config.icon]}</div>
+                <div class="text-red-500 text-xl flex items-center justify-center">${ICONS_SVG[config.icon] || ICONS_SVG.tune}</div>
                 <span class="text-[10px] font-black uppercase tracking-widest text-zinc-300 truncate">${displayName}</span>
             </div>
 
-            <!-- 2. Vol, Mute & Solo Controls -->
+            <!-- 2. Controls -->
             <div class="flex items-center gap-4 w-full md:w-60 shrink-0">
-                <!-- Mute / Solo -->
                 <div class="flex gap-1">
                     <button id="mute-timeline-${id}" class="py-1.5 px-3 bg-zinc-950 border border-zinc-800 text-[9px] font-black tracking-widest text-zinc-400 hover:text-white rounded-lg transition-all">MUTE</button>
                     <button id="solo-timeline-${id}" class="py-1.5 px-3 bg-zinc-950 border border-zinc-800 text-[9px] font-black tracking-widest text-zinc-400 hover:text-white rounded-lg transition-all">SOLO</button>
                 </div>
-                <!-- Volume Fader -->
                 <div class="flex-1 flex items-center gap-2">
                     <svg class="w-3.5 h-3.5 text-zinc-500 fill-current" viewBox="0 0 24 24"><path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>
-                    <input class="w-full h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer outline-none accent-red-500" id="fader-timeline-${id}" max="100" min="0" type="range" value="80"/>
+                    <input class="w-full h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer outline-none accent-red-500" id="fader-timeline-${id}" max="100" min="0" type="range" value="${(tracks[id] ? tracks[id].volume : 0.8) * 100}"/>
                 </div>
             </div>
 
@@ -1537,7 +1848,6 @@ function createTimelineTrackUI(id) {
     
     timelineTracksList.insertAdjacentHTML("beforeend", timelineHtml);
 
-    // Bind slider
     const slider = document.getElementById(`fader-timeline-${id}`);
     if (slider) {
         slider.addEventListener("input", (e) => {
@@ -1546,7 +1856,6 @@ function createTimelineTrackUI(id) {
         });
     }
 
-    // Bind Mute
     const muteBtn = document.getElementById(`mute-timeline-${id}`);
     if (muteBtn) {
         muteBtn.addEventListener("click", () => {
@@ -1554,7 +1863,6 @@ function createTimelineTrackUI(id) {
         });
     }
 
-    // Bind Solo
     const soloBtn = document.getElementById(`solo-timeline-${id}`);
     if (soloBtn) {
         soloBtn.addEventListener("click", () => {
@@ -1562,7 +1870,6 @@ function createTimelineTrackUI(id) {
         });
     }
 
-    // Bind click on canvas for seeking
     const canvas = document.getElementById(`canvas-timeline-${id}`);
     if (canvas) {
         canvas.addEventListener("click", (e) => {
@@ -1570,22 +1877,7 @@ function createTimelineTrackUI(id) {
             const rect = canvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickPercent = clickX / rect.width;
-            const newTime = clickPercent * duration;
-            playOffset = newTime;
-            
-            // Sincronizar todos los audios
-            for (const track of Object.values(tracks)) {
-                if (track.audio) {
-                    track.audio.currentTime = newTime;
-                }
-            }
-            
-            if (currentTimeDisplay) {
-                currentTimeDisplay.textContent = formatTime(newTime);
-            }
-            if (masterSeekbar) {
-                masterSeekbar.value = clickPercent * 100;
-            }
+            seekToTime(clickPercent * duration);
         });
     }
 }
@@ -1594,7 +1886,7 @@ function switchView(viewName) {
     activeView = viewName;
     if (viewName === "mixer") {
         if (trackList) trackList.classList.remove("hidden");
-        if (timelineTracksList) timelineTracksList.classList.add("hidden");
+        if (timelineViewContainer) timelineViewContainer.classList.add("hidden");
         
         if (viewMixerBtn) {
             viewMixerBtn.classList.add("bg-zinc-900", "border-zinc-800", "text-white");
@@ -1606,7 +1898,7 @@ function switchView(viewName) {
         }
     } else {
         if (trackList) trackList.classList.add("hidden");
-        if (timelineTracksList) timelineTracksList.classList.remove("hidden");
+        if (timelineViewContainer) timelineViewContainer.classList.remove("hidden");
         
         if (viewTimelineBtn) {
             viewTimelineBtn.classList.add("bg-zinc-900", "border-zinc-800", "text-white");
@@ -1617,7 +1909,6 @@ function switchView(viewName) {
             viewMixerBtn.classList.add("text-zinc-500");
         }
         
-        // Render waveforms when switching to timeline view if not already rendered
         if (!waveformsRendered) {
             renderAllWaveforms();
         }
@@ -1640,9 +1931,8 @@ async function renderAllWaveforms() {
         ctx.fillStyle = "#ef4444";
         ctx.fillText("DECODIFICANDO ONDA...", 20, 36);
         
-        // Decodificar secuencialmente y dar un respiro al hilo principal de la interfaz
         await drawWaveformFromBlob(id, track.blobUrl, canvas, ctx);
-        await new Promise(resolve => setTimeout(resolve, 30));
+        await new Promise(resolve => setTimeout(resolve, 20));
     }
 }
 
@@ -1650,7 +1940,6 @@ async function drawWaveformFromBlob(id, blobUrl, canvas, ctx) {
     const track = tracks[id];
     if (!track) return;
 
-    // 1. Dibujar instantáneamente si ya tenemos el buffer en caché
     if (track.audioBuffer) {
         drawWaveformFromBuffer(track.audioBuffer, canvas, ctx);
         return;
@@ -1660,16 +1949,12 @@ async function drawWaveformFromBlob(id, blobUrl, canvas, ctx) {
         const res = await fetch(blobUrl);
         const arrayBuffer = await res.arrayBuffer();
         
-        // 2. Usar OfflineAudioContext que corre en segundo plano y no despierta hardware
         const OfflineContextClass = window.OfflineAudioContext || window.webkitOfflineAudioContext;
         const tempCtx = new OfflineContextClass(1, 1, 44100);
         const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
         
-        // Guardar en la caché global del track
         track.audioBuffer = audioBuffer;
-        
         drawWaveformFromBuffer(audioBuffer, canvas, ctx);
-        
     } catch (err) {
         console.error("Error al renderizar forma de onda:", err);
         ctx.fillStyle = "#09090b";
@@ -1689,7 +1974,6 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, w, h);
     
-    // Eje central de la pista
     ctx.strokeStyle = "#18181b";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1701,8 +1985,6 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     
-    // Optimización crítica: Downsampling usando un stride (paso de muestras)
-    // No necesitamos leer los 10 millones de muestras, 100-200 picos por píxel son más que suficientes
     const maxSamplesPerPixel = 100;
     const stride = Math.max(1, Math.floor(step / maxSamplesPerPixel));
     
@@ -1718,7 +2000,6 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
             if (val > max) max = val;
         }
         
-        // Si no hay ondas de sonido válidas en este bloque
         if (min === 1.0 && max === -1.0) {
             min = 0;
             max = 0;
@@ -1728,28 +2009,15 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
         ctx.lineTo(i, amp + max * amp * 0.85);
     }
     ctx.stroke();
-    
-    // Almacenar los datos de imagen renderizados para redibujados instantáneos de UI
     canvas.waveformImage = ctx.getImageData(0, 0, w, h);
 }
 
-// Bind seekbar input event
+// Bind seekbar input
 if (masterSeekbar) {
     masterSeekbar.addEventListener("input", (e) => {
         if (!duration) return;
         const targetPercent = parseFloat(e.target.value) / 100;
-        const newTime = targetPercent * duration;
-        playOffset = newTime;
-        
-        for (const track of Object.values(tracks)) {
-            if (track.audio) {
-                track.audio.currentTime = newTime;
-            }
-        }
-        
-        if (currentTimeDisplay) {
-            currentTimeDisplay.textContent = formatTime(newTime);
-        }
+        seekToTime(targetPercent * duration);
     });
 }
 
@@ -1765,3 +2033,26 @@ if (viewTimelineBtn) {
         switchView("timeline");
     });
 }
+
+// --- Atajos de Teclado Profesionales para Músicos ---
+window.addEventListener("keydown", (e) => {
+    // Si el usuario está escribiendo en un input, ignorar atajos
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") {
+        return;
+    }
+
+    if (e.code === "Space") {
+        e.preventDefault();
+        if (isPlaying) pauseTracks();
+        else playTracks();
+    } else if (e.code === "KeyR" || e.code === "Numpad0" || e.code === "Home") {
+        e.preventDefault();
+        seekToTime(0);
+    } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        seekToTime(playOffset - 5);
+    } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        seekToTime(playOffset + 5);
+    }
+});

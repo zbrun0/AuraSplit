@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html class="dark" lang="es">
 <head>
+    <script
+      src="https://js.sentry-cdn.com/67f912d832c31e6b701d38b420992616.min.js"
+      crossorigin="anonymous"
+    ></script>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <meta name="google-site-verification" content="XNN5sk8A24xvvwFqbmVedvaAIvIzo9sWKfj1K04aVPY" />
@@ -279,16 +283,72 @@
                         </button>
                     </div>
                 </div>
+                <!-- 3. Barra de Herramientas Musicales Pro (BPM, Fase y Guías Vocales) -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-900/80 text-xs">
+                    <!-- Control de BPM y Alineación -->
+                    <div class="flex flex-wrap items-center gap-2 bg-zinc-950/80 border border-zinc-900 p-2 rounded-xl">
+                        <div class="flex items-center gap-1.5 px-1">
+                            <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest font-mono">BPM:</span>
+                            <input type="number" id="bpmInput" step="0.1" min="40" max="260" value="120.0" class="w-16 bg-zinc-900 border border-zinc-800 text-red-500 font-mono font-bold text-xs px-2 py-1 rounded-lg text-center focus:border-red-500 outline-none"/>
+                        </div>
+                        <button id="tapTempoBtn" class="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white font-mono text-[10px] font-bold rounded-lg transition-colors btn-tactile" title="Pulsar rítmicamente para calcular BPM">
+                            TAP
+                        </button>
+                        <div class="h-4 w-px bg-zinc-800 mx-1"></div>
+                        <span class="text-[10px] font-black text-zinc-500 uppercase tracking-widest font-mono hidden sm:inline-block">FASE:</span>
+                        <button id="nudgeLeftBtn" class="p-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-white rounded-lg text-[10px] px-2 font-mono btn-tactile" title="Atrasar click 10ms">
+                            -10ms
+                        </button>
+                        <button id="nudgeRightBtn" class="p-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-white rounded-lg text-[10px] px-2 font-mono btn-tactile" title="Adelantar click 10ms">
+                            +10ms
+                        </button>
+                        <button id="syncCursorBtn" class="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-cyan-400 hover:text-cyan-300 font-mono text-[10px] font-bold rounded-lg transition-colors btn-tactile" title="Sincronizar el Beat 1 con la posición actual del cursor">
+                            Fijar Beat 1 en cursor
+                        </button>
+                        <button id="regenerateClickBtn" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white font-mono text-[10px] font-bold rounded-lg transition-colors shadow-sm btn-tactile">
+                            Actualizar Click
+                        </button>
+                    </div>
+
+                    <!-- Generador de Guías Vocales y Secciones -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="guideLangSelect" class="bg-zinc-950 text-zinc-300 font-mono text-[10px] font-semibold py-1.5 px-3 rounded-lg border border-zinc-800 outline-none">
+                            <option value="es" selected>Voz Guía: Español</option>
+                            <option value="en">Voz Guía: English</option>
+                        </select>
+                        <button id="generateGuideBtn" class="px-3.5 py-1.5 bg-pink-600 hover:bg-pink-700 text-white font-mono text-[10px] font-bold tracking-wider rounded-lg transition-colors flex items-center gap-1.5 shadow-lg shadow-pink-600/20 btn-tactile">
+                            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                            GENERAR GUÍAS (CUES)
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Vista 1: Mezclador Clásico Vertical (Se muestra por defecto) -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 py-2" id="trackList">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 py-2" id="trackList">
                 <!-- Se rellena dinámicamente -->
             </div>
 
             <!-- Vista 2: Línea de Tiempo DAW Horizontal (Oculto por defecto) -->
-            <div class="flex flex-col gap-4 py-2 hidden" id="timelineTracksList">
-                <!-- Se rellena dinámicamente -->
+            <div class="flex flex-col gap-4 py-2 hidden" id="timelineViewContainer">
+                <!-- Barra de Secciones de la Canción -->
+                <div class="bg-zinc-950/80 border border-zinc-900 p-3 rounded-2xl flex flex-col gap-2">
+                    <div class="flex justify-between items-center px-1">
+                        <span class="font-mono text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-pink-500"></span> SECCIONES DE LA CANCIÓN (Haz clic para saltar):
+                        </span>
+                        <button id="reanalyzeSectionsBtn" class="text-[9px] font-mono font-bold text-zinc-500 hover:text-zinc-300 uppercase transition-colors">
+                            ⟳ Re-analizar Estructura
+                        </button>
+                    </div>
+                    <div id="sectionMarkersBar" class="flex flex-wrap items-center gap-2 pt-1 min-h-[36px]">
+                        <!-- Se rellena con badges de secciones -->
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-4" id="timelineTracksList">
+                    <!-- Se rellena dinámicamente -->
+                </div>
             </div>
         </section>
 
