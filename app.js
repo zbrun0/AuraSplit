@@ -1413,9 +1413,12 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
 
             if (preMeasureTime >= 0) {
                 if (beatsPerBar === 4) {
-                    // 4/4: Beat 1 = Sección, Beat 2 = Silencio (respiración), Beat 3 = "3", Beat 4 = "4"
+                    // 4/4: Beat 1 = Sección ("Coro"), Beat 2 = "2", Beat 3 = "3", Beat 4 = "4"
                     if (sampleCue) {
                         insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                    }
+                    if (countSamples[2]) {
+                        insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
                     }
                     if (countSamples[3]) {
                         insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
@@ -1494,7 +1497,13 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
             setupSingleTrackAudioNode("guide");
         }
 
+        const fader = document.getElementById("fader-guide");
+        if (fader) fader.value = 85;
+        const faderTl = document.getElementById("fader-timeline-guide");
+        if (faderTl) faderTl.value = 85;
+
         updateTrackGains();
+        updateTrackDisplayName("guide", "GUÍAS / CUES");
 
         if (activeView === "timeline" && typeof renderAllWaveforms === "function") {
             renderAllWaveforms();
