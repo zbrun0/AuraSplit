@@ -1579,6 +1579,7 @@ function updateTrackDisplayName(id, name) {
 
 // --- Generar UI de Canal (Vertical Console Strip) ---
 function createTrackUI(id) {
+    if (document.querySelector(`.channel-${id}`)) return;
     const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
     let displayName = config.name.toUpperCase();
     
@@ -1640,6 +1641,7 @@ function createTrackUI(id) {
 
 // --- Generar UI de Resultados (Export Panel List) ---
 function createResultUI(id) {
+    if (document.querySelector(`[data-track-id="${id}"]`)) return;
     const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
     const sizeBytes = tracks[id] ? tracks[id].sizeBytes : 0;
     const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
@@ -2609,6 +2611,7 @@ function extractPeaks(audioBuffer, targetPoints = 2000) {
 }
 
 function createTimelineTrackUI(id) {
+    if (document.querySelector(`.timeline-track-${id}`)) return;
     const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
     let displayName = config.name.toUpperCase();
     
@@ -2617,7 +2620,7 @@ function createTimelineTrackUI(id) {
     }
 
     const timelineHtml = `
-        <div class="flex flex-col md:flex-row items-stretch md:items-center bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 gap-4 w-full shadow-lg hover:border-red-500/35 transition-all duration-300" data-track-id="${id}">
+        <div class="timeline-track-${id} flex flex-col md:flex-row items-stretch md:items-center bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 gap-4 w-full shadow-lg hover:border-red-500/35 transition-all duration-300" data-track-id="${id}">
             <!-- 1. Track Info -->
             <div class="flex items-center gap-3 w-full md:w-44 shrink-0">
                 <div class="text-red-500 text-xl flex items-center justify-center">${ICONS_SVG[config.icon] || ICONS_SVG.tune}</div>
