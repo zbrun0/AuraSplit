@@ -101,8 +101,6 @@ const phaseDisplayVal = document.getElementById("phaseDisplayVal");
 const autoSnapDrumBtn = document.getElementById("autoSnapDrumBtn");
 const syncCursorBtn = document.getElementById("syncCursorBtn");
 const regenerateClickBtn = document.getElementById("regenerateClickBtn");
-const guideLangSelect = document.getElementById("guideLangSelect");
-const generateGuideBtn = document.getElementById("generateGuideBtn");
 
 // Controles de Configuración Inicial de Subida
 const initialBpmInput = document.getElementById("initialBpmInput");
@@ -685,8 +683,7 @@ async function decodeAndSetupMixer(blob) {
 
                 // 5. Si está habilitado, Generar Pista Guía Vocal con Samples Reales
                 if (userConfiguredAutoGuide) {
-                    const lang = guideLangSelect ? guideLangSelect.value : "es";
-                    await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+                    await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
                 }
 
             } catch (err) {
@@ -1193,8 +1190,7 @@ if (saveSectionEditorBtn) {
                 const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
                 const barDuration = (60 / currentBpm) * beatsPerBar;
                 const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
-                const lang = guideLangSelect ? guideLangSelect.value : "es";
-                await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+                await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
             }
         }
         closeSectionEditor();
@@ -1218,8 +1214,7 @@ if (deleteSectionBtn) {
                 const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
                 const barDuration = (60 / currentBpm) * beatsPerBar;
                 const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
-                const lang = guideLangSelect ? guideLangSelect.value : "es";
-                await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+                await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
             }
         }
         closeSectionEditor();
@@ -2324,8 +2319,7 @@ function syncClickAndGuide() {
     generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
     detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
     if (tracks.guide) {
-        const lang = guideLangSelect ? guideLangSelect.value : "es";
-        generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+        generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
     }
 }
 
@@ -2479,19 +2473,8 @@ if (reanalyzeSectionsBtn) {
         const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
         detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
         if (tracks.guide) {
-            const lang = guideLangSelect ? guideLangSelect.value : "es";
-            generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+            generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
         }
-    });
-}
-
-if (generateGuideBtn) {
-    generateGuideBtn.addEventListener("click", () => {
-        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-        const barDuration = (60 / currentBpm) * beatsPerBar;
-        const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
-        const lang = guideLangSelect ? guideLangSelect.value : "es";
-        generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
     });
 }
 
@@ -2645,24 +2628,20 @@ function switchView(viewName) {
         if (timelineViewContainer) timelineViewContainer.classList.add("hidden");
         
         if (viewMixerBtn) {
-            viewMixerBtn.classList.add("bg-zinc-900", "border-zinc-800", "text-white");
-            viewMixerBtn.classList.remove("text-zinc-500");
+            viewMixerBtn.className = "px-5 py-2 rounded-xl text-xs font-mono font-black tracking-wider transition-all bg-red-600 text-white shadow-md flex items-center gap-2 cursor-pointer";
         }
         if (viewTimelineBtn) {
-            viewTimelineBtn.classList.remove("bg-zinc-900", "border-zinc-800", "text-white");
-            viewTimelineBtn.classList.add("text-zinc-500");
+            viewTimelineBtn.className = "px-5 py-2 rounded-xl text-xs font-mono font-black tracking-wider text-zinc-400 hover:text-white transition-all flex items-center gap-2 cursor-pointer";
         }
     } else {
         if (trackList) trackList.classList.add("hidden");
         if (timelineViewContainer) timelineViewContainer.classList.remove("hidden");
         
         if (viewTimelineBtn) {
-            viewTimelineBtn.classList.add("bg-zinc-900", "border-zinc-800", "text-white");
-            viewTimelineBtn.classList.remove("text-zinc-500");
+            viewTimelineBtn.className = "px-5 py-2 rounded-xl text-xs font-mono font-black tracking-wider transition-all bg-red-600 text-white shadow-md flex items-center gap-2 cursor-pointer";
         }
         if (viewMixerBtn) {
-            viewMixerBtn.classList.remove("bg-zinc-900", "border-zinc-800", "text-white");
-            viewMixerBtn.classList.add("text-zinc-500");
+            viewMixerBtn.className = "px-5 py-2 rounded-xl text-xs font-mono font-black tracking-wider text-zinc-400 hover:text-white transition-all flex items-center gap-2 cursor-pointer";
         }
         
         renderAllWaveforms();
