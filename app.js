@@ -2759,9 +2759,20 @@ function estimateBeatInterval(rawBeats) {
 
 let cachedDecodedStemBuffers = {};
 let syncDebounceTimer = null;
+let waveformRafId = null;
 
-// Helper debounced para sincronizar click, secciones y guía vocal sin congelar el navegador
-function debounceSyncClickAndGuide(delayMs = 280) {
+function requestWaveformRedraw() {
+    if (waveformRafId) return;
+    waveformRafId = requestAnimationFrame(() => {
+        waveformRafId = null;
+        if (typeof renderAllWaveforms === "function") {
+            renderAllWaveforms();
+        }
+    });
+}
+
+// Helper debounced para sincronizar audio sintetizado (click y guía vocal) sin congelar el navegador
+function debounceSyncClickAndGuide(delayMs = 350) {
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
     syncDebounceTimer = setTimeout(() => {
         syncClickAndGuide();
@@ -2769,6 +2780,7 @@ function debounceSyncClickAndGuide(delayMs = 280) {
 }
 
 function syncClickAndGuide() {
+    if (!currentBpm || !duration) return;
     const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
     const barDuration = (60 / currentBpm) * beatsPerBar;
     const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
@@ -2785,7 +2797,9 @@ if (bpmInput) {
         const val = parseFloat(bpmInput.value);
         if (!isNaN(val) && val >= 40 && val <= 260) {
             currentBpm = val;
-            debounceSyncClickAndGuide(100);
+            updatePhaseDisplay();
+            requestWaveformRedraw();
+            debounceSyncClickAndGuide(250);
         }
     });
 }
@@ -2807,15 +2821,16 @@ if (tapTempoBtn) {
                 const calcBpm = Math.round((60 / avgDiff) * 10) / 10;
                 currentBpm = Math.max(40, Math.min(260, calcBpm));
                 if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
-                
-                // Actualizar inmediatamente en memoria y debouncar regeneración pesada de WAV
-                debounceSyncClickAndGuide(250);
+                updatePhaseDisplay();
+                requestWaveformRedraw();
+                debounceSyncClickAndGuide(350);
             }
         }
     });
 }
 
 function updatePhaseDisplay() {
+    if (!currentBpm) return;
     const beatInterval = 60 / currentBpm;
     const normalizedOffset = currentOffsetSec % beatInterval;
     const ms = Math.round(normalizedOffset * 1000);
@@ -2864,31 +2879,33 @@ function adjustOffsetByMs(deltaMs) {
     currentOffsetSec = (currentOffsetSec + deltaSec + beatInterval * 100) % beatInterval;
     syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
     updatePhaseDisplay();
-    renderAllWaveforms();
-    debounceSyncClickAndGuide(100);
+    requestWaveformRedraw();
+    debounceSyncClickAndGuide(350);
 }
 
 if (phaseSlider) {
     phaseSlider.addEventListener("input", (e) => {
         const msVal = parseFloat(e.target.value);
+        if (phaseDisplayVal) phaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
+        if (tlPhaseDisplayVal) tlPhaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
         const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
         syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
-        updatePhaseDisplay();
-        renderAllWaveforms();
-        debounceSyncClickAndGuide(100);
+        requestWaveformRedraw();
+        debounceSyncClickAndGuide(400);
     });
 }
 
 if (tlPhaseSlider) {
     tlPhaseSlider.addEventListener("input", (e) => {
         const msVal = parseFloat(e.target.value);
+        if (tlPhaseDisplayVal) tlPhaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
+        if (phaseDisplayVal) phaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
         const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
         syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
-        updatePhaseDisplay();
-        renderAllWaveforms();
-        debounceSyncClickAndGuide(100);
+        requestWaveformRedraw();
+        debounceSyncClickAndGuide(400);
     });
 }
 
@@ -4252,14 +4269,18 @@ function renderAllWaveforms() {
 }
 
 function drawWaveformWithGrid(id, track, canvas) {
-    const parentWidth = canvas.parentElement.clientWidth || 600;
+    const parentWidth = (canvas.parentElement && canvas.parentElement.clientWidth) || 600;
     const w = Math.max(300, Math.round(parentWidth * timelineZoom));
     const h = 124;
     
-    if (canvas.width !== w) canvas.width = w;
-    if (canvas.height !== h) canvas.height = h;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
+    if (canvas.width !== w) {
+        canvas.width = w;
+        canvas.style.width = `${w}px`;
+    }
+    if (canvas.height !== h) {
+        canvas.height = h;
+        canvas.style.height = `${h}px`;
+    }
     
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#09090b";
