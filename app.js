@@ -2856,7 +2856,7 @@ function createTimelineTrackUI(id) {
     }
 
     const timelineHtml = `
-        <div class="timeline-track-${id} flex flex-col md:flex-row items-stretch md:items-center bg-zinc-900/35 border border-zinc-800/80 rounded-2xl p-4 gap-4 w-full shadow-lg hover:border-red-500/35 transition-all duration-300" data-track-id="${id}">
+        <div class="timeline-track-${id} flex flex-col md:flex-row items-stretch md:items-center bg-zinc-900/40 border border-zinc-800/90 rounded-2xl p-4 gap-4 w-full shadow-lg hover:border-red-500/35 transition-all duration-300" data-track-id="${id}">
             <!-- 1. Track Info -->
             <div class="flex items-center gap-3 w-full md:w-44 shrink-0">
                 <div class="text-red-500 text-xl flex items-center justify-center">${ICONS_SVG[config.icon] || ICONS_SVG.tune}</div>
@@ -2876,9 +2876,9 @@ function createTimelineTrackUI(id) {
             </div>
 
             <!-- 3. Waveform Timeline Canvas Contenedor con soporte de Zoom Horizontal -->
-            <div class="flex-1 bg-zinc-950/90 rounded-xl border border-zinc-900/80 h-28 relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-thin">
-                <canvas class="h-28 block cursor-pointer transition-all duration-150 relative z-0" id="canvas-timeline-${id}" height="100" style="height: 100px;"></canvas>
-                <div id="playhead-${id}" class="absolute top-0 bottom-0 left-0 w-[2px] bg-red-500 shadow-[0_0_8px_#ef4444] pointer-events-none z-10 hidden" style="height: 100%;"></div>
+            <div id="container-timeline-${id}" class="waveform-scroll-container flex-1 bg-zinc-950/95 rounded-2xl border border-zinc-900/90 min-h-[140px] h-[140px] relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-daw">
+                <canvas class="h-[124px] block cursor-pointer transition-all duration-75 relative z-0" id="canvas-timeline-${id}" height="124" style="height: 124px;"></canvas>
+                <div id="playhead-${id}" class="absolute top-0 bottom-0 left-0 w-[2px] bg-red-500 shadow-[0_0_10px_#ef4444] pointer-events-none z-10 hidden" style="height: 100%;"></div>
             </div>
         </div>
     `;
@@ -2907,6 +2907,13 @@ function createTimelineTrackUI(id) {
         });
     }
 
+    const scrollContainer = document.getElementById(`container-timeline-${id}`);
+    if (scrollContainer) {
+        scrollContainer.addEventListener("scroll", () => {
+            syncTrackScrolls(scrollContainer);
+        });
+    }
+
     const canvas = document.getElementById(`canvas-timeline-${id}`);
     if (canvas) {
         attachSectionDragHandlers(canvas);
@@ -2918,6 +2925,23 @@ function createTimelineTrackUI(id) {
             seekToTime(clickPercent * duration);
         });
     }
+}
+
+// Sincronizar desplazamiento horizontal entre todas las pistas DAW
+let isSyncingScroll = false;
+function syncTrackScrolls(sourceContainer) {
+    if (isSyncingScroll) return;
+    isSyncingScroll = true;
+    const targetScrollLeft = sourceContainer.scrollLeft;
+    const allContainers = document.querySelectorAll(".waveform-scroll-container");
+    allContainers.forEach(container => {
+        if (container !== sourceContainer && Math.abs(container.scrollLeft - targetScrollLeft) > 1) {
+            container.scrollLeft = targetScrollLeft;
+        }
+    });
+    requestAnimationFrame(() => {
+        isSyncingScroll = false;
+    });
 }
 
 // --- Arrastre Magnético de Guías sobre las Ondas de Audio (Snap a Tiempos y Compases) ---
@@ -3061,7 +3085,7 @@ function renderAllWaveforms() {
 function drawWaveformWithGrid(id, track, canvas) {
     const parentWidth = canvas.parentElement.clientWidth || 600;
     const w = Math.max(300, Math.round(parentWidth * timelineZoom));
-    const h = 100;
+    const h = 124;
     
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
@@ -3072,7 +3096,7 @@ function drawWaveformWithGrid(id, track, canvas) {
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, w, h);
     
-    // 1. Rejilla Visual de Beats Sincronizada con el Click (Estilo DAW Studio Profesional)
+    // 1. Rejilla Visual de Beats (Optimizada con Renderizado por Lotes)
     if (duration > 0 && currentBpm > 0) {
         const beatInterval = 60 / currentBpm;
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
@@ -3082,47 +3106,67 @@ function drawWaveformWithGrid(id, track, canvas) {
         let beatIdx = 0;
         let measureNum = 1;
         
+        const downbeats = [];
+        const subBeats = [];
+        const measureLabels = [];
+
         while (t < duration) {
             if (t >= 0) {
                 const x = (t / duration) * w;
                 const isDownbeat = (beatIdx % beatsPerBar === 0);
-                
                 if (isDownbeat) {
-                    // Beat 1 (Inicio de Compás): Línea blanca translúcida limpia y nítida
-                    ctx.setLineDash([]);
-                    ctx.strokeStyle = "rgba(255, 255, 255, 0.38)";
-                    ctx.lineWidth = 1.5;
-                    ctx.beginPath();
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, h);
-                    ctx.stroke();
-
-                    // Etiqueta discreta de número de compás superior
-                    if (w > 450) {
-                        ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
-                        ctx.font = "bold 8.5px monospace";
-                        ctx.fillText(`${measureNum}`, x + 3, 9);
-                    }
+                    downbeats.push(x);
+                    if (w > 450) measureLabels.push({ text: `${measureNum}`, x: x + 3 });
                     measureNum++;
                 } else {
-                    // Beats 2, 3, 4 (Subdivisiones): Línea punteada muy sutil que no obstruye la onda
-                    ctx.setLineDash([2, 4]);
-                    ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, h);
-                    ctx.stroke();
+                    subBeats.push(x);
                 }
             }
             t += beatInterval;
             beatIdx++;
         }
-        ctx.setLineDash([]); // Restaurar trazado continuo
+
+        // Dibujar todos los Beat 1 (Downbeats) en un solo stroke
+        if (downbeats.length > 0) {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (let i = 0; i < downbeats.length; i++) {
+                const bx = downbeats[i];
+                ctx.moveTo(bx, 0);
+                ctx.lineTo(bx, h);
+            }
+            ctx.stroke();
+        }
+
+        // Dibujar todas las subdivisiones (Beats 2, 3, 4) en un solo stroke
+        if (subBeats.length > 0) {
+            ctx.setLineDash([2, 4]);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < subBeats.length; i++) {
+                const sx = subBeats[i];
+                ctx.moveTo(sx, 0);
+                ctx.lineTo(sx, h);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Etiquetas de número de compás
+        if (measureLabels.length > 0) {
+            ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+            ctx.font = "bold 9px monospace";
+            for (let i = 0; i < measureLabels.length; i++) {
+                ctx.fillText(measureLabels[i].text, measureLabels[i].x, 11);
+            }
+        }
     }
 
     // 2. Línea Central Guía
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, h/2);
@@ -3138,7 +3182,7 @@ function drawWaveformWithGrid(id, track, canvas) {
 
         const grad = ctx.createLinearGradient(0, 0, 0, h);
         grad.addColorStop(0, colorTop);
-        grad.addColorStop(0.5, "rgba(255, 255, 255, 0.92)");
+        grad.addColorStop(0.5, "rgba(255, 255, 255, 0.95)");
         grad.addColorStop(1, colorBottom);
 
         ctx.strokeStyle = grad;
@@ -3153,8 +3197,8 @@ function drawWaveformWithGrid(id, track, canvas) {
             const min = peaks[peakIdx * 2];
             const max = peaks[peakIdx * 2 + 1];
             
-            ctx.moveTo(i, amp + min * amp * 0.90);
-            ctx.lineTo(i, amp + max * amp * 0.90);
+            ctx.moveTo(i, amp + min * amp * 0.92);
+            ctx.lineTo(i, amp + max * amp * 0.92);
         }
         ctx.stroke();
     }
@@ -3167,7 +3211,7 @@ function drawWaveformWithGrid(id, track, canvas) {
                 // Línea vertical distintiva de sección
                 ctx.setLineDash([]);
                 ctx.strokeStyle = sec.color || "#ec4899";
-                ctx.lineWidth = 1.5;
+                ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.moveTo(secX, 0);
                 ctx.lineTo(secX, h);
@@ -3175,15 +3219,15 @@ function drawWaveformWithGrid(id, track, canvas) {
 
                 // Bandera/Etiqueta superior en la cabecera del lienzo
                 const labelText = sec.name.toUpperCase();
-                ctx.font = "bold 8.5px monospace";
+                ctx.font = "bold 9.5px monospace";
                 const textWidth = ctx.measureText(labelText).width;
-                const badgeWidth = textWidth + 8;
+                const badgeWidth = textWidth + 10;
                 
                 ctx.fillStyle = sec.color || "#ec4899";
-                ctx.fillRect(secX, 0, badgeWidth, 12);
+                ctx.fillRect(secX, 0, badgeWidth, 15);
                 
                 ctx.fillStyle = "#ffffff";
-                ctx.fillText(labelText, secX + 4, 9);
+                ctx.fillText(labelText, secX + 5, 11);
             }
         });
     }
