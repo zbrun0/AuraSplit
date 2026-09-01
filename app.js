@@ -682,8 +682,8 @@ function resetAudio() {
 }
 
 // --- Descompresión de Stems e Inicialización del Mezclador ---
-async function decodeAndSetupMixer(blob) {
-    updateStatus("DECODIFICANDO CANALES...", "Extrayendo y decodificando pistas en la memoria del navegador...", 100);
+async function decodeAndSetupMixer(blob, presetMetadata = null) {
+    updateStatus("DECODIFICANDO CANALES...", "Extrayendo y preparando pistas en la memoria del navegador...", 95);
     
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContextClass();
@@ -752,8 +752,31 @@ async function decodeAndSetupMixer(blob) {
             createResultUI(stemId);
         }
 
-        // --- Detección de BPM, Alineación de Fase y Generación de Metrónomo y Guías ---
-        if (tracks.drums || tracks.vocals || tracks.bass || tracks.other) {
+        // --- Configuración Rápida con Metadatos Existentes o Análisis Completo ---
+        if (presetMetadata) {
+            // Carga instantánea desde el Repertorio sin demoras de CPU
+            currentBpm = parseFloat(presetMetadata.bpm) || 120.0;
+            currentTimeSignature = presetMetadata.timeSignature || "4/4";
+            currentOffsetSec = presetMetadata.offset !== undefined ? parseFloat(presetMetadata.offset) : 0.0;
+            if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
+            if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
+            updatePhaseDisplay();
+
+            if (presetMetadata.songSections && Array.isArray(presetMetadata.songSections) && presetMetadata.songSections.length > 0) {
+                songSections = presetMetadata.songSections;
+                renderSectionMarkers();
+            } else {
+                songSections = generateFallbackSections(duration, currentBpm, currentTimeSignature, currentOffsetSec);
+                renderSectionMarkers();
+            }
+
+            const leadInSec = (userConfiguredPreRoll * (60 / currentBpm) * (currentTimeSignature === "3/4" ? 3 : 4));
+            await generateMetronomeTrack(currentBpm, currentTimeSignature, currentOffsetSec, leadInSec);
+            try {
+                await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+            } catch (e) {}
+
+        } else if (tracks.drums || tracks.vocals || tracks.bass || tracks.other) {
             try {
                 updateStatus("ANALIZANDO RITMO Y ESTRUCTURA...", "Detectando tempo, solos y secciones musicales...", 99);
                 
@@ -770,6 +793,8 @@ async function decodeAndSetupMixer(blob) {
                         }
                     }
                 }
+
+                cachedDecodedStemBuffers = decodedStemBuffers;
 
                 // Detección automática de BPM si no se especificó
                 const drumBuffer = decodedStemBuffers.drums || decodedStemBuffers.bass || decodedStemBuffers.other;
@@ -791,12 +816,11 @@ async function decodeAndSetupMixer(blob) {
                 currentOffsetSec = calculatedOffset;
                 updatePhaseDisplay();
 
-                // Análisis Estructural con IA (Intro, Verso, Coro, Puente, Outro)
-                songSections = detectSongSections(decodedStemBuffers, currentBpm, currentTimeSignature, currentOffsetSec);
-                renderSectionMarkers();
+                // Análisis Estructural con IA (Intro, Versos, Coros, Puente, Solos, Final)
+                const leadInSec = (userConfiguredPreRoll * (60 / currentBpm) * (currentTimeSignature === "3/4" ? 3 : 4));
+                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration || 180, decodedStemBuffers, leadInSec);
 
                 // Generar Metrónomo Sintetizado y Guía Vocal Cues
-                const leadInSec = (userConfiguredPreRoll * (60 / currentBpm) * (currentTimeSignature === "3/4" ? 3 : 4));
                 await generateMetronomeTrack(currentBpm, currentTimeSignature, currentOffsetSec, leadInSec);
                 
                 try {
@@ -1107,66 +1131,111 @@ function calculateStemRmsPerBar(stemAudioBuffer, bpm, offsetSec, totalBars, barD
     return rmsValues;
 }
 
+// --- Generador de Estructura Musical Inteligente (Standard Song Form) ---
+function generateFallbackSections(totalDuration, bpm = 120, timeSignature = "4/4", offsetSec = 0) {
+    const dur = (totalDuration && totalDuration > 10) ? totalDuration : (duration || 180);
+    const beatsPerBar = (timeSignature === "3/4") ? 3 : (timeSignature === "6/8" ? 6 : 4);
+    const barDuration = (60 / bpm) * beatsPerBar;
+    const totalBars = Math.max(16, Math.floor(dur / barDuration));
+
+    const blueprint = [
+        { type: "INTRO", cueKey: "intro", color: "#3b82f6", barFraction: 0.08, minBars: 4 },
+        { type: "VERSO 1", cueKey: "verso", color: "#10b981", barFraction: 0.18, minBars: 8 },
+        { type: "PRE-CORO", cueKey: "precoro", color: "#f59e0b", barFraction: 0.08, minBars: 4 },
+        { type: "CORO 1", cueKey: "coro", color: "#ef4444", barFraction: 0.18, minBars: 8 },
+        { type: "VERSO 2", cueKey: "verso", color: "#10b981", barFraction: 0.16, minBars: 8 },
+        { type: "CORO 2", cueKey: "coro", color: "#ef4444", barFraction: 0.16, minBars: 8 },
+        { type: "PUENTE", cueKey: "puente", color: "#a855f7", barFraction: 0.10, minBars: 6 },
+        { type: "CORO FINAL", cueKey: "coro", color: "#ef4444", barFraction: 0.18, minBars: 8 },
+        { type: "FINAL", cueKey: "final", color: "#06b6d4", barFraction: 0.08, minBars: 4 }
+    ];
+
+    const sections = [];
+    let curBar = 0;
+    let secIdx = 0;
+
+    for (const b of blueprint) {
+        if (curBar >= totalBars - 2) break;
+        const barsForSec = Math.max(b.minBars, Math.round(totalBars * b.barFraction));
+        const endBar = Math.min(totalBars, curBar + barsForSec);
+        const startTime = Math.max(0, (curBar * barDuration) + offsetSec);
+        const endTime = Math.min(dur, (endBar * barDuration) + offsetSec);
+
+        sections.push({
+            id: `sec-${secIdx++}`,
+            name: b.type,
+            cueKey: b.cueKey,
+            color: b.color,
+            startTime: startTime,
+            endTime: endTime,
+            startBar: curBar,
+            endBar: endBar
+        });
+
+        curBar = endBar;
+    }
+
+    // Ajustar el final de la última sección para cubrir exactamente la duración
+    if (sections.length > 0) {
+        sections[sections.length - 1].endTime = dur;
+    }
+
+    return sections;
+}
+
 // --- Detección Dinámica de Secciones con Granularidad Musical Exacta ---
 async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuffers = {}, leadInSec = 0) {
-    if (!totalDuration || totalDuration <= 0) return;
-
+    const dur = (totalDuration && totalDuration > 10) ? totalDuration : (duration || 180);
     const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-    const barDuration = (60 / bpm) * beatsPerBar;
+    const barDuration = (60 / (bpm || 120)) * beatsPerBar;
     
     // Inicio efectivo de la música (después del lead-in)
-    const effectiveStartSec = leadInSec > 0 ? leadInSec : offsetSec;
-    const musicDuration = totalDuration - effectiveStartSec;
+    const effectiveStartSec = leadInSec > 0 ? leadInSec : (offsetSec || 0);
+    const musicDuration = dur - effectiveStartSec;
     const totalBars = Math.floor(musicDuration / barDuration);
-    if (totalBars <= 0) return;
+    
+    if (totalBars < 8 || !stemBuffers || (!stemBuffers.vocals && !stemBuffers.drums && !stemBuffers.other)) {
+        songSections = generateFallbackSections(dur, bpm, currentTimeSignature, effectiveStartSec);
+        renderSectionMarkers();
+        return;
+    }
 
     songSections = [];
 
-    // Calcular RMS compás a compás (resolución de 1 compás)
+    // Calcular RMS compás a compás
     const vocalRms = calculateStemRmsPerBar(stemBuffers.vocals, bpm, effectiveStartSec, totalBars, barDuration);
     const drumRms = calculateStemRmsPerBar(stemBuffers.drums, bpm, effectiveStartSec, totalBars, barDuration);
     const bassRms = calculateStemRmsPerBar(stemBuffers.bass, bpm, effectiveStartSec, totalBars, barDuration);
     const otherRms = calculateStemRmsPerBar(stemBuffers.other, bpm, effectiveStartSec, totalBars, barDuration);
     const guitarRms = calculateStemRmsPerBar(stemBuffers.guitar, bpm, effectiveStartSec, totalBars, barDuration);
 
-    const maxVocal = Math.max(0.001, ...vocalRms);
-    const maxDrum = Math.max(0.001, ...drumRms);
-    const maxBass = Math.max(0.001, ...bassRms);
-    const maxOther = Math.max(0.001, ...otherRms);
-    const maxGuitar = Math.max(0.001, ...guitarRms);
+    const maxVocal = Math.max(0.0001, ...vocalRms);
+    const maxDrum = Math.max(0.0001, ...drumRms);
+    const maxBass = Math.max(0.0001, ...bassRms);
+    const maxGuitar = Math.max(0.0001, ...guitarRms);
 
-    const vocalSilenceThresh = maxVocal * 0.18;
-    const vocalChorusThresh = maxVocal * 0.52;
-    const drumActiveThresh = maxDrum * 0.22;
-    const guitarSoloThresh = maxGuitar * 0.45;
-    const otherSoloThresh = maxOther * 0.45;
+    const vocalSilenceThresh = maxVocal * 0.15;
+    const vocalChorusThresh = maxVocal * 0.45;
+    const drumActiveThresh = maxDrum * 0.20;
 
     // Primer pase: etiquetar compás a compás
     const barTypes = [];
     for (let b = 0; b < totalBars; b++) {
-        const v = vocalRms[b];
-        const d = drumRms[b];
-        const b_rms = bassRms[b];
-        const g = guitarRms[b];
-        const o = otherRms[b];
+        const v = vocalRms[b] || 0;
+        const d = drumRms[b] || 0;
+        const g = guitarRms[b] || 0;
 
         if (b < 8 && v < vocalSilenceThresh) {
             barTypes.push({ type: "INTRO", cueKey: "intro", color: "#3b82f6" });
         } else if (b >= totalBars - 6 && (v < vocalSilenceThresh || d < drumActiveThresh)) {
             barTypes.push({ type: "FINAL", cueKey: "final", color: "#06b6d4" });
         } else if (v < vocalSilenceThresh) {
-            // Instrumental o Solo
-            if (g > guitarSoloThresh) {
-                barTypes.push({ type: "SOLO DE GUITARRA", cueKey: "guitarra", color: "#ec4899" });
-            } else if (o > otherSoloThresh && d > drumActiveThresh) {
-                barTypes.push({ type: "SOLO", cueKey: "solo", color: "#ec4899" });
-            } else if (b_rms > maxBass * 0.5 && o < otherSoloThresh * 0.5) {
-                barTypes.push({ type: "SOLO DE BAJO", cueKey: "bass", color: "#f43f5e" });
+            if (g > maxGuitar * 0.5) {
+                barTypes.push({ type: "SOLO DE GUITARRA", cueKey: "solo", color: "#ec4899" });
             } else {
                 barTypes.push({ type: "INSTRUMENTAL", cueKey: "instrumental", color: "#8b5cf6" });
             }
         } else {
-            // Secciones con Voz
             if (v >= vocalChorusThresh && d >= drumActiveThresh) {
                 barTypes.push({ type: "CORO", cueKey: "coro", color: "#ef4444" });
             } else if (b > totalBars * 0.55 && b < totalBars * 0.85 && v > vocalSilenceThresh && d < drumActiveThresh) {
@@ -1177,26 +1246,7 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
         }
     }
 
-    // Detectar Pre-Coros (2 a 4 compases de subida antes de un Coro)
-    for (let b = 2; b < totalBars; b++) {
-        if (barTypes[b].type === "CORO") {
-            const preLen = Math.min(4, b);
-            let isPrevVerse = false;
-            for (let k = b - preLen; k < b; k++) {
-                if (barTypes[k].type === "VERSO") isPrevVerse = true;
-            }
-            if (isPrevVerse) {
-                const preCoroStart = Math.max(0, b - 4);
-                for (let k = preCoroStart; k < b; k++) {
-                    if (barTypes[k].type === "VERSO") {
-                        barTypes[k] = { type: "PRE-CORO", cueKey: "precoro", color: "#f59e0b" };
-                    }
-                }
-            }
-        }
-    }
-
-    // Agrupar compases contiguos en bloques limpios de al menos 4 compases
+    // Agrupar compases contiguos en bloques limpios
     const rawSegments = [];
     let curSeg = { ...barTypes[0], startBar: 0, endBar: 1 };
 
@@ -1215,7 +1265,7 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
     for (let i = 0; i < rawSegments.length; i++) {
         const seg = rawSegments[i];
         const len = seg.endBar - seg.startBar;
-        if (len < 2 && merged.length > 0 && i < rawSegments.length - 1) {
+        if (len < 3 && merged.length > 0) {
             merged[merged.length - 1].endBar = seg.endBar;
         } else if (merged.length > 0 && merged[merged.length - 1].type === seg.type) {
             merged[merged.length - 1].endBar = seg.endBar;
@@ -1224,15 +1274,32 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
         }
     }
 
-    // Crear las secciones con marcas exactas de tiempo
+    // Si la detección generó menos de 3 secciones variadas, usar la estructura armónica musical
+    const distinctTypes = new Set(merged.map(m => m.type));
+    if (distinctTypes.size < 3 || merged.length < 3) {
+        songSections = generateFallbackSections(dur, bpm, currentTimeSignature, effectiveStartSec);
+        renderSectionMarkers();
+        return;
+    }
+
+    // Numeración secuencial de Versos y Coros (ej. Verso 1, Coro 1, Verso 2, Coro 2)
+    let verseNum = 1;
+    let chorusNum = 1;
+    let soloNum = 1;
+
     for (let i = 0; i < merged.length; i++) {
         const m = merged[i];
         const startTime = effectiveStartSec + (m.startBar * barDuration);
-        const endTime = Math.min(totalDuration, effectiveStartSec + (m.endBar * barDuration));
+        const endTime = Math.min(dur, effectiveStartSec + (m.endBar * barDuration));
+        
+        let label = m.type;
+        if (m.type === "VERSO") label = `VERSO ${verseNum++}`;
+        else if (m.type === "CORO") label = (i === merged.length - 2) ? "CORO FINAL" : `CORO ${chorusNum++}`;
+        else if (m.type.includes("SOLO")) label = `SOLO ${soloNum++}`;
 
         songSections.push({
             id: `sec-${i}`,
-            name: m.type,
+            name: label,
             cueKey: m.cueKey,
             color: m.color,
             startTime: startTime,
@@ -1930,33 +1997,12 @@ function setupSingleTrackAudioNode(id) {
         track.gainNode.gain.setValueAtTime(track.volume, audioCtx.currentTime);
         
         const sourceNode = audioCtx.createMediaElementSource(track.audio);
+        track.sourceNode = sourceNode;
 
-        // Integración de Pitch Shifter en tiempo real (manteniendo tempo/velocidad 1.0x intactos)
-        if (window.Tone && typeof Tone.PitchShift === "function") {
-            try {
-                if (Tone.getContext().rawContext !== audioCtx) {
-                    Tone.setContext(audioCtx);
-                }
-                track.pitchShift = new Tone.PitchShift({
-                    pitch: currentPitchShift || 0,
-                    windowSize: 0.08,
-                    delayTime: 0
-                });
-                track.pitchShift.wet.value = (currentPitchShift === 0) ? 0 : 1.0;
-                
-                Tone.connect(sourceNode, track.pitchShift);
-                Tone.connect(track.pitchShift, track.gainNode);
-            } catch (err) {
-                console.warn("Tone PitchShift fallback:", err);
-                sourceNode.connect(track.gainNode);
-            }
-        } else {
-            sourceNode.connect(track.gainNode);
-        }
-
+        // Conexión directa y limpia a ganancia -> analizador -> limitador maestro
+        sourceNode.connect(track.gainNode);
         track.gainNode.connect(track.analyser);
         
-        // Conectar a través del compresor limitador maestro
         if (masterCompressor) {
             track.analyser.connect(masterCompressor);
         } else {
@@ -2067,24 +2113,40 @@ function updateTrackGains() {
 }
 
 // --- Control de Reproducción Sincronizada ---
-function playTracks() {
+async function playTracks() {
     if (isPlaying) return;
 
+    if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+    }
+
     if (audioCtx.state === "suspended") {
-        audioCtx.resume();
-    }
-
-    for (const track of Object.values(tracks)) {
-        if (track.audio) {
-            track.audio.currentTime = playOffset;
+        try {
+            await audioCtx.resume();
+        } catch (e) {
+            console.warn("AudioContext resume error:", e);
         }
     }
 
+    const playPromises = [];
     for (const track of Object.values(tracks)) {
         if (track.audio) {
-            track.audio.play().catch(e => console.error("Error al reproducir stem:", e));
+            try {
+                track.audio.currentTime = playOffset;
+                const p = track.audio.play();
+                if (p && typeof p.then === "function") {
+                    playPromises.push(p.catch(e => console.warn("Track play caught:", e)));
+                }
+            } catch (err) {
+                console.warn("Error iniciando track:", err);
+            }
         }
     }
+
+    try {
+        await Promise.all(playPromises);
+    } catch (e) {}
 
     isPlaying = true;
     updateTrackGains();
@@ -3577,6 +3639,8 @@ function renderFilteredRepertoire(query = "") {
     vaultProjectsList.innerHTML = html;
 }
 
+const VAULT_PROJECT_CACHE = {};
+
 window.loadProjectFromVault = async function(folderId) {
     if (!folderId) return;
     if (vaultModal) vaultModal.classList.add("hidden");
@@ -3588,49 +3652,54 @@ window.loadProjectFromVault = async function(folderId) {
     updateStatus("CARGANDO CANCIÓN...", "Obteniendo pistas y configuración de tu repertorio...", 30);
 
     try {
-        const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`);
-        if (!res.ok) throw new Error("No se pudo obtener la canción.");
-        const projData = await res.json();
-        
-        const zipFile = (projData.files || []).find(f => f.name.endsWith(".zip"));
-        if (zipFile) {
-            updateStatus("DESCARGANDO PISTAS...", "Cargando audio multicanal...", 65);
-            const zipRes = await fetch(`${BACKEND_URL}/vault/file/${zipFile.id}`);
-            const zipBlob = await zipRes.blob();
-            
-            await decodeAndSetupMixer(zipBlob);
+        let zipBlob = null;
+        let metadata = null;
+        let projectName = "Canción de Repertorio";
 
-            if (projData.metadata) {
-                const meta = projData.metadata;
-                if (meta.bpm) {
-                    currentBpm = parseFloat(meta.bpm);
-                    if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
-                }
-                if (meta.timeSignature) {
-                    currentTimeSignature = meta.timeSignature;
-                    if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
-                }
-                if (meta.songSections && Array.isArray(meta.songSections) && meta.songSections.length > 0) {
-                    songSections = meta.songSections;
-                    renderSectionMarkers();
-                }
-                if (meta.offset !== undefined) {
-                    currentOffsetSec = parseFloat(meta.offset);
-                    updatePhaseDisplay();
-                }
-                if (meta.pitchShift !== undefined) {
-                    applyPitchShift(parseInt(meta.pitchShift, 10) || 0);
-                }
-                syncClickAndGuide();
+        if (VAULT_PROJECT_CACHE[folderId]) {
+            zipBlob = VAULT_PROJECT_CACHE[folderId].blob;
+            metadata = VAULT_PROJECT_CACHE[folderId].metadata;
+            projectName = VAULT_PROJECT_CACHE[folderId].name;
+            updateStatus("PREPARANDO ESTUDIO...", "Cargando desde memoria rápida...", 85);
+        } else {
+            const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`);
+            if (!res.ok) throw new Error("No se pudo obtener la canción.");
+            const projData = await res.json();
+            metadata = projData.metadata;
+            projectName = projData.folder_name || "Canción de Repertorio";
+            
+            const zipFile = (projData.files || []).find(f => f.name.endsWith(".zip"));
+            if (!zipFile) {
+                throw new Error("No se encontró el paquete de pistas en esta canción.");
             }
 
-            updateStatus("LISTO", "Canción lista en consola.", 100);
-            if (processing) processing.classList.add("hidden");
-            if (mixerSection) mixerSection.classList.remove("hidden");
-            if (resultsSection) resultsSection.classList.remove("hidden");
-        } else {
-            throw new Error("No se encontró el paquete de pistas en esta canción.");
+            updateStatus("DESCARGANDO PISTAS...", "Cargando audio multicanal...", 65);
+            const zipRes = await fetch(`${BACKEND_URL}/vault/file/${zipFile.id}`);
+            zipBlob = await zipRes.blob();
+
+            VAULT_PROJECT_CACHE[folderId] = {
+                blob: zipBlob,
+                metadata: metadata,
+                name: projectName
+            };
         }
+
+        if (fileMeta) {
+            fileMeta.textContent = projectName.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}\s*-\s*/, "");
+        }
+
+        await decodeAndSetupMixer(zipBlob, metadata);
+
+        if (metadata && metadata.pitchShift !== undefined) {
+            applyPitchShift(parseInt(metadata.pitchShift, 10) || 0);
+        }
+
+        updateStatus("LISTO", "Canción lista en consola.", 100);
+        if (processing) processing.classList.add("hidden");
+        if (mixerSection) mixerSection.classList.remove("hidden");
+        if (resultsSection) resultsSection.classList.remove("hidden");
+        if (controlPanel) controlPanel.classList.remove("hidden");
+
     } catch (err) {
         showError("Error al cargar la canción del repertorio: " + err.message);
     }
@@ -3641,6 +3710,7 @@ window.deleteProjectFromVault = async function(folderId) {
     try {
         const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`, { method: "DELETE" });
         if (!res.ok) throw new Error("Error al eliminar la canción.");
+        delete VAULT_PROJECT_CACHE[folderId];
         loadVaultProjects();
     } catch (err) {
         alert("Error al eliminar: " + err.message);
@@ -3733,25 +3803,53 @@ const studioExpandIcon = document.getElementById("studioExpandIcon");
 const studioExpandLabel = document.getElementById("studioExpandLabel");
 let isStudioExpanded = false;
 
+function setStudioExpanded(expand) {
+    isStudioExpanded = expand;
+    const mixer = document.getElementById("mixerSection");
+    const studioWrapper = document.getElementById("studioContainerWrapper");
+
+    if (expand) {
+        if (mixer) {
+            mixer.classList.add("fixed", "inset-0", "z-[99999]", "bg-[#09090b]", "overflow-y-auto", "p-4", "md:p-8", "rounded-none", "shadow-none", "border-0");
+        }
+        if (studioWrapper) {
+            studioWrapper.classList.remove("max-w-5xl", "max-w-[1720px]");
+            studioWrapper.classList.add("max-w-full", "px-1", "sm:px-4");
+        }
+        if (studioExpandIcon) studioExpandIcon.className = "fa-solid fa-compress text-xs";
+        if (studioExpandLabel) studioExpandLabel.textContent = "SALIR PANTALLA COMPLETA";
+        
+        if (document.fullscreenEnabled && !document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        }
+    } else {
+        if (mixer) {
+            mixer.classList.remove("fixed", "inset-0", "z-[99999]", "bg-[#09090b]", "overflow-y-auto", "p-4", "md:p-8", "rounded-none", "shadow-none", "border-0");
+        }
+        if (studioWrapper) {
+            studioWrapper.classList.remove("max-w-full", "px-1");
+            studioWrapper.classList.add("max-w-[1720px]", "px-2", "md:px-8");
+        }
+        if (studioExpandIcon) studioExpandIcon.className = "fa-solid fa-expand text-xs";
+        if (studioExpandLabel) studioExpandLabel.textContent = "PANTALLA COMPLETA";
+
+        if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+        }
+    }
+}
+
 if (toggleStudioExpandBtn) {
     toggleStudioExpandBtn.addEventListener("click", () => {
-        isStudioExpanded = !isStudioExpanded;
-        const studioWrapper = document.getElementById("studioContainerWrapper");
-        if (studioWrapper) {
-            if (isStudioExpanded) {
-                studioWrapper.classList.remove("max-w-5xl", "max-w-[1720px]");
-                studioWrapper.classList.add("max-w-full", "px-1", "sm:px-4");
-                if (studioExpandIcon) studioExpandIcon.className = "fa-solid fa-compress text-xs";
-                if (studioExpandLabel) studioExpandLabel.textContent = "VENTANA NORMAL";
-            } else {
-                studioWrapper.classList.remove("max-w-full", "px-1");
-                studioWrapper.classList.add("max-w-[1720px]", "px-2", "md:px-8");
-                if (studioExpandIcon) studioExpandIcon.className = "fa-solid fa-expand text-xs";
-                if (studioExpandLabel) studioExpandLabel.textContent = "PANTALLA COMPLETA";
-            }
-        }
+        setStudioExpanded(!isStudioExpanded);
     });
 }
+
+document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement && isStudioExpanded) {
+        setStudioExpanded(false);
+    }
+});
 
 if (regenerateClickBtn) {
     regenerateClickBtn.addEventListener("click", () => {
@@ -3760,12 +3858,14 @@ if (regenerateClickBtn) {
 }
 
 if (reanalyzeSectionsBtn) {
-    reanalyzeSectionsBtn.addEventListener("click", () => {
+    reanalyzeSectionsBtn.addEventListener("click", async () => {
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
         const barDuration = (60 / currentBpm) * beatsPerBar;
         const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
-        detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
-        generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+        await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
+        try {
+            await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+        } catch (e) {}
     });
 }
 
