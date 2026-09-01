@@ -3735,6 +3735,7 @@ function renderFilteredRepertoire(query = "") {
     vaultProjectsList.innerHTML = html;
 }
 
+let currentVaultFolderId = null;
 const VAULT_PROJECT_CACHE = {};
 
 window.loadProjectFromVault = async function(folderId) {
@@ -3748,12 +3749,12 @@ window.loadProjectFromVault = async function(folderId) {
     updateStatus("CARGANDO CANCIÓN...", "Obteniendo pistas y configuración de tu repertorio...", 30);
 
     try {
-        let zipBlob = null;
+        let loadedZipBlob = null;
         let metadata = null;
         let projectName = "Canción de Repertorio";
 
         if (VAULT_PROJECT_CACHE[folderId]) {
-            zipBlob = VAULT_PROJECT_CACHE[folderId].blob;
+            loadedZipBlob = VAULT_PROJECT_CACHE[folderId].blob;
             metadata = VAULT_PROJECT_CACHE[folderId].metadata;
             projectName = VAULT_PROJECT_CACHE[folderId].name;
             updateStatus("PREPARANDO ESTUDIO...", "Cargando desde memoria rápida...", 85);
@@ -3771,20 +3772,49 @@ window.loadProjectFromVault = async function(folderId) {
 
             updateStatus("DESCARGANDO PISTAS...", "Cargando audio multicanal...", 65);
             const zipRes = await fetch(`${BACKEND_URL}/vault/file/${zipFile.id}`);
-            zipBlob = await zipRes.blob();
+            loadedZipBlob = await zipRes.blob();
 
             VAULT_PROJECT_CACHE[folderId] = {
-                blob: zipBlob,
+                blob: loadedZipBlob,
                 metadata: metadata,
                 name: projectName
             };
         }
 
+        currentVaultFolderId = folderId;
+        currentFileName = projectName.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}\s*-\s*/, "");
+        zipBlob = loadedZipBlob;
+
         if (fileMeta) {
-            fileMeta.textContent = projectName.replace(/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}\s*-\s*/, "");
+            fileMeta.textContent = currentFileName;
         }
 
-        await decodeAndSetupMixer(zipBlob, metadata);
+        if (metadata) {
+            if (metadata.bpm) {
+                currentBpm = parseFloat(metadata.bpm);
+                if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
+            }
+            if (metadata.timeSignature) {
+                currentTimeSignature = metadata.timeSignature;
+                if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
+            }
+            if (metadata.offset !== undefined) {
+                currentOffsetSec = parseFloat(metadata.offset);
+                updatePhaseDisplay();
+            }
+            if (metadata.preRoll !== undefined) {
+                userConfiguredPreRoll = parseInt(metadata.preRoll, 10);
+            }
+            if (metadata.guideLang && guideLangSelect) {
+                guideLangSelect.value = metadata.guideLang;
+            }
+            if (metadata.songSections && Array.isArray(metadata.songSections) && metadata.songSections.length > 0) {
+                songSections = metadata.songSections;
+                renderSectionMarkers();
+            }
+        }
+
+        await decodeAndSetupMixer(loadedZipBlob, metadata);
 
         if (metadata && metadata.pitchShift !== undefined) {
             applyPitchShift(parseInt(metadata.pitchShift, 10) || 0);
@@ -3807,6 +3837,9 @@ window.deleteProjectFromVault = async function(folderId) {
         const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`, { method: "DELETE" });
         if (!res.ok) throw new Error("Error al eliminar la canción.");
         delete VAULT_PROJECT_CACHE[folderId];
+        if (currentVaultFolderId === folderId) {
+            currentVaultFolderId = null;
+        }
         loadVaultProjects();
     } catch (err) {
         alert("Error al eliminar: " + err.message);
@@ -3826,8 +3859,9 @@ async function saveCurrentProjectToVault() {
         return;
     }
 
-    if (!currentJobId) {
-        alert("Debes separar una canción antes de poder guardarla en tu repertorio.");
+    const hasLoadedTracks = Object.keys(tracks).length > 0;
+    if (!hasLoadedTracks && !zipBlob && !currentJobId && !currentVaultFolderId) {
+        alert("No hay ninguna canción activa en la consola para guardar.");
         return;
     }
 
@@ -3846,6 +3880,8 @@ async function saveCurrentProjectToVault() {
             offset: currentOffsetSec,
             songSections: songSections,
             pitchShift: currentPitchShift,
+            preRoll: userConfiguredPreRoll,
+            guideLang: (guideLangSelect ? guideLangSelect.value : "es"),
             savedAt: new Date().toISOString()
         };
 
@@ -3854,6 +3890,10 @@ async function saveCurrentProjectToVault() {
         formData.append("user_id", currentUser.id);
         formData.append("project_name", currentFileName || "Canción AuraSplit");
         formData.append("project_metadata", JSON.stringify(projectMetadata));
+
+        if (currentVaultFolderId) {
+            formData.append("folder_id", currentVaultFolderId);
+        }
 
         // Enviar el paquete de stems ZIP para asegurar guardado perfecto tanto desde Modal GPU como HF
         if (zipBlob) {
@@ -3869,6 +3909,16 @@ async function saveCurrentProjectToVault() {
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             throw new Error(errData.detail || "Error al guardar en el repertorio.");
+        }
+
+        const savedData = await res.json().catch(() => ({}));
+        if (savedData.folder_id) {
+            currentVaultFolderId = savedData.folder_id;
+            VAULT_PROJECT_CACHE[currentVaultFolderId] = {
+                blob: zipBlob,
+                metadata: projectMetadata,
+                name: currentFileName || "Canción de Repertorio"
+            };
         }
 
         saveToVaultBtn.classList.remove("bg-zinc-900", "text-zinc-200");
