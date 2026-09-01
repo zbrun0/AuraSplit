@@ -637,7 +637,7 @@ if ("Notification" in window && Notification.permission === "default") {
     }, { once: true });
 }
 
-// --- Restablecer Audio y Mezclador ---
+// // --- Restablecer Audio y Mezclador ---
 function resetAudio() {
     pauseTracks();
     stopProcessingProgress();
@@ -651,7 +651,7 @@ function resetAudio() {
     }
     
     if (audioCtx) {
-        audioCtx.close();
+        audioCtx.close().catch(() => {});
         audioCtx = null;
         masterCompressor = null;
     }
@@ -664,6 +664,12 @@ function resetAudio() {
     songSections = [];
     activeSectionId = null;
     
+    const studioWrapper = document.getElementById("studioContainerWrapper");
+    if (studioWrapper) {
+        studioWrapper.classList.remove("max-w-[1720px]", "max-w-full", "px-2", "md:px-8", "px-1");
+        studioWrapper.classList.add("max-w-5xl");
+    }
+
     if (controlPanel) controlPanel.classList.add("hidden");
     if (resultsSection) resultsSection.classList.add("hidden");
     if (resultsList) resultsList.innerHTML = "";
@@ -673,17 +679,6 @@ function resetAudio() {
     
     waveformsRendered = false;
     switchView("mixer");
-    resetToUploadState();
-    
-    if (trackList) {
-        trackList.innerHTML = `
-            <div class="col-span-full py-16 flex flex-col items-center justify-center text-zinc-500 border border-dashed border-zinc-800/40 rounded-2xl bg-zinc-900/10">
-                <svg class="w-8 h-8 mb-3 text-zinc-600 fill-current" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                <p class="text-sm font-semibold text-zinc-400">Carga un archivo de audio para activar la consola de mezcla.</p>
-                <p class="text-xs text-zinc-600 mt-1">AuraSplit aislará de forma inteligente las voces e instrumentos.</p>
-            </div>
-        `;
-    }
 }
 
 // --- Descompresión de Stems e Inicialización del Mezclador ---
@@ -728,9 +723,11 @@ async function decodeAndSetupMixer(blob) {
             const blobUrl = URL.createObjectURL(stemBlob);
             const sizeBytes = stemBlob.size;
 
-            const audio = new Audio(blobUrl);
+            const audio = new Audio();
             audio.preload = "auto";
             audio.crossOrigin = "anonymous";
+            audio.src = blobUrl;
+            audio.load();
 
             tracks[stemId] = {
                 audio: audio,
@@ -745,7 +742,7 @@ async function decodeAndSetupMixer(blob) {
             };
 
             audio.addEventListener("loadedmetadata", () => {
-                if (duration === 0) {
+                if (duration === 0 && !isNaN(audio.duration)) {
                     duration = audio.duration;
                 }
             });
@@ -766,76 +763,42 @@ async function decodeAndSetupMixer(blob) {
                     if (tracks[stemId] && tracks[stemId].blobUrl) {
                         try {
                             const res = await fetch(tracks[stemId].blobUrl);
-                            const arrBuf = await res.arrayBuffer();
-                            decodedStemBuffers[stemId] = await audioCtx.decodeAudioData(arrBuf);
-                            if (!duration && decodedStemBuffers[stemId].duration) {
-                                duration = decodedStemBuffers[stemId].duration;
-                            }
-                        } catch (errDec) {
-                            console.warn(`No se pudo decodificar buffer para stem ${stemId}:`, errDec);
+                            const arrayBuf = await res.arrayBuffer();
+                            decodedStemBuffers[stemId] = await audioCtx.decodeAudioData(arrayBuf);
+                        } catch (e) {
+                            console.warn(`No se pudo decodificar buffer de ${stemId}:`, e);
                         }
                     }
                 }
 
-                cachedDecodedStemBuffers = decodedStemBuffers;
+                // Detección automática de BPM si no se especificó
+                const drumBuffer = decodedStemBuffers.drums || decodedStemBuffers.bass || decodedStemBuffers.other;
+                let detectedBpm = 120.0;
+                let calculatedOffset = 0.0;
 
-                // 1. Detección o uso de BPM
-                const primaryBuffer = decodedStemBuffers.drums || decodedStemBuffers.bass || decodedStemBuffers.vocals || Object.values(decodedStemBuffers)[0];
-                if (primaryBuffer) {
-                    duration = primaryBuffer.duration;
-                    const beatResult = getBeats(primaryBuffer);
-                    if (userConfiguredBpm) {
-                        currentBpm = userConfiguredBpm;
-                        currentOffsetSec = calculateDownbeatOffset(primaryBuffer, currentBpm);
-                    } else {
-                        currentBpm = beatResult.bpm || 120.0;
-                        currentOffsetSec = beatResult.beats && beatResult.beats.length > 0 ? beatResult.beats[0] : 0.0;
-                    }
-                } else {
-                    currentBpm = userConfiguredBpm || 120.0;
-                    currentOffsetSec = 0.0;
+                if (userConfiguredBpm && userConfiguredBpm > 0) {
+                    detectedBpm = userConfiguredBpm;
+                } else if (drumBuffer) {
+                    detectedBpm = await detectBpmFromBuffer(drumBuffer);
                 }
 
-                if (bpmInput) {
-                    bpmInput.value = currentBpm.toFixed(1);
+                currentBpm = detectedBpm;
+                if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
+
+                if (drumBuffer) {
+                    calculatedOffset = calculateDownbeatOffset(drumBuffer, currentBpm);
                 }
+                currentOffsetSec = calculatedOffset;
                 updatePhaseDisplay();
 
-                // 2. Pre-Roll / Lead-in Real: Adelantar la canción después del conteo de metrónomo y guía
-                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-                const barDuration = (60 / currentBpm) * beatsPerBar;
-                const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+                // Análisis Estructural con IA (Intro, Verso, Coro, Puente, Outro)
+                songSections = detectSongSections(decodedStemBuffers, currentBpm, currentTimeSignature, currentOffsetSec);
+                renderSectionMarkers();
 
-                if (leadInSec > 0) {
-                    for (const stemId of Object.keys(decodedStemBuffers)) {
-                        const origBuf = decodedStemBuffers[stemId];
-                        const paddedBuf = padAudioBufferWithLeadIn(origBuf, leadInSec);
-                        decodedStemBuffers[stemId] = paddedBuf;
-
-                        if (tracks[stemId]) {
-                            const paddedWav = bufferToWav(paddedBuf);
-                            const paddedUrl = URL.createObjectURL(paddedWav);
-                            tracks[stemId].blobUrl = paddedUrl;
-                            tracks[stemId].audio.src = paddedUrl;
-                            tracks[stemId].audio.load();
-                            tracks[stemId].audioBuffer = paddedBuf;
-                            tracks[stemId].peaks = extractPeaks(paddedBuf, 2000);
-                            tracks[stemId].sizeBytes = paddedWav.size;
-
-                            const dlLink = document.getElementById(`download-${stemId}`);
-                            if (dlLink) dlLink.href = paddedUrl;
-                        }
-                    }
-                    duration += leadInSec;
-                }
-
-                // 3. Detección Dinámica de Secciones por Análisis de Energía Multi-Stem
-                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, decodedStemBuffers, leadInSec);
-
-                // 4. Generar Metrónomo Pro Sincronizado
-                await generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-
-                // 5. Generar Pista Guía Vocal con Samples Reales
+                // Generar Metrónomo Sintetizado y Guía Vocal Cues
+                const leadInSec = (userConfiguredPreRoll * (60 / currentBpm) * (currentTimeSignature === "3/4" ? 3 : 4));
+                await generateMetronomeTrack(currentBpm, currentTimeSignature, currentOffsetSec, leadInSec);
+                
                 try {
                     await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
                 } catch (guideErr) {
@@ -853,6 +816,13 @@ async function decodeAndSetupMixer(blob) {
         if (mixerSection) mixerSection.classList.remove("hidden");
         if (controlPanel) controlPanel.classList.remove("hidden");
         resultsSection.classList.remove("hidden");
+
+        // Expandir el contenedor a formato de estudio profesional ultra ancho
+        const studioWrapper = document.getElementById("studioContainerWrapper");
+        if (studioWrapper) {
+            studioWrapper.classList.remove("max-w-5xl");
+            studioWrapper.classList.add("max-w-[1720px]", "w-full", "px-2", "md:px-8");
+        }
 
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         drawMeters();
@@ -3714,10 +3684,16 @@ async function saveCurrentProjectToVault() {
         };
 
         const formData = new FormData();
-        formData.append("job_id", currentJobId);
+        formData.append("job_id", currentJobId || "");
         formData.append("user_id", currentUser.id);
         formData.append("project_name", currentFileName || "Canción AuraSplit");
         formData.append("project_metadata", JSON.stringify(projectMetadata));
+
+        // Enviar el paquete de stems ZIP para asegurar guardado perfecto tanto desde Modal GPU como HF
+        if (zipBlob) {
+            const cleanName = (currentFileName || "cancion").replace(/\.[^/.]+$/, "");
+            formData.append("zip_file", zipBlob, `${cleanName}_stems.zip`);
+        }
 
         const res = await fetch(`${BACKEND_URL}/vault/save`, {
             method: "POST",
@@ -3749,6 +3725,32 @@ async function saveCurrentProjectToVault() {
 
 if (saveToVaultBtn) {
     saveToVaultBtn.addEventListener("click", saveCurrentProjectToVault);
+}
+
+// --- Toggle de Modo Estudio Expandido / Pantalla Completa ---
+const toggleStudioExpandBtn = document.getElementById("toggleStudioExpandBtn");
+const studioExpandIcon = document.getElementById("studioExpandIcon");
+const studioExpandLabel = document.getElementById("studioExpandLabel");
+let isStudioExpanded = false;
+
+if (toggleStudioExpandBtn) {
+    toggleStudioExpandBtn.addEventListener("click", () => {
+        isStudioExpanded = !isStudioExpanded;
+        const studioWrapper = document.getElementById("studioContainerWrapper");
+        if (studioWrapper) {
+            if (isStudioExpanded) {
+                studioWrapper.classList.remove("max-w-5xl", "max-w-[1720px]");
+                studioWrapper.classList.add("max-w-full", "px-1", "sm:px-4");
+                if (studioExpandIcon) studioExpandIcon.className = "fa-solid fa-compress text-xs";
+                if (studioExpandLabel) studioExpandLabel.textContent = "VENTANA NORMAL";
+            } else {
+                studioWrapper.classList.remove("max-w-full", "px-1");
+                studioWrapper.classList.add("max-w-[1720px]", "px-2", "md:px-8");
+                if (studioExpandIcon) studioExpandIcon.className = "fa-solid fa-expand text-xs";
+                if (studioExpandLabel) studioExpandLabel.textContent = "PANTALLA COMPLETA";
+            }
+        }
+    });
 }
 
 if (regenerateClickBtn) {
