@@ -108,6 +108,17 @@ const regenerateClickBtn = document.getElementById("regenerateClickBtn");
 const guideLangSelect = document.getElementById("guideLangSelect");
 const generateGuideBtn = document.getElementById("generateGuideBtn");
 
+// Controles de Desfase Integrados en la Línea de Tiempo (DAW Header)
+const tlNudgeMinus50 = document.getElementById("tlNudgeMinus50");
+const tlNudgeMinus10 = document.getElementById("tlNudgeMinus10");
+const tlNudgeLeftBtn = document.getElementById("tlNudgeLeftBtn");
+const tlPhaseSlider = document.getElementById("tlPhaseSlider");
+const tlPhaseDisplayVal = document.getElementById("tlPhaseDisplayVal");
+const tlNudgeRightBtn = document.getElementById("tlNudgeRightBtn");
+const tlNudgePlus10 = document.getElementById("tlNudgePlus10");
+const tlNudgePlus50 = document.getElementById("tlNudgePlus50");
+const tlAutoSnapDrumBtn = document.getElementById("tlAutoSnapDrumBtn");
+
 // Controles de Configuración Inicial de Subida
 const initialBpmInput = document.getElementById("initialBpmInput");
 const autoBpmToggleBtn = document.getElementById("autoBpmToggleBtn");
@@ -2429,10 +2440,18 @@ function updatePhaseDisplay() {
     const beatInterval = 60 / currentBpm;
     const normalizedOffset = currentOffsetSec % beatInterval;
     const ms = Math.round(normalizedOffset * 1000);
+    const maxMs = Math.round(beatInterval * 1000);
+
     if (phaseDisplayVal) phaseDisplayVal.textContent = `${ms} ms`;
+    if (tlPhaseDisplayVal) tlPhaseDisplayVal.textContent = `${ms} ms`;
+
     if (phaseSlider && document.activeElement !== phaseSlider) {
-        phaseSlider.max = Math.round(beatInterval * 1000);
+        phaseSlider.max = maxMs;
         phaseSlider.value = ms;
+    }
+    if (tlPhaseSlider && document.activeElement !== tlPhaseSlider) {
+        tlPhaseSlider.max = maxMs;
+        tlPhaseSlider.value = ms;
     }
 }
 
@@ -2449,18 +2468,43 @@ if (phaseSlider) {
     phaseSlider.addEventListener("input", (e) => {
         const msVal = parseFloat(e.target.value);
         currentOffsetSec = msVal / 1000;
-        if (phaseDisplayVal) phaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
+        updatePhaseDisplay();
         renderAllWaveforms();
         debounceSyncClickAndGuide(100);
     });
 }
 
+if (tlPhaseSlider) {
+    tlPhaseSlider.addEventListener("input", (e) => {
+        const msVal = parseFloat(e.target.value);
+        currentOffsetSec = msVal / 1000;
+        updatePhaseDisplay();
+        renderAllWaveforms();
+        debounceSyncClickAndGuide(100);
+    });
+}
+
+// Botones de ajuste en barra principal
 if (nudgeMinus50) nudgeMinus50.addEventListener("click", () => adjustOffsetByMs(-50));
 if (nudgeMinus10) nudgeMinus10.addEventListener("click", () => adjustOffsetByMs(-10));
 if (nudgeLeftBtn) nudgeLeftBtn.addEventListener("click", () => adjustOffsetByMs(-1));
 if (nudgeRightBtn) nudgeRightBtn.addEventListener("click", () => adjustOffsetByMs(1));
 if (nudgePlus10) nudgePlus10.addEventListener("click", () => adjustOffsetByMs(10));
 if (nudgePlus50) nudgePlus50.addEventListener("click", () => adjustOffsetByMs(50));
+
+// Botones de ajuste en la cabecera de la línea de tiempo (DAW)
+if (tlNudgeMinus50) tlNudgeMinus50.addEventListener("click", () => adjustOffsetByMs(-50));
+if (tlNudgeMinus10) tlNudgeMinus10.addEventListener("click", () => adjustOffsetByMs(-10));
+if (tlNudgeLeftBtn) tlNudgeLeftBtn.addEventListener("click", () => adjustOffsetByMs(-1));
+if (tlNudgeRightBtn) tlNudgeRightBtn.addEventListener("click", () => adjustOffsetByMs(1));
+if (tlNudgePlus10) tlNudgePlus10.addEventListener("click", () => adjustOffsetByMs(10));
+if (tlNudgePlus50) tlNudgePlus50.addEventListener("click", () => adjustOffsetByMs(50));
+
+if (tlAutoSnapDrumBtn) {
+    tlAutoSnapDrumBtn.addEventListener("click", () => {
+        if (autoSnapDrumBtn) autoSnapDrumBtn.click();
+    });
+}
 
 if (autoSnapDrumBtn) {
     autoSnapDrumBtn.addEventListener("click", () => {
@@ -2745,7 +2789,7 @@ function drawWaveformWithGrid(id, track, canvas) {
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, w, h);
     
-    // 1. Rejilla Visual de Beats Sincronizada con el Click
+    // 1. Rejilla Visual de Beats Sincronizada con el Click (Estilo DAW Studio Profesional)
     if (duration > 0 && currentBpm > 0) {
         const beatInterval = 60 / currentBpm;
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
@@ -2753,6 +2797,7 @@ function drawWaveformWithGrid(id, track, canvas) {
         let t = currentOffsetSec % beatInterval;
         while (t - beatInterval >= 0) t -= beatInterval;
         let beatIdx = 0;
+        let measureNum = 1;
         
         while (t < duration) {
             if (t >= 0) {
@@ -2760,22 +2805,26 @@ function drawWaveformWithGrid(id, track, canvas) {
                 const isDownbeat = (beatIdx % beatsPerBar === 0);
                 
                 if (isDownbeat) {
-                    ctx.strokeStyle = "rgba(6, 182, 212, 0.70)";
-                    ctx.lineWidth = 2;
+                    // Beat 1 (Inicio de Compás): Línea blanca translúcida limpia y nítida
+                    ctx.setLineDash([]);
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.38)";
+                    ctx.lineWidth = 1.5;
                     ctx.beginPath();
                     ctx.moveTo(x, 0);
                     ctx.lineTo(x, h);
                     ctx.stroke();
 
-                    // Puntero de compás en la parte superior
-                    ctx.fillStyle = "rgba(6, 182, 212, 0.90)";
-                    ctx.beginPath();
-                    ctx.moveTo(x - 3, 0);
-                    ctx.lineTo(x + 3, 0);
-                    ctx.lineTo(x, 5);
-                    ctx.fill();
+                    // Etiqueta discreta de número de compás superior
+                    if (w > 450) {
+                        ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+                        ctx.font = "bold 8.5px monospace";
+                        ctx.fillText(`${measureNum}`, x + 3, 9);
+                    }
+                    measureNum++;
                 } else {
-                    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+                    // Beats 2, 3, 4 (Subdivisiones): Línea punteada muy sutil que no obstruye la onda
+                    ctx.setLineDash([2, 4]);
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
                     ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.moveTo(x, 0);
@@ -2786,6 +2835,7 @@ function drawWaveformWithGrid(id, track, canvas) {
             t += beatInterval;
             beatIdx++;
         }
+        ctx.setLineDash([]); // Restaurar trazado continuo
     }
 
     // 2. Línea Central Guía
