@@ -1100,25 +1100,203 @@ function detectSongSections(bpm, offsetSec, totalDuration) {
     detectSongSectionsDynamic(bpm, offsetSec, totalDuration, cachedDecodedStemBuffers);
 }
 
+const AVAILABLE_SECTIONS = [
+    { type: "INTRO", cueKey: "intro", color: "#3b82f6" },
+    { type: "VERSO", cueKey: "verso", color: "#10b981" },
+    { type: "PRE-CORO", cueKey: "precoro", color: "#f59e0b" },
+    { type: "CORO", cueKey: "coro", color: "#ef4444" },
+    { type: "PUENTE", cueKey: "puente", color: "#a855f7" },
+    { type: "SOLO DE GUITARRA", cueKey: "guitarra", color: "#ec4899" },
+    { type: "SOLO DE BAJO", cueKey: "bass", color: "#f43f5e" },
+    { type: "INSTRUMENTAL", cueKey: "instrumental", color: "#8b5cf6" },
+    { type: "FINAL", cueKey: "final", color: "#06b6d4" }
+];
+
+let editingSectionId = null;
+let selectedSectionType = null;
+
+const sectionEditorModal = document.getElementById("sectionEditorModal");
+const closeSectionEditorBtn = document.getElementById("closeSectionEditorBtn");
+const saveSectionEditorBtn = document.getElementById("saveSectionEditorBtn");
+const deleteSectionBtn = document.getElementById("deleteSectionBtn");
+const sectionTypeButtonsContainer = document.getElementById("sectionTypeButtonsContainer");
+const editorBadgeColor = document.getElementById("editorBadgeColor");
+const editorSectionTitle = document.getElementById("editorSectionTitle");
+const editorSectionTiming = document.getElementById("editorSectionTiming");
+const addSectionMarkerBtn = document.getElementById("addSectionMarkerBtn");
+
+function openSectionEditor(sectionId) {
+    const sec = songSections.find(s => s.id === sectionId);
+    if (!sec || !sectionEditorModal) return;
+
+    editingSectionId = sectionId;
+    selectedSectionType = AVAILABLE_SECTIONS.find(a => a.type === sec.name) || AVAILABLE_SECTIONS[1];
+
+    if (editorSectionTitle) editorSectionTitle.textContent = `Editar: ${sec.name}`;
+    if (editorBadgeColor) editorBadgeColor.style.backgroundColor = sec.color;
+    if (editorSectionTiming) editorSectionTiming.textContent = `Inicio: ${formatTime(sec.startTime)} - Fin: ${formatTime(sec.endTime)}`;
+
+    renderSectionTypeButtons();
+    sectionEditorModal.classList.remove("hidden");
+}
+
+function closeSectionEditor() {
+    if (sectionEditorModal) sectionEditorModal.classList.add("hidden");
+    editingSectionId = null;
+    selectedSectionType = null;
+}
+
+if (closeSectionEditorBtn) {
+    closeSectionEditorBtn.addEventListener("click", closeSectionEditor);
+}
+
+if (sectionEditorModal) {
+    sectionEditorModal.addEventListener("click", (e) => {
+        if (e.target === sectionEditorModal) closeSectionEditor();
+    });
+}
+
+function renderSectionTypeButtons() {
+    if (!sectionTypeButtonsContainer) return;
+    sectionTypeButtonsContainer.innerHTML = "";
+
+    AVAILABLE_SECTIONS.forEach(item => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        const isSelected = selectedSectionType && selectedSectionType.type === item.type;
+        btn.className = `p-2.5 rounded-xl text-[10px] font-mono font-bold uppercase transition-all flex flex-col items-center justify-center gap-1.5 border cursor-pointer ${
+            isSelected
+                ? "bg-zinc-800 text-white border-red-500 shadow-md ring-1 ring-red-500 scale-105"
+                : "bg-zinc-900/70 hover:bg-zinc-900 text-zinc-400 border-zinc-800"
+        }`;
+        btn.innerHTML = `
+            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${item.color};"></span>
+            <span class="text-center text-[9px] leading-tight truncate w-full">${item.type}</span>
+        `;
+        btn.addEventListener("click", () => {
+            selectedSectionType = item;
+            if (editorBadgeColor) editorBadgeColor.style.backgroundColor = item.color;
+            renderSectionTypeButtons();
+        });
+        sectionTypeButtonsContainer.appendChild(btn);
+    });
+}
+
+if (saveSectionEditorBtn) {
+    saveSectionEditorBtn.addEventListener("click", async () => {
+        if (!editingSectionId || !selectedSectionType) {
+            closeSectionEditor();
+            return;
+        }
+        const secIndex = songSections.findIndex(s => s.id === editingSectionId);
+        if (secIndex !== -1) {
+            songSections[secIndex].name = selectedSectionType.type;
+            songSections[secIndex].cueKey = selectedSectionType.cueKey;
+            songSections[secIndex].color = selectedSectionType.color;
+            renderSectionMarkers();
+            
+            // Re-sintetizar la pista de voz guía en segundo plano
+            if (tracks.guide) {
+                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+                const barDuration = (60 / currentBpm) * beatsPerBar;
+                const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+                const lang = guideLangSelect ? guideLangSelect.value : "es";
+                await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+            }
+        }
+        closeSectionEditor();
+    });
+}
+
+if (deleteSectionBtn) {
+    deleteSectionBtn.addEventListener("click", async () => {
+        if (!editingSectionId) return;
+        const idx = songSections.findIndex(s => s.id === editingSectionId);
+        if (idx !== -1 && songSections.length > 1) {
+            if (idx > 0) {
+                songSections[idx - 1].endTime = songSections[idx].endTime;
+            } else if (idx < songSections.length - 1) {
+                songSections[idx + 1].startTime = songSections[idx].startTime;
+            }
+            songSections.splice(idx, 1);
+            renderSectionMarkers();
+
+            if (tracks.guide) {
+                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+                const barDuration = (60 / currentBpm) * beatsPerBar;
+                const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+                const lang = guideLangSelect ? guideLangSelect.value : "es";
+                await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+            }
+        }
+        closeSectionEditor();
+    });
+}
+
+if (addSectionMarkerBtn) {
+    addSectionMarkerBtn.addEventListener("click", () => {
+        if (!duration || duration <= 0) return;
+        const targetTime = Math.max(0, Math.min(duration - 1, playOffset));
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        const barDuration = (60 / currentBpm) * beatsPerBar;
+        
+        const newId = `sec-custom-${Date.now()}`;
+        const newSec = {
+            id: newId,
+            name: "VERSO",
+            cueKey: "verso",
+            color: "#10b981",
+            startTime: targetTime,
+            endTime: duration,
+            startBar: Math.floor(targetTime / barDuration),
+            endBar: Math.floor(duration / barDuration)
+        };
+
+        const prevSec = songSections.find(s => targetTime >= s.startTime && targetTime < s.endTime);
+        if (prevSec) {
+            newSec.endTime = prevSec.endTime;
+            prevSec.endTime = targetTime;
+        }
+
+        songSections.push(newSec);
+        songSections.sort((a, b) => a.startTime - b.startTime);
+        renderSectionMarkers();
+        openSectionEditor(newId);
+    });
+}
+
 function renderSectionMarkers() {
     if (!sectionMarkersBar) return;
     sectionMarkersBar.innerHTML = "";
 
     songSections.forEach((sec, idx) => {
         const startFormatted = formatTime(sec.startTime);
-        const badge = document.createElement("button");
-        badge.type = "button";
+        const badge = document.createElement("div");
         badge.id = `marker-${sec.id}`;
-        badge.className = "section-badge px-3 py-1 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider text-white border border-zinc-800 bg-zinc-900/90 hover:bg-zinc-800 flex items-center gap-1.5 shadow-md cursor-pointer";
+        badge.className = "section-badge group px-2.5 py-1 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider text-white border border-zinc-800 bg-zinc-900/90 hover:bg-zinc-800 flex items-center gap-1.5 shadow-md cursor-pointer transition-all";
         badge.style.borderLeft = `3px solid ${sec.color}`;
         badge.innerHTML = `
             <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${sec.color};"></span>
             <span>${sec.name}</span>
             <span class="text-zinc-500 font-normal">(${startFormatted})</span>
+            <span class="edit-icon text-zinc-500 hover:text-white ml-0.5 p-0.5 rounded hover:bg-zinc-700 transition-colors" title="Editar tipo de sección">
+                <svg class="w-2.5 h-2.5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </span>
         `;
 
-        badge.addEventListener("click", () => {
-            seekToTime(sec.startTime);
+        badge.addEventListener("click", (e) => {
+            const editBtn = e.target.closest(".edit-icon");
+            if (editBtn) {
+                e.stopPropagation();
+                openSectionEditor(sec.id);
+            } else {
+                seekToTime(sec.startTime);
+            }
+        });
+
+        badge.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            openSectionEditor(sec.id);
         });
 
         sectionMarkersBar.appendChild(badge);
@@ -2124,8 +2302,16 @@ function estimateBeatInterval(rawBeats) {
 }
 
 let cachedDecodedStemBuffers = {};
+let syncDebounceTimer = null;
 
-// Helper para sincronizar click, secciones y guía vocal al ajustar controles
+// Helper debounced para sincronizar click, secciones y guía vocal sin congelar el navegador
+function debounceSyncClickAndGuide(delayMs = 280) {
+    if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = setTimeout(() => {
+        syncClickAndGuide();
+    }, delayMs);
+}
+
 function syncClickAndGuide() {
     const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
     const barDuration = (60 / currentBpm) * beatsPerBar;
@@ -2145,7 +2331,7 @@ if (bpmInput) {
         const val = parseFloat(bpmInput.value);
         if (!isNaN(val) && val >= 40 && val <= 260) {
             currentBpm = val;
-            syncClickAndGuide();
+            debounceSyncClickAndGuide(100);
         }
     });
 }
@@ -2167,7 +2353,9 @@ if (tapTempoBtn) {
                 const calcBpm = Math.round((60 / avgDiff) * 10) / 10;
                 currentBpm = Math.max(40, Math.min(260, calcBpm));
                 if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
-                syncClickAndGuide();
+                
+                // Actualizar inmediatamente en memoria y debouncar regeneración pesada de WAV
+                debounceSyncClickAndGuide(250);
             }
         }
     });
@@ -2176,14 +2364,14 @@ if (tapTempoBtn) {
 if (nudgeLeftBtn) {
     nudgeLeftBtn.addEventListener("click", () => {
         currentOffsetSec = Math.max(0, currentOffsetSec - 0.010);
-        syncClickAndGuide();
+        debounceSyncClickAndGuide(150);
     });
 }
 
 if (nudgeRightBtn) {
     nudgeRightBtn.addEventListener("click", () => {
         currentOffsetSec += 0.010;
-        syncClickAndGuide();
+        debounceSyncClickAndGuide(150);
     });
 }
 
@@ -2191,7 +2379,7 @@ if (syncCursorBtn) {
     syncCursorBtn.addEventListener("click", () => {
         const beatInterval = 60 / currentBpm;
         currentOffsetSec = playOffset % beatInterval;
-        syncClickAndGuide();
+        debounceSyncClickAndGuide(100);
     });
 }
 
@@ -2203,18 +2391,24 @@ if (regenerateClickBtn) {
 
 if (reanalyzeSectionsBtn) {
     reanalyzeSectionsBtn.addEventListener("click", () => {
-        detectSongSections(currentBpm, currentOffsetSec, duration);
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        const barDuration = (60 / currentBpm) * beatsPerBar;
+        const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+        detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
         if (tracks.guide) {
             const lang = guideLangSelect ? guideLangSelect.value : "es";
-            generateGuideTrack(lang, userConfiguredPreRoll);
+            generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
         }
     });
 }
 
 if (generateGuideBtn) {
     generateGuideBtn.addEventListener("click", () => {
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        const barDuration = (60 / currentBpm) * beatsPerBar;
+        const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
         const lang = guideLangSelect ? guideLangSelect.value : "es";
-        generateGuideTrack(lang, userConfiguredPreRoll);
+        generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
     });
 }
 
