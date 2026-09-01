@@ -414,16 +414,18 @@ function uploadAndSeparate(file) {
 // --- Procesamiento Exclusivo PRO con GPU en Modal (~10-15 seg) ---
 async function processProWithModal(file, selectedModel, selectedFormat) {
     if (file && file.name) currentFileName = file.name;
-    updateStatus("⚡ PRO GPU DEDICADA (MODAL)...", "Conectando con GPU Nvidia T4 Serverless...", 15);
+    currentJobId = "pro_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+    
+    updateStatus("PRO GPU DEDICADA...", "Conectando con GPU Serverless...", 15);
     if (progressBar) progressBar.classList.add("animate-pulse");
 
     let prog = 15;
     const progressTimer = setInterval(() => {
-        if (prog < 90) {
-            prog += 6;
-            updateStatus("⚡ SEPARANDO EN GPU (MODAL)...", `Aislando canales con IA Demucs en GPU (~10s)... ${prog}%`, prog);
+        if (prog < 85) {
+            prog += 5;
+            updateStatus("SEPARANDO EN GPU...", `Aislando canales con IA en GPU (~10s)... ${prog}%`, prog);
         }
-    }, 700);
+    }, 600);
 
     try {
         const formData = new FormData();
@@ -451,14 +453,20 @@ async function processProWithModal(file, selectedModel, selectedFormat) {
             throw new Error(`Error de GPU Serverless (${res.status}): ${errText}`);
         }
 
-        updateStatus("DECODIFICANDO CANALES...", "Pistas aisladas con éxito en GPU. Cargando en mezclador...", 95);
+        updateStatus("DESCARGANDO STEMS...", "Transfiriendo pistas de audio en alta fidelidad...", 90);
         const zipBlobResponse = await res.blob();
         zipBlob = zipBlobResponse;
 
+        updateStatus("DECODIFICANDO CANALES...", "Extrayendo stems y sincronizando guías de audio...", 96);
         await decodeAndSetupMixer(zipBlobResponse);
 
+        updateStatus("LISTO", "Separación finalizada.", 100);
+        notifyCompletion(file.name);
+
         if (processing) processing.classList.add("hidden");
-        if (mixerState) mixerState.classList.remove("hidden");
+        if (mixerSection) mixerSection.classList.remove("hidden");
+        if (controlPanel) controlPanel.classList.remove("hidden");
+        if (resultsSection) resultsSection.classList.remove("hidden");
         if (viewTimelineBtn) viewTimelineBtn.classList.remove("hidden");
     } catch (err) {
         clearInterval(progressTimer);
@@ -3046,6 +3054,10 @@ function updateAuthUI() {
     const userAvatar = document.getElementById("userAvatar");
     const userProBadge = document.getElementById("userProBadge");
     const engineBadge = document.getElementById("engineBadge");
+    const openPlansBtn = document.getElementById("openPlansModalBtn");
+    const pricingSection = document.getElementById("pricing");
+    const topAnnouncement = document.getElementById("topAnnouncementBanner");
+    const pricingNavLinks = document.querySelectorAll('a[href="#pricing"]');
 
     if (currentUser) {
         if (openAuthBtn) openAuthBtn.classList.add("hidden");
@@ -3075,37 +3087,41 @@ function updateAuthUI() {
 
         if (engineBadge) {
             if (isPro) {
-                engineBadge.textContent = "⚡ GPU SERVERLESS (MODAL)";
+                engineBadge.textContent = "GPU SERVERLESS";
                 engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-amber-300 bg-amber-950/60 border border-amber-500/40 px-3 py-1 uppercase tracking-widest rounded-lg";
             } else {
-                engineBadge.textContent = "Demucs v4 (CPU)";
+                engineBadge.textContent = "DEMUCS V4";
                 engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg";
             }
         }
 
-        // Mostrar botones de repertorio solo si el usuario es PRO
-        if (openVaultBtn) {
-            if (isPro) {
-                openVaultBtn.classList.remove("hidden");
-            } else {
-                openVaultBtn.classList.add("hidden");
-            }
-        }
-        if (saveToVaultBtn) {
-            if (isPro) {
-                saveToVaultBtn.classList.remove("hidden");
-            } else {
-                saveToVaultBtn.classList.add("hidden");
-            }
+        // Si el usuario ya es PRO, ocultar botones de prueba gratis y sección de planes
+        if (isPro) {
+            if (openPlansBtn) openPlansBtn.classList.add("hidden");
+            if (pricingSection) pricingSection.classList.add("hidden");
+            if (topAnnouncement) topAnnouncement.classList.add("hidden");
+            pricingNavLinks.forEach(link => link.classList.add("hidden"));
+            if (openVaultBtn) openVaultBtn.classList.remove("hidden");
+            if (saveToVaultBtn) saveToVaultBtn.classList.remove("hidden");
+        } else {
+            if (openPlansBtn) openPlansBtn.classList.remove("hidden");
+            if (pricingSection) pricingSection.classList.remove("hidden");
+            if (topAnnouncement) topAnnouncement.classList.remove("hidden");
+            pricingNavLinks.forEach(link => link.classList.remove("hidden"));
+            if (openVaultBtn) openVaultBtn.classList.add("hidden");
+            if (saveToVaultBtn) saveToVaultBtn.classList.add("hidden");
         }
     } else {
         if (openAuthBtn) openAuthBtn.classList.remove("hidden");
         if (userProfileMenu) userProfileMenu.classList.add("hidden");
+        if (openPlansBtn) openPlansBtn.classList.remove("hidden");
+        if (pricingSection) pricingSection.classList.remove("hidden");
+        if (topAnnouncement) topAnnouncement.classList.remove("hidden");
+        pricingNavLinks.forEach(link => link.classList.remove("hidden"));
         if (engineBadge) {
-            engineBadge.textContent = "Demucs v4";
+            engineBadge.textContent = "DEMUCS V4";
             engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg";
         }
-        // Ocultar botones de repertorio si no hay sesión
         if (openVaultBtn) openVaultBtn.classList.add("hidden");
         if (saveToVaultBtn) saveToVaultBtn.classList.add("hidden");
     }
