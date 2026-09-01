@@ -3762,6 +3762,116 @@ if (closePlansModalBtn) {
     });
 }
 
+// --- Modal de Gestión de Perfil de Usuario y Suscripción ---
+function openUserProfileModal() {
+    if (!currentUser) {
+        if (authModal) authModal.classList.remove("hidden");
+        return;
+    }
+
+    const profileModal = document.getElementById("profileModal");
+    const avatar = document.getElementById("profileModalAvatar");
+    const nameLabel = document.getElementById("profileModalName");
+    const emailLabel = document.getElementById("profileModalEmail");
+    const subBadge = document.getElementById("profileSubscriptionBadge");
+    const planName = document.getElementById("profilePlanName");
+    const renewalDate = document.getElementById("profileRenewalDate");
+    const engineType = document.getElementById("profileEngineType");
+    const proPerks = document.getElementById("profileProPerks");
+    const upgradeBtn = document.getElementById("profileUpgradeBtn");
+    const cancelBtn = document.getElementById("profileCancelSubBtn");
+
+    const name = userProfile?.full_name || currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Usuario";
+    const email = currentUser.email || "";
+
+    if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+    if (nameLabel) nameLabel.textContent = name;
+    if (emailLabel) emailLabel.textContent = email;
+
+    const isPro = isUserPro();
+    const subStatus = userProfile?.subscription_status || "none";
+
+    if (isPro) {
+        if (subStatus === "trialing") {
+            if (subBadge) {
+                subBadge.textContent = "PRUEBA ACTIVA (5 DÍAS)";
+                subBadge.className = "text-[10px] font-mono font-black uppercase px-2.5 py-1 rounded-full bg-amber-500 text-black";
+            }
+            if (planName) planName.textContent = "AuraSplit PRO (Trial 5 Días)";
+            if (renewalDate) {
+                const dateStr = userProfile?.trial_end ? new Date(userProfile.trial_end).toLocaleDateString() : "En 5 días";
+                renewalDate.textContent = `Prueba hasta ${dateStr}`;
+            }
+        } else {
+            if (subBadge) {
+                subBadge.textContent = "PRO VIP ACTIVO";
+                subBadge.className = "text-[10px] font-mono font-black uppercase px-2.5 py-1 rounded-full bg-red-600 text-white";
+            }
+            if (planName) planName.textContent = "AuraSplit PRO VIP ($6.99/mes)";
+            if (renewalDate) renewalDate.textContent = "Renovación Automática Mensual";
+        }
+
+        if (engineType) engineType.textContent = "GPU Serverless Dedicada (HD)";
+        if (proPerks) proPerks.classList.remove("hidden");
+        if (upgradeBtn) upgradeBtn.classList.add("hidden");
+        if (cancelBtn) cancelBtn.classList.remove("hidden");
+    } else {
+        if (subBadge) {
+            if (subStatus === "cancelled") {
+                subBadge.textContent = "SUSCRIPCIÓN CANCELADA";
+                subBadge.className = "text-[10px] font-mono font-black uppercase px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-400";
+            } else {
+                subBadge.textContent = "PLAN BÁSICO (GRATIS)";
+                subBadge.className = "text-[10px] font-mono font-black uppercase px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300";
+            }
+        }
+        if (planName) planName.textContent = "AuraSplit Basic";
+        if (renewalDate) renewalDate.textContent = "Acceso Gratuito Estándar";
+        if (engineType) engineType.textContent = "Demucs v4 (Estándar)";
+        if (proPerks) proPerks.classList.add("hidden");
+        if (upgradeBtn) upgradeBtn.classList.remove("hidden");
+        if (cancelBtn) cancelBtn.classList.add("hidden");
+    }
+
+    if (profileModal) profileModal.classList.remove("hidden");
+}
+
+function closeUserProfileModal() {
+    const profileModal = document.getElementById("profileModal");
+    if (profileModal) profileModal.classList.add("hidden");
+}
+
+async function handleCancelSubscription() {
+    if (!currentUser) return;
+    
+    const confirmed = confirm("¿Estás seguro de que deseas cancelar tu suscripción PRO?\n\nPerderás el acceso a las guías vocales sincronizadas, GPU Serverless y almacenamiento ilimitado al terminar tu periodo actual.");
+    if (!confirmed) return;
+
+    try {
+        if (supabaseClient) {
+            await supabaseClient.from("profiles").update({
+                subscription_status: "cancelled",
+                is_pro: false
+            }).eq("id", currentUser.id);
+        }
+
+        if (userProfile) {
+            userProfile.subscription_status = "cancelled";
+            userProfile.is_pro = false;
+        }
+
+        updateAuthUI();
+        openUserProfileModal();
+        alert("Tu suscripción ha sido cancelada. Tu cuenta ha vuelto al plan básico gratuito.");
+    } catch (err) {
+        alert("Error al procesar la cancelación: " + err.message);
+    }
+}
+
+window.openUserProfileModal = openUserProfileModal;
+window.closeUserProfileModal = closeUserProfileModal;
+window.handleCancelSubscription = handleCancelSubscription;
+
 // --- Integración Lemon Squeezy (Suscripciones PRO) ---
 function initLemonSqueezy() {
     window.createLemonSqueezy = function () {

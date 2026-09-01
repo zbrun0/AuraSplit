@@ -37,7 +37,13 @@
 }
 
 body {
-    background-color: var(--bg-dark);
+    background-color: #09090b;
+    background-image: 
+        radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(220, 38, 38, 0.15), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 50% 120%, rgba(185, 28, 28, 0.08), transparent 70%);
+    background-size: 32px 32px, 100% 100%, 100% 100%;
+    background-attachment: fixed;
     color: #f3f4f6;
     font-family: var(--font-sans);
     min-height: 100vh;
@@ -49,15 +55,15 @@ h1, h2, h3, h4, .font-display {
 }
 
 .hero-gradient {
-    background: radial-gradient(circle at 50% 30%, rgba(239, 68, 68, 0.35) 0%, rgba(18, 18, 18, 1) 70%);
+    background: transparent;
 }
 
 .neon-glow {
-    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5), 0 0 30px rgba(239, 68, 68, 0.25);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.25), 0 0 40px rgba(239, 68, 68, 0.1);
 }
 
 .neon-text-glow {
-    text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
 }
 
 @keyframes marquee {
@@ -110,36 +116,29 @@ h1, h2, h3, h4, .font-display {
     background: rgba(239, 68, 68, 0.9);
 }
 
-/* 2. Background Glow Effects */
-.red-ambient-glow {
-    position: fixed;
-    width: 50vw;
-    height: 50vw;
-    border-radius: 50%;
-    filter: blur(140px);
-    z-index: -1;
-    opacity: 0.08;
-    pointer-events: none;
-    animation: pulseGlow 12s infinite alternate ease-in-out;
+/* 2. Modal Subtle Transitions & Animations */
+@keyframes modalBackdropFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-.glow-top-right {
-    top: -15%;
-    right: -10%;
-    background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+@keyframes modalContentPopIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96) translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
 }
 
-.glow-bottom-left {
-    bottom: -15%;
-    left: -10%;
-    background: radial-gradient(circle, #7f1d1d 0%, transparent 70%);
-    animation-delay: -6s;
+.modal-backdrop-animate {
+    animation: modalBackdropFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes pulseGlow {
-    0% { transform: scale(1) translate(0, 0); }
-    50% { transform: scale(1.1) translate(3%, 3%); }
-    100% { transform: scale(0.9) translate(-3%, -3%); }
+.modal-content-animate {
+    animation: modalContentPopIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* 3. Glassmorphic Card Styling */
