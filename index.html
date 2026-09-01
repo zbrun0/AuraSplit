@@ -136,7 +136,7 @@
             <img src="iconlogo_aurasplit.svg" alt="AuraSplit Logo" class="h-9 w-auto filter drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]"/>
         </div>
         <div class="flex items-center gap-2.5">
-            <button id="openVaultBtn" type="button" class="px-3.5 py-1.5 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/40 text-zinc-200 text-xs font-bold font-mono tracking-wider rounded-xl transition-all flex items-center gap-2 btn-tactile shadow-sm" title="Ver mi repertorio de canciones guardadas">
+            <button id="openVaultBtn" onclick="openVaultModal()" type="button" class="hidden px-3.5 py-1.5 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/40 text-zinc-200 text-xs font-bold font-mono tracking-wider rounded-xl transition-all flex items-center gap-2 btn-tactile shadow-sm" title="Ver mi repertorio de canciones guardadas">
                 <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                 <span class="hidden sm:inline">MI REPERTORIO</span>
                 <span class="sm:hidden">REPERTORIO</span>
@@ -369,7 +369,7 @@
 
                     <!-- Descargas y Guardado en Repertorio -->
                     <div class="flex flex-wrap items-center gap-2">
-                        <button id="saveToVaultBtn" class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-red-500/50 hover:bg-zinc-850 text-zinc-200 font-bold text-xs tracking-widest rounded-xl transition-all flex items-center gap-2 btn-tactile" title="Guardar canción con sus pistas, guías y faders en Mi Repertorio">
+                        <button id="saveToVaultBtn" class="hidden px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-red-500/50 hover:bg-zinc-850 text-zinc-200 font-bold text-xs tracking-widest rounded-xl transition-all flex items-center gap-2 btn-tactile" title="Guardar canción con sus pistas, guías y faders en Mi Repertorio">
                             <svg class="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg> GUARDAR EN REPERTORIO
                         </button>
                         <button id="downloadMixBtn" class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 text-white font-bold text-xs tracking-widest rounded-xl transition-colors flex items-center gap-2 btn-tactile">
@@ -634,7 +634,7 @@
                         <p class="text-xs text-zinc-400">Tus canciones listas para ensayar con guías, click y faders</p>
                     </div>
                 </div>
-                <button id="closeVaultModalBtn" class="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold">✕</button>
+                <button id="closeVaultModalBtn" onclick="closeVaultModal()" class="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold cursor-pointer">✕</button>
             </div>
 
             <!-- Buscador de Canciones en el Repertorio -->
@@ -806,6 +806,6 @@
     </footer>
 
     <!-- Script principal -->
-    <script src="app.js?v=3.8.1"></script>
+    <script src="app.js?v=3.8.3"></script>
 </body>
 </html>

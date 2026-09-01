@@ -3082,6 +3082,22 @@ function updateAuthUI() {
                 engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg";
             }
         }
+
+        // Mostrar botones de repertorio solo si el usuario es PRO
+        if (openVaultBtn) {
+            if (isPro) {
+                openVaultBtn.classList.remove("hidden");
+            } else {
+                openVaultBtn.classList.add("hidden");
+            }
+        }
+        if (saveToVaultBtn) {
+            if (isPro) {
+                saveToVaultBtn.classList.remove("hidden");
+            } else {
+                saveToVaultBtn.classList.add("hidden");
+            }
+        }
     } else {
         if (openAuthBtn) openAuthBtn.classList.remove("hidden");
         if (userProfileMenu) userProfileMenu.classList.add("hidden");
@@ -3089,6 +3105,9 @@ function updateAuthUI() {
             engineBadge.textContent = "Demucs v4";
             engineBadge.className = "hidden lg:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg";
         }
+        // Ocultar botones de repertorio si no hay sesión
+        if (openVaultBtn) openVaultBtn.classList.add("hidden");
+        if (saveToVaultBtn) saveToVaultBtn.classList.add("hidden");
     }
 }
 
@@ -3376,15 +3395,33 @@ if (startProCheckoutBtn) {
     });
 }
 
+window.openVaultModal = function() {
+    if (!currentUser) {
+        if (authModal) authModal.classList.remove("hidden");
+        return;
+    }
+    if (!isUserPro()) {
+        if (plansModal) plansModal.classList.remove("hidden");
+        return;
+    }
+    if (vaultModal) {
+        vaultModal.classList.remove("hidden");
+        loadVaultProjects();
+    }
+};
+
+window.closeVaultModal = function() {
+    if (vaultModal) vaultModal.classList.add("hidden");
+};
+
 if (openVaultBtn) {
     openVaultBtn.addEventListener("click", () => {
-        if (vaultModal) vaultModal.classList.remove("hidden");
-        loadVaultProjects();
+        window.openVaultModal();
     });
 }
 if (closeVaultModalBtn) {
     closeVaultModalBtn.addEventListener("click", () => {
-        if (vaultModal) vaultModal.classList.add("hidden");
+        window.closeVaultModal();
     });
 }
 if (refreshVaultBtn) {
