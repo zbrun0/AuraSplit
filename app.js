@@ -67,7 +67,7 @@ const ICONS_SVG = {
     piano: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M19.02 3H4.98C3.89 3 3 3.89 3 4.98v14.04C3 20.11 3.89 21 4.98 21h14.04c1.09 0 1.98-.89 1.98-1.98V4.98C21 3.89 20.11 3 19.02 3zM12 5h1.5v7h-1.5V5zm-3 0h1.5v7H9V5zM6 5h1.5v7H6V5zm12 14H6v-5h12v5z"/></svg>`,
     tune: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>`,
     schedule: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>`,
-    record_voice_over: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><circle cx="9" cy="9" r="4"/><path d="M9 15c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm11.08-4.92c.67 1.18.67 2.66 0 3.84l1.43 1.43c1.37-1.93 1.37-4.77 0-6.7l-1.43 1.43zm-2.83 2.83l1.42 1.42c.62-.97.62-2.29 0-3.26l-1.42 1.42c.16.27.16.55 0 .42z"/></svg>`,
+    record_voice_over: `<svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/><path d="M18.5 8c0 .8-.2 1.5-.6 2.1l1.4 1.4c.7-1 1.2-2.2 1.2-3.5s-.5-2.5-1.2-3.5l-1.4 1.4c.4.6.6 1.3.6 2.1zm2.5 0c0 1.5-.4 2.9-1.2 4.1l1.4 1.4C22.4 11.8 23 10 23 8s-.6-3.8-1.8-5.5l-1.4 1.4c.8 1.2 1.2 2.6 1.2 4.1z"/></svg>`,
     play_arrow: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
     pause: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`,
     download: `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`
@@ -89,6 +89,16 @@ const masterRewindBtn = document.getElementById("masterRewindBtn");
 const resetMixerBtn = document.getElementById("resetMixerBtn");
 const downloadMixBtn = document.getElementById("downloadMixBtn");
 const downloadZipBtn = document.getElementById("downloadZipBtn");
+
+// Modal de Exportación y Descarga de Stems
+const openExportStemsModalBtn = document.getElementById("openExportStemsModalBtn");
+const exportStemsModal = document.getElementById("exportStemsModal");
+const closeExportStemsModalBtn = document.getElementById("closeExportStemsModalBtn");
+const selectAllStemsBtn = document.getElementById("selectAllStemsBtn");
+const deselectAllStemsBtn = document.getElementById("deselectAllStemsBtn");
+const exportStemsList = document.getElementById("exportStemsList");
+const selectedStemsCountLabel = document.getElementById("selectedStemsCountLabel");
+const downloadSelectedStemsZipBtn = document.getElementById("downloadSelectedStemsZipBtn");
 
 const uploadState = document.getElementById("uploadState");
 const configState = document.getElementById("configState");
@@ -147,7 +157,12 @@ const regenerateClickBtn = document.getElementById("regenerateClickBtn");
 const guideLangSelect = document.getElementById("guideLangSelect");
 const generateGuideBtn = document.getElementById("generateGuideBtn");
 
-// Controles de Desfase Integrados en la Línea de Tiempo (DAW Header)
+// Controles de Desfase y Mover Canción en la Línea de Tiempo (DAW Header)
+const tlShiftSongMinus2Bars = document.getElementById("tlShiftSongMinus2Bars");
+const tlShiftSongMinus1Bar = document.getElementById("tlShiftSongMinus1Bar");
+const tlShiftSongPlus1Bar = document.getElementById("tlShiftSongPlus1Bar");
+const tlShiftSongPlus2Bars = document.getElementById("tlShiftSongPlus2Bars");
+
 const tlNudgeMinus50 = document.getElementById("tlNudgeMinus50");
 const tlNudgeMinus10 = document.getElementById("tlNudgeMinus10");
 const tlNudgeLeftBtn = document.getElementById("tlNudgeLeftBtn");
@@ -676,15 +691,14 @@ function resetAudio() {
         studioWrapper.classList.add("max-w-5xl");
     }
 
-    // Restaurar barra de navegación superior
-    const mainHeader = document.getElementById("mainHeader");
-    if (mainHeader) {
-        mainHeader.classList.remove("hidden");
-    }
+    // Restaurar landing y barra de navegación superior
+    const sectionsToShow = ["mainHeader", "heroHeadline", "dropzone", "features", "pricing", "faq", "mainFooter"];
+    sectionsToShow.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove("hidden");
+    });
 
     if (controlPanel) controlPanel.classList.add("hidden");
-    if (resultsSection) resultsSection.classList.add("hidden");
-    if (resultsList) resultsList.innerHTML = "";
     if (mixerSection) mixerSection.classList.add("hidden");
     if (timelineTracksList) timelineTracksList.innerHTML = "";
     if (sectionMarkersBar) sectionMarkersBar.innerHTML = "";
@@ -703,6 +717,14 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContextClass();
 
+    if (window.Tone && typeof Tone.setContext === "function") {
+        try {
+            Tone.setContext(audioCtx);
+        } catch (e) {
+            console.warn("Tone.setContext error:", e);
+        }
+    }
+
     // Limitador / Dynamics Compressor Maestro para prevenir distorsión digital cuando suenan múltiples canales
     masterCompressor = audioCtx.createDynamicsCompressor();
     masterCompressor.threshold.setValueAtTime(-0.5, audioCtx.currentTime);
@@ -717,7 +739,6 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
         tracks = {};
         
         trackList.innerHTML = "";
-        resultsList.innerHTML = "";
         duration = 0;
 
         if (timelineTracksList) timelineTracksList.innerHTML = "";
@@ -766,7 +787,6 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
 
             createTrackUI(stemId);
             createTimelineTrackUI(stemId);
-            createResultUI(stemId);
         }
 
         // --- Decodificar los buffers de audio en PARALELO para máxima velocidad de carga ---
@@ -815,9 +835,9 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             // Conteo previo / Pre-Roll según configuración guardada
             const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
             const barDuration = (60 / currentBpm) * beatsPerBar;
-            const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+            const leadInSec = (userConfiguredAutoGuide && userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
 
-            // Si hay conteo previo guardado (1 o 2 compases), insertar silencio inicial en los stems
+            // Si hay conteo previo guardado (1 o 2 compases) y guías activas, insertar silencio inicial en los stems
             if (leadInSec > 0) {
                 for (const stemId of Object.keys(decodedStemBuffers)) {
                     const origBuf = decodedStemBuffers[stemId];
@@ -833,9 +853,6 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                         tracks[stemId].audioBuffer = paddedBuf;
                         tracks[stemId].peaks = extractPeaks(paddedBuf, 2400);
                         tracks[stemId].sizeBytes = paddedWav.size;
-
-                        const dlLink = document.getElementById(`download-${stemId}`);
-                        if (dlLink) dlLink.href = paddedUrl;
                     }
                 }
                 duration += leadInSec;
@@ -849,11 +866,13 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 renderSectionMarkers();
             }
 
-            await generateMetronomeTrack(currentBpm, currentOffsetSec, duration || 180, currentTimeSignature);
-            try {
-                const lang = presetMetadata.guideLang || (guideLangSelect ? guideLangSelect.value : "es");
-                await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
-            } catch (e) {}
+            if (userConfiguredAutoGuide) {
+                await generateMetronomeTrack(currentBpm, currentOffsetSec, duration || 180, currentTimeSignature);
+                try {
+                    const lang = presetMetadata.guideLang || (guideLangSelect ? guideLangSelect.value : "es");
+                    await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+                } catch (e) {}
+            }
 
         } else if (tracks.drums || tracks.vocals || tracks.bass || tracks.other) {
             try {
@@ -882,9 +901,9 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 // Conteo previo / Pre-Roll según configuración de compases
                 const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
                 const barDuration = (60 / currentBpm) * beatsPerBar;
-                const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+                const leadInSec = (userConfiguredAutoGuide && userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
 
-                // Si hay conteo previo, insertar silencio inicial en los stems para sincronía perfecta de ensayo
+                // Si hay conteo previo y guías activas, insertar silencio inicial en los stems
                 if (leadInSec > 0) {
                     for (const stemId of Object.keys(decodedStemBuffers)) {
                         const origBuf = decodedStemBuffers[stemId];
@@ -900,9 +919,6 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                             tracks[stemId].audioBuffer = paddedBuf;
                             tracks[stemId].peaks = extractPeaks(paddedBuf, 2400);
                             tracks[stemId].sizeBytes = paddedWav.size;
-
-                            const dlLink = document.getElementById(`download-${stemId}`);
-                            if (dlLink) dlLink.href = paddedUrl;
                         }
                     }
                     duration += leadInSec;
@@ -911,13 +927,15 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 // Análisis Estructural con IA (Intro, Versos, Coros, Puente, Solos, Final)
                 await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration || 180, decodedStemBuffers, leadInSec);
 
-                // Generar Metrónomo Sintetizado y Guía Vocal Cues
-                await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
-                
-                try {
-                    await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
-                } catch (guideErr) {
-                    console.error("Error al generar guía vocal:", guideErr);
+                if (userConfiguredAutoGuide) {
+                    // Generar Metrónomo Sintetizado y Guía Vocal Cues
+                    await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
+                    
+                    try {
+                        await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+                    } catch (guideErr) {
+                        console.error("Error al generar guía vocal:", guideErr);
+                    }
                 }
 
             } catch (err) {
@@ -930,13 +948,13 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
         processing.classList.add("hidden");
         if (mixerSection) mixerSection.classList.remove("hidden");
         if (controlPanel) controlPanel.classList.remove("hidden");
-        resultsSection.classList.remove("hidden");
 
-        // Ocultar barra superior de navegación flotante mientras la consola está activa
-        const mainHeader = document.getElementById("mainHeader");
-        if (mainHeader) {
-            mainHeader.classList.add("hidden");
-        }
+        // Ocultar landing y barra superior mientras la consola está activa
+        const sectionsToHide = ["mainHeader", "heroHeadline", "dropzone", "features", "pricing", "faq", "mainFooter"];
+        sectionsToHide.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add("hidden");
+        });
 
         // Expandir el contenedor a formato de estudio profesional ultra ancho
         const studioWrapper = document.getElementById("studioContainerWrapper");
@@ -1129,17 +1147,22 @@ async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, 
     const blobUrl = URL.createObjectURL(wavBlob);
 
     if (tracks.metronome) {
-        tracks.metronome.audio.src = blobUrl;
-        tracks.metronome.audio.load();
+        const wasPlaying = isPlaying;
+        const curPos = (playOffset > 0) ? playOffset : (tracks.metronome.audio ? tracks.metronome.audio.currentTime : 0);
         tracks.metronome.blobUrl = blobUrl;
         tracks.metronome.sizeBytes = wavBlob.size;
         tracks.metronome.bpm = bpm;
-        tracks.metronome.volume = 0.70;
         tracks.metronome.audioBuffer = metronomeBuffer;
         tracks.metronome.cachedWaveformCanvas = null;
-        
-        const dlLink = document.getElementById("download-metronome");
-        if (dlLink) dlLink.href = blobUrl;
+
+        if (tracks.metronome.audio) {
+            tracks.metronome.audio.src = blobUrl;
+            tracks.metronome.audio.load();
+            tracks.metronome.audio.currentTime = curPos;
+            if (wasPlaying) {
+                tracks.metronome.audio.play().catch(e => console.warn("Error reanudando click:", e));
+            }
+        }
     } else {
         const audio = new Audio(blobUrl);
         audio.preload = "auto";
@@ -1162,7 +1185,6 @@ async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, 
 
         createTrackUI("metronome");
         createTimelineTrackUI("metronome");
-        createResultUI("metronome");
     }
 
     setupSingleTrackAudioNode("metronome");
@@ -1933,7 +1955,6 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
 
             createTrackUI("guide");
             createTimelineTrackUI("guide");
-            createResultUI("guide");
             setupSingleTrackAudioNode("guide");
         }
 
@@ -2059,7 +2080,8 @@ function createTrackUI(id) {
 
 // --- Generar UI de Resultados (Export Panel List) ---
 function createResultUI(id) {
-    if (document.querySelector(`[data-track-id="${id}"]`)) return;
+    if (!resultsList) return;
+    if (document.querySelector(`[data-result-id="${id}"]`)) return;
     const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
     const sizeBytes = tracks[id] ? tracks[id].sizeBytes : 0;
     const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
@@ -2067,7 +2089,7 @@ function createResultUI(id) {
     const ext = (tracks[id] && tracks[id].extension) || "mp3";
 
     const resultHtml = `
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 py-3 hover:bg-zinc-900/40 transition-colors gap-3" data-track-id="${id}">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 py-3 hover:bg-zinc-900/40 transition-colors gap-3" data-result-id="${id}">
             <div class="flex items-center gap-3">
                 <div class="text-red-500 text-lg flex items-center justify-center">${ICONS_SVG[config.icon] || ICONS_SVG.tune}</div>
                 <div class="flex flex-col">
@@ -2106,8 +2128,26 @@ function setupSingleTrackAudioNode(id) {
         const sourceNode = audioCtx.createMediaElementSource(track.audio);
         track.sourceNode = sourceNode;
 
-        // Conexión directa y limpia a ganancia -> analizador -> limitador maestro
-        sourceNode.connect(track.gainNode);
+        // Tone.js Pitch Shifter en tiempo real para pistas musicales
+        if (window.Tone && typeof Tone.PitchShift === "function" && id !== "metronome" && id !== "guide") {
+            try {
+                const pitchNode = new Tone.PitchShift({
+                    pitch: currentPitchShift,
+                    windowSize: 0.08,
+                    delayTime: 0
+                });
+                pitchNode.wet.value = (currentPitchShift === 0 ? 0 : 1.0);
+                track.pitchShift = pitchNode;
+                sourceNode.connect(pitchNode.input || pitchNode);
+                pitchNode.connect(track.gainNode);
+            } catch (err) {
+                console.warn(`PitchShift fallback para track ${id}:`, err);
+                sourceNode.connect(track.gainNode);
+            }
+        } else {
+            sourceNode.connect(track.gainNode);
+        }
+
         track.gainNode.connect(track.analyser);
         
         if (masterCompressor) {
@@ -2824,11 +2864,12 @@ function debounceSyncClickAndGuide(delayMs = 350) {
 
 function syncClickAndGuide() {
     if (!currentBpm || !duration) return;
+    if (!userConfiguredAutoGuide) return;
     const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
     const barDuration = (60 / currentBpm) * beatsPerBar;
     const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
 
-    generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+    generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
     if (tracks.guide) {
         generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
     }
@@ -3076,11 +3117,228 @@ if (syncCursorBtn) {
     });
 }
 
+// --- Mover Canción (Todos los Stems) por Compases en la Línea de Tiempo ---
+function trimAudioBufferStart(audioBuffer, trimSeconds) {
+    if (!audioBuffer || trimSeconds <= 0 || !audioCtx) return audioBuffer;
+    const sampleRate = audioBuffer.sampleRate;
+    const trimSamples = Math.min(Math.floor(trimSeconds * sampleRate), Math.max(0, audioBuffer.length - 100));
+    if (trimSamples <= 0 || trimSamples >= audioBuffer.length) return audioBuffer;
+    const newLength = audioBuffer.length - trimSamples;
+    const trimmed = audioCtx.createBuffer(audioBuffer.numberOfChannels, newLength, sampleRate);
+    for (let c = 0; c < audioBuffer.numberOfChannels; c++) {
+        const origData = audioBuffer.getChannelData(c);
+        const trimmedData = trimmed.getChannelData(c);
+        trimmedData.set(origData.subarray(trimSamples));
+    }
+    return trimmed;
+}
+
+async function shiftSongByBars(deltaBars) {
+    if (!duration || !currentBpm || deltaBars === 0 || !audioCtx) return;
+    const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+    const barDuration = (60 / currentBpm) * beatsPerBar;
+    const deltaSec = deltaBars * barDuration;
+
+    const wasPlaying = isPlaying;
+    if (wasPlaying) pauseTracks();
+
+    const songStemIds = ["vocals", "drums", "bass", "guitar", "piano", "other"];
+
+    for (const stemId of songStemIds) {
+        const track = tracks[stemId];
+        if (!track || !track.audioBuffer) continue;
+
+        let newBuf;
+        if (deltaSec > 0) {
+            newBuf = padAudioBufferWithLeadIn(track.audioBuffer, deltaSec);
+        } else {
+            newBuf = trimAudioBufferStart(track.audioBuffer, Math.abs(deltaSec));
+        }
+
+        if (newBuf) {
+            track.audioBuffer = newBuf;
+            track.peaks = extractPeaks(newBuf, 2400);
+            const newWav = bufferToWav(newBuf);
+            track.sizeBytes = newWav.size;
+            const newUrl = URL.createObjectURL(newWav);
+            track.blobUrl = newUrl;
+            track.audio.src = newUrl;
+            track.audio.load();
+        }
+    }
+
+    // Actualizar duración máxima de la canción
+    let maxDur = 0;
+    for (const stemId of songStemIds) {
+        if (tracks[stemId] && tracks[stemId].audioBuffer) {
+            maxDur = Math.max(maxDur, tracks[stemId].audioBuffer.duration);
+        }
+    }
+    if (maxDur > 0) {
+        duration = maxDur;
+        if (totalTimeDisplay) totalTimeDisplay.textContent = formatTime(duration);
+    }
+
+    // Desplazar marcadores de sección en la misma proporción
+    if (songSections && songSections.length > 0) {
+        songSections.forEach(sec => {
+            sec.startTime = Math.max(0, Math.min(duration - 0.5, sec.startTime + deltaSec));
+            sec.endTime = Math.max(0.5, Math.min(duration, sec.endTime + deltaSec));
+        });
+        songSections.sort((a, b) => a.startTime - b.startTime);
+        renderSectionMarkers();
+    }
+
+    // Sincronizar metrónomo y guías si están activos
+    if (userConfiguredAutoGuide && (tracks.metronome || tracks.guide)) {
+        await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
+        if (tracks.guide) {
+            await generateGuideTrack("es", userConfiguredPreRoll, (userConfiguredPreRoll >= 1 ? (barDuration * userConfiguredPreRoll) : 0));
+        }
+    }
+
+    if (typeof renderAllWaveforms === "function") renderAllWaveforms();
+    const newPos = Math.max(0, Math.min(duration, playOffset + deltaSec));
+    seekToTime(newPos);
+
+    if (wasPlaying) {
+        setTimeout(() => { playTracks(); }, 150);
+    }
+}
+
+if (tlShiftSongMinus2Bars) tlShiftSongMinus2Bars.addEventListener("click", () => shiftSongByBars(-2));
+if (tlShiftSongMinus1Bar) tlShiftSongMinus1Bar.addEventListener("click", () => shiftSongByBars(-1));
+if (tlShiftSongPlus1Bar) tlShiftSongPlus1Bar.addEventListener("click", () => shiftSongByBars(1));
+if (tlShiftSongPlus2Bars) tlShiftSongPlus2Bars.addEventListener("click", () => shiftSongByBars(2));
+
+// --- Modal de Exportación y Descarga de Stems Personalizados ---
+function openExportStemsModal() {
+    if (!exportStemsModal || !exportStemsList) return;
+    exportStemsList.innerHTML = "";
+
+    const activeTrackIds = Object.keys(tracks);
+    if (activeTrackIds.length === 0) {
+        exportStemsList.innerHTML = `<div class="p-6 text-center text-xs font-mono text-zinc-500">No hay stems cargados para descargar.</div>`;
+        exportStemsModal.classList.remove("hidden");
+        return;
+    }
+
+    activeTrackIds.forEach(id => {
+        const tr = tracks[id];
+        const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
+        const ext = tr.extension || "wav";
+        const sizeMB = tr.sizeBytes ? (tr.sizeBytes / (1024 * 1024)).toFixed(2) : "0.00";
+        const displayName = config.name.toUpperCase();
+
+        const itemHtml = `
+            <div class="flex items-center justify-between p-3 bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 rounded-xl transition-all">
+                <label class="flex items-center gap-3 cursor-pointer select-none flex-1">
+                    <input type="checkbox" checked data-stem-id="${id}" class="stem-export-check w-4 h-4 rounded bg-zinc-950 border-zinc-700 text-red-600 focus:ring-red-500 accent-red-600 cursor-pointer"/>
+                    <div class="text-red-500 text-base flex items-center justify-center">${ICONS_SVG[config.icon] || ICONS_SVG.tune}</div>
+                    <div class="flex flex-col">
+                        <span class="text-xs font-bold text-white font-mono">${displayName}</span>
+                        <span class="text-[10px] text-zinc-400 font-mono">${id}.${ext} • ${sizeMB} MB</span>
+                    </div>
+                </label>
+                <a href="${tr.blobUrl || '#'}" download="${id}.${ext}" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-bold font-mono uppercase tracking-wider rounded-lg transition-colors flex items-center gap-1.5 btn-tactile">
+                    <i class="fa-solid fa-download text-amber-400"></i> Individual
+                </a>
+            </div>
+        `;
+        exportStemsList.insertAdjacentHTML("beforeend", itemHtml);
+    });
+
+    const checkboxes = exportStemsList.querySelectorAll(".stem-export-check");
+    checkboxes.forEach(cb => {
+        cb.addEventListener("change", updateExportSelectedCount);
+    });
+
+    updateExportSelectedCount();
+    exportStemsModal.classList.remove("hidden");
+}
+
+function closeExportStemsModal() {
+    if (exportStemsModal) exportStemsModal.classList.add("hidden");
+}
+
+function updateExportSelectedCount() {
+    if (!exportStemsList || !selectedStemsCountLabel) return;
+    const checked = exportStemsList.querySelectorAll(".stem-export-check:checked");
+    selectedStemsCountLabel.textContent = `${checked.length} de ${Object.keys(tracks).length} pistas seleccionadas`;
+}
+
+if (openExportStemsModalBtn) openExportStemsModalBtn.addEventListener("click", openExportStemsModal);
+if (closeExportStemsModalBtn) closeExportStemsModalBtn.addEventListener("click", closeExportStemsModal);
+if (exportStemsModal) {
+    exportStemsModal.addEventListener("click", (e) => {
+        if (e.target === exportStemsModal) closeExportStemsModal();
+    });
+}
+
+if (selectAllStemsBtn) {
+    selectAllStemsBtn.addEventListener("click", () => {
+        const checkboxes = document.querySelectorAll(".stem-export-check");
+        checkboxes.forEach(cb => cb.checked = true);
+        updateExportSelectedCount();
+    });
+}
+
+if (deselectAllStemsBtn) {
+    deselectAllStemsBtn.addEventListener("click", () => {
+        const checkboxes = document.querySelectorAll(".stem-export-check");
+        checkboxes.forEach(cb => cb.checked = false);
+        updateExportSelectedCount();
+    });
+}
+
+if (downloadSelectedStemsZipBtn) {
+    downloadSelectedStemsZipBtn.addEventListener("click", async () => {
+        const checkedBoxes = document.querySelectorAll(".stem-export-check:checked");
+        if (checkedBoxes.length === 0) {
+            alert("Selecciona al menos una pista para descargar.");
+            return;
+        }
+
+        const origText = downloadSelectedStemsZipBtn.innerHTML;
+        downloadSelectedStemsZipBtn.disabled = true;
+        downloadSelectedStemsZipBtn.innerHTML = `<svg class="w-4 h-4 animate-spin inline-block fill-current mr-1" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Empaquetando ZIP...`;
+
+        try {
+            const zip = new JSZip();
+            for (const cb of checkedBoxes) {
+                const stemId = cb.dataset.stemId;
+                const tr = tracks[stemId];
+                if (tr && tr.blobUrl) {
+                    const res = await fetch(tr.blobUrl);
+                    const blob = await res.blob();
+                    const ext = tr.extension || "wav";
+                    zip.file(`${stemId}.${ext}`, blob);
+                }
+            }
+
+            const customZipBlob = await zip.generateAsync({ type: "blob" });
+            const nameWithoutExt = (fileMeta && fileMeta.textContent) ? fileMeta.textContent.replace(/^.*\:\s*/, "").replace(/\.[^/.]+$/, "").trim() : "AuraSplit";
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(customZipBlob);
+            link.download = `stems_${nameWithoutExt}_seleccionados.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            closeExportStemsModal();
+        } catch (err) {
+            alert("Error al empaquetar ZIP: " + err.message);
+        } finally {
+            downloadSelectedStemsZipBtn.disabled = false;
+            downloadSelectedStemsZipBtn.innerHTML = origText;
+        }
+    });
+}
+
 // --- Cambio de Tono en Tiempo Real (Pitch Shifter en Semitonos sin alterar velocidad) ---
-let currentPitchShift = 0; // -6 a +6 semitonos
+let currentPitchShift = 0; // -12 a +12 semitonos
 
 function applyPitchShift(semitones) {
-    currentPitchShift = Math.max(-6, Math.min(6, semitones));
+    currentPitchShift = Math.max(-12, Math.min(12, semitones));
     if (pitchDisplayVal) {
         const sign = currentPitchShift > 0 ? `+${currentPitchShift}` : `${currentPitchShift}`;
         pitchDisplayVal.textContent = `${sign} st`;
@@ -3112,6 +3370,27 @@ if (pitchResetBtn) pitchResetBtn.addEventListener("click", () => applyPitchShift
 
 // --- Presets Rápidos de Ensayos / Práctica (Karaoke, Batería, Bajo, Guitarra, Voces, Reset) ---
 function applyMixPreset(presetName) {
+    // 1. Resaltar visualmente el botón del preset seleccionado
+    const presetButtons = document.querySelectorAll(".preset-btn");
+    presetButtons.forEach(btn => {
+        btn.classList.remove("bg-red-600", "text-white", "border-red-500", "shadow-md", "ring-1", "ring-red-500");
+        btn.classList.add("bg-zinc-900/90", "text-zinc-300", "border-zinc-800");
+    });
+
+    const activeBtnMap = {
+        karaoke: presetKaraokeBtn,
+        drumless: presetDrumlessBtn,
+        bassless: presetBasslessBtn,
+        guitarless: presetGuitarlessBtn,
+        vocals_only: presetVocalsBtn,
+        reset: presetResetBtn
+    };
+
+    if (activeBtnMap[presetName]) {
+        activeBtnMap[presetName].classList.remove("bg-zinc-900/90", "text-zinc-300", "border-zinc-800");
+        activeBtnMap[presetName].classList.add("bg-red-600", "text-white", "border-red-500", "shadow-md", "ring-1", "ring-red-500");
+    }
+
     for (const [id, track] of Object.entries(tracks)) {
         track.isMuted = false;
         track.isSoloed = false;
@@ -3136,7 +3415,7 @@ function applyMixPreset(presetName) {
         for (const [id, track] of Object.entries(tracks)) {
             track.isMuted = false;
             track.isSoloed = false;
-            track.volume = 0.80;
+            track.volume = (id === "metronome" ? 0.70 : (id === "guide" ? 0.85 : 0.80));
         }
     }
 
@@ -3149,22 +3428,33 @@ function applyMixPreset(presetName) {
         const fader = document.getElementById(`fader-${id}`);
         const timelineFader = document.getElementById(`fader-timeline-${id}`);
 
-        if (muteBtn) {
-            if (track.isMuted) muteBtn.classList.add("bg-red-600", "text-white", "border-red-500");
-            else muteBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
-        }
-        if (muteTimelineBtn) {
-            if (track.isMuted) muteTimelineBtn.classList.add("bg-red-600", "text-white", "border-red-500");
-            else muteTimelineBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
-        }
-        if (soloBtn) {
-            if (track.isSoloed) soloBtn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
-            else soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
-        }
-        if (soloTimelineBtn) {
-            if (track.isSoloed) soloTimelineBtn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
-            else soloTimelineBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
-        }
+        const updateMuteStyle = (btn, isMuted) => {
+            if (!btn) return;
+            if (isMuted) {
+                btn.classList.add("bg-red-600", "text-white", "border-red-500");
+                btn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+            } else {
+                btn.classList.remove("bg-red-600", "text-white", "border-red-500");
+                btn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+            }
+        };
+
+        const updateSoloStyle = (btn, isSoloed) => {
+            if (!btn) return;
+            if (isSoloed) {
+                btn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
+                btn.classList.remove("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+            } else {
+                btn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+                btn.classList.add("bg-zinc-950", "text-zinc-400", "border-zinc-800");
+            }
+        };
+
+        updateMuteStyle(muteBtn, track.isMuted);
+        updateMuteStyle(muteTimelineBtn, track.isMuted);
+        updateSoloStyle(soloBtn, track.isSoloed);
+        updateSoloStyle(soloTimelineBtn, track.isSoloed);
+
         if (fader) fader.value = Math.round(track.volume * 100);
         if (timelineFader) timelineFader.value = Math.round(track.volume * 100);
     }
