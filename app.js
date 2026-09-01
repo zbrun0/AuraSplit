@@ -769,26 +769,34 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             createResultUI(stemId);
         }
 
-        // --- Decodificar los buffers de audio para análisis de energía, formas de onda y BPM ---
+        // --- Decodificar los buffers de audio en PARALELO para máxima velocidad de carga ---
         const decodedStemBuffers = {};
+        const decodePromises = [];
+
+        if (presetMetadata && presetMetadata.duration) {
+            duration = parseFloat(presetMetadata.duration);
+        }
+
         for (const stemId of ["drums", "vocals", "bass", "guitar", "other", "piano"]) {
             if (tracks[stemId] && tracks[stemId].blobUrl) {
-                try {
-                    const res = await fetch(tracks[stemId].blobUrl);
-                    const arrayBuf = await res.arrayBuffer();
-                    const decBuf = await audioCtx.decodeAudioData(arrayBuf);
-                    decodedStemBuffers[stemId] = decBuf;
-                    tracks[stemId].audioBuffer = decBuf;
-                    tracks[stemId].peaks = extractPeaks(decBuf, 2400);
-                    if (!duration && decBuf.duration) {
-                        duration = decBuf.duration;
-                    }
-                } catch (e) {
-                    console.warn(`No se pudo decodificar buffer de ${stemId}:`, e);
-                }
+                decodePromises.push(
+                    fetch(tracks[stemId].blobUrl)
+                        .then(res => res.arrayBuffer())
+                        .then(arrayBuf => audioCtx.decodeAudioData(arrayBuf))
+                        .then(decBuf => {
+                            decodedStemBuffers[stemId] = decBuf;
+                            tracks[stemId].audioBuffer = decBuf;
+                            tracks[stemId].peaks = extractPeaks(decBuf, 2400);
+                            if (!duration && decBuf.duration) {
+                                duration = decBuf.duration;
+                            }
+                        })
+                        .catch(e => console.warn(`No se pudo decodificar buffer de ${stemId}:`, e))
+                );
             }
         }
 
+        await Promise.all(decodePromises);
         cachedDecodedStemBuffers = decodedStemBuffers;
 
         // --- Configuración Rápida con Metadatos Existentes o Análisis Completo ---
@@ -805,12 +813,14 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 songSections = presetMetadata.songSections;
                 renderSectionMarkers();
             } else {
-                songSections = generateFallbackSections(duration, currentBpm, currentTimeSignature, currentOffsetSec);
+                songSections = generateFallbackSections(duration || 180, currentBpm, currentTimeSignature, currentOffsetSec);
                 renderSectionMarkers();
             }
 
-            const leadInSec = (userConfiguredPreRoll * (60 / currentBpm) * (currentTimeSignature === "3/4" ? 3 : 4));
-            await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
+            const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+            const barDuration = (60 / currentBpm) * beatsPerBar;
+            const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+            await generateMetronomeTrack(currentBpm, currentOffsetSec, duration || 180, currentTimeSignature);
             try {
                 await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
             } catch (e) {}
@@ -4370,37 +4380,37 @@ function drawWaveformWithGrid(id, track, canvas) {
 
         if (id === "metronome") {
             // Renderizar la forma de onda del metrónomo como impulsos rítmicos exactos en los tiempos de los compases
-            if (duration > 0 && currentBpm > 0) {
-                const beatInterval = 60 / currentBpm;
-                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-                let t = currentOffsetSec % beatInterval;
-                while (t - beatInterval >= 0) t -= beatInterval;
-                let beatIdx = 0;
-                
-                while (t < duration) {
-                    if (t >= 0) {
-                        const bx = (t / duration) * w;
-                        const isDownbeat = (beatIdx % beatsPerBar === 0);
-                        
-                        offCtx.beginPath();
-                        if (isDownbeat) {
-                            // Tiempo 1 (Downbeat fuerte): Barra de acento cyan neón
-                            offCtx.strokeStyle = "#06b6d4";
-                            offCtx.lineWidth = 2.5;
-                            offCtx.moveTo(bx, h * 0.12);
-                            offCtx.lineTo(bx, h * 0.88);
-                        } else {
-                            // Tiempos 2, 3, 4: Barras secundarias
-                            offCtx.strokeStyle = "#38bdf8";
-                            offCtx.lineWidth = 1.6;
-                            offCtx.moveTo(bx, h * 0.30);
-                            offCtx.lineTo(bx, h * 0.70);
-                        }
-                        offCtx.stroke();
+            const bpmVal = currentBpm || 120;
+            const durVal = (duration && duration > 0) ? duration : 180;
+            const beatInterval = 60 / bpmVal;
+            const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+            let t = (currentOffsetSec || 0) % beatInterval;
+            while (t - beatInterval >= 0) t -= beatInterval;
+            let beatIdx = 0;
+            
+            while (t < durVal) {
+                if (t >= 0) {
+                    const bx = (t / durVal) * w;
+                    const isDownbeat = (beatIdx % beatsPerBar === 0);
+                    
+                    offCtx.beginPath();
+                    if (isDownbeat) {
+                        // Tiempo 1 (Downbeat fuerte): Barra de acento cyan neón
+                        offCtx.strokeStyle = "#06b6d4";
+                        offCtx.lineWidth = 3;
+                        offCtx.moveTo(bx, h * 0.12);
+                        offCtx.lineTo(bx, h * 0.88);
+                    } else {
+                        // Tiempos 2, 3, 4: Barras secundarias
+                        offCtx.strokeStyle = "#38bdf8";
+                        offCtx.lineWidth = 1.8;
+                        offCtx.moveTo(bx, h * 0.30);
+                        offCtx.lineTo(bx, h * 0.70);
                     }
-                    t += beatInterval;
-                    beatIdx++;
+                    offCtx.stroke();
                 }
+                t += beatInterval;
+                beatIdx++;
             }
         } else {
             // Forma de onda con gradiente neón por stem
