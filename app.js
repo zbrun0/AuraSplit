@@ -28,14 +28,14 @@ let activeSectionId = null;
 
 // Configuración de Stems (6 Demucs + Metrónomo + Guías Vocales Cues)
 const STEMS_CONFIG = {
-    vocals: { name: "voces", icon: "mic" },
-    drums: { name: "batería", icon: "album" },
-    bass: { name: "bajo", icon: "music_note" },
-    guitar: { name: "guitarra", icon: "music_video" },
-    piano: { name: "piano", icon: "piano" },
-    other: { name: "otros", icon: "tune" },
-    metronome: { name: "metrónomo", icon: "schedule" },
-    guide: { name: "guías / cues", icon: "record_voice_over" }
+    vocals: { name: "voces", icon: "mic", color: "#a855f7", gradient: ["#c084fc", "#7e22ce"] },
+    drums: { name: "batería", icon: "album", color: "#f59e0b", gradient: ["#fbbf24", "#d97706"] },
+    bass: { name: "bajo", icon: "music_note", color: "#06b6d4", gradient: ["#22d3ee", "#0891b2"] },
+    guitar: { name: "guitarra", icon: "music_video", color: "#10b981", gradient: ["#34d399", "#059669"] },
+    piano: { name: "piano", icon: "piano", color: "#ec4899", gradient: ["#f472b6", "#db2777"] },
+    other: { name: "otros", icon: "tune", color: "#8b5cf6", gradient: ["#a78bfa", "#6d28d9"] },
+    metronome: { name: "metrónomo", icon: "schedule", color: "#38bdf8", gradient: ["#7dd3fc", "#0284c7"] },
+    guide: { name: "guías / cues", icon: "record_voice_over", color: "#eab308", gradient: ["#fde047", "#ca8a04"] }
 };
 
 // SVGs para los iconos
@@ -94,10 +94,13 @@ const bpmInput = document.getElementById("bpmInput");
 const timeSignatureSelect = document.getElementById("timeSignatureSelect");
 const tapTempoBtn = document.getElementById("tapTempoBtn");
 const nudgeMinus50 = document.getElementById("nudgeMinus50");
+const nudgeMinus10 = document.getElementById("nudgeMinus10");
 const nudgeLeftBtn = document.getElementById("nudgeLeftBtn");
-const nudgeRightBtn = document.getElementById("nudgeRightBtn");
-const nudgePlus50 = document.getElementById("nudgePlus50");
+const phaseSlider = document.getElementById("phaseSlider");
 const phaseDisplayVal = document.getElementById("phaseDisplayVal");
+const nudgeRightBtn = document.getElementById("nudgeRightBtn");
+const nudgePlus10 = document.getElementById("nudgePlus10");
+const nudgePlus50 = document.getElementById("nudgePlus50");
 const autoSnapDrumBtn = document.getElementById("autoSnapDrumBtn");
 const syncCursorBtn = document.getElementById("syncCursorBtn");
 const regenerateClickBtn = document.getElementById("regenerateClickBtn");
@@ -681,9 +684,13 @@ async function decodeAndSetupMixer(blob) {
                 // 4. Generar Metrónomo Pro Sincronizado
                 await generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
 
-                // 5. Si está habilitado, Generar Pista Guía Vocal con Samples Reales
-                if (userConfiguredAutoGuide) {
-                    await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+                // 5. Generar Pista Guía Vocal con Samples Reales
+                if (userConfiguredAutoGuide !== false) {
+                    try {
+                        await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+                    } catch (guideErr) {
+                        console.error("Error al generar guía vocal:", guideErr);
+                    }
                 }
 
             } catch (err) {
@@ -2360,11 +2367,13 @@ if (tapTempoBtn) {
 }
 
 function updatePhaseDisplay() {
-    if (phaseDisplayVal) {
-        const beatInterval = 60 / currentBpm;
-        const normalizedOffset = currentOffsetSec % beatInterval;
-        const ms = Math.round(normalizedOffset * 1000);
-        phaseDisplayVal.textContent = `${ms} ms`;
+    const beatInterval = 60 / currentBpm;
+    const normalizedOffset = currentOffsetSec % beatInterval;
+    const ms = Math.round(normalizedOffset * 1000);
+    if (phaseDisplayVal) phaseDisplayVal.textContent = `${ms} ms`;
+    if (phaseSlider && document.activeElement !== phaseSlider) {
+        phaseSlider.max = Math.round(beatInterval * 1000);
+        phaseSlider.value = ms;
     }
 }
 
@@ -2373,35 +2382,26 @@ function adjustOffsetByMs(deltaMs) {
     const beatInterval = 60 / currentBpm;
     currentOffsetSec = (currentOffsetSec + deltaSec + beatInterval * 100) % beatInterval;
     updatePhaseDisplay();
-    if (waveformsRendered && typeof renderAllWaveforms === "function") {
+    renderAllWaveforms();
+    debounceSyncClickAndGuide(120);
+}
+
+if (phaseSlider) {
+    phaseSlider.addEventListener("input", (e) => {
+        const msVal = parseFloat(e.target.value);
+        currentOffsetSec = msVal / 1000;
+        if (phaseDisplayVal) phaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
         renderAllWaveforms();
-    }
-    debounceSyncClickAndGuide(100);
-}
-
-if (nudgeMinus50) {
-    nudgeMinus50.addEventListener("click", () => {
-        adjustOffsetByMs(-50);
+        debounceSyncClickAndGuide(100);
     });
 }
 
-if (nudgeLeftBtn) {
-    nudgeLeftBtn.addEventListener("click", () => {
-        adjustOffsetByMs(-5);
-    });
-}
-
-if (nudgeRightBtn) {
-    nudgeRightBtn.addEventListener("click", () => {
-        adjustOffsetByMs(5);
-    });
-}
-
-if (nudgePlus50) {
-    nudgePlus50.addEventListener("click", () => {
-        adjustOffsetByMs(50);
-    });
-}
+if (nudgeMinus50) nudgeMinus50.addEventListener("click", () => adjustOffsetByMs(-50));
+if (nudgeMinus10) nudgeMinus10.addEventListener("click", () => adjustOffsetByMs(-10));
+if (nudgeLeftBtn) nudgeLeftBtn.addEventListener("click", () => adjustOffsetByMs(-1));
+if (nudgeRightBtn) nudgeRightBtn.addEventListener("click", () => adjustOffsetByMs(1));
+if (nudgePlus10) nudgePlus10.addEventListener("click", () => adjustOffsetByMs(10));
+if (nudgePlus50) nudgePlus50.addEventListener("click", () => adjustOffsetByMs(50));
 
 if (autoSnapDrumBtn) {
     autoSnapDrumBtn.addEventListener("click", () => {
@@ -2579,8 +2579,8 @@ function createTimelineTrackUI(id) {
             </div>
 
             <!-- 3. Waveform Timeline Canvas Contenedor con soporte de Zoom Horizontal -->
-            <div class="flex-1 bg-zinc-950/80 rounded-xl border border-zinc-900/60 h-16 relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-thin">
-                <canvas class="h-16 block cursor-pointer transition-all duration-150" id="canvas-timeline-${id}" height="64" style="height: 64px;"></canvas>
+            <div class="flex-1 bg-zinc-950/80 rounded-xl border border-zinc-900/60 h-20 relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-thin">
+                <canvas class="h-20 block cursor-pointer transition-all duration-150" id="canvas-timeline-${id}" height="72" style="height: 72px;"></canvas>
             </div>
         </div>
     `;
@@ -2655,32 +2655,33 @@ function renderAllWaveforms() {
         if (!canvas || !canvas.parentElement) continue;
         
         if (!track.peaks && track.audioBuffer) {
-            track.peaks = extractPeaks(track.audioBuffer, 2000);
+            track.peaks = extractPeaks(track.audioBuffer, 2400);
         }
 
-        drawWaveformWithGrid(track, canvas);
+        drawWaveformWithGrid(id, track, canvas);
     }
 }
 
-function drawWaveformWithGrid(track, canvas) {
+function drawWaveformWithGrid(id, track, canvas) {
     const parentWidth = canvas.parentElement.clientWidth || 600;
     const w = Math.max(300, Math.round(parentWidth * timelineZoom));
-    const h = 64;
+    const h = 72;
     
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
     canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
     
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, w, h);
     
-    // 1. Rejilla Visual de Beats (Cyan en Beat 1, Tenue en Beats 2, 3, 4)
+    // 1. Rejilla Visual de Beats Sincronizada con el Click
     if (duration > 0 && currentBpm > 0) {
         const beatInterval = 60 / currentBpm;
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
         
-        let t = currentOffsetSec;
+        let t = currentOffsetSec % beatInterval;
         while (t - beatInterval >= 0) t -= beatInterval;
         let beatIdx = 0;
         
@@ -2689,31 +2690,57 @@ function drawWaveformWithGrid(track, canvas) {
                 const x = (t / duration) * w;
                 const isDownbeat = (beatIdx % beatsPerBar === 0);
                 
-                ctx.strokeStyle = isDownbeat ? "rgba(6, 182, 212, 0.50)" : "rgba(255, 255, 255, 0.08)";
-                ctx.lineWidth = isDownbeat ? 1.5 : 1;
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, h);
-                ctx.stroke();
+                if (isDownbeat) {
+                    ctx.strokeStyle = "rgba(6, 182, 212, 0.70)";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, h);
+                    ctx.stroke();
+
+                    // Puntero de compás en la parte superior
+                    ctx.fillStyle = "rgba(6, 182, 212, 0.90)";
+                    ctx.beginPath();
+                    ctx.moveTo(x - 3, 0);
+                    ctx.lineTo(x + 3, 0);
+                    ctx.lineTo(x, 5);
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, h);
+                    ctx.stroke();
+                }
             }
             t += beatInterval;
             beatIdx++;
         }
     }
 
-    // 2. Línea Central
-    ctx.strokeStyle = "#18181b";
+    // 2. Línea Central Guía
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, h/2);
     ctx.lineTo(w, h/2);
     ctx.stroke();
     
-    // 3. Dibujar Forma de Onda desde Peaks Pre-calculados en < 0.2ms
+    // 3. Dibujar Forma de Onda con Gradiente Neón Studio por Stem
     const peaks = track.peaks;
     if (peaks && peaks.length > 0) {
-        ctx.strokeStyle = "#ef4444";
-        ctx.lineWidth = 1.2;
+        const config = STEMS_CONFIG[id] || STEMS_CONFIG.drums;
+        const colorTop = (config && config.gradient) ? config.gradient[0] : "#f59e0b";
+        const colorBottom = (config && config.gradient) ? config.gradient[1] : "#b45309";
+
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, colorTop);
+        grad.addColorStop(0.5, "rgba(255, 255, 255, 0.92)");
+        grad.addColorStop(1, colorBottom);
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
         
         const numPeaks = peaks.length / 2;
@@ -2724,8 +2751,8 @@ function drawWaveformWithGrid(track, canvas) {
             const min = peaks[peakIdx * 2];
             const max = peaks[peakIdx * 2 + 1];
             
-            ctx.moveTo(i, amp + min * amp * 0.88);
-            ctx.lineTo(i, amp + max * amp * 0.88);
+            ctx.moveTo(i, amp + min * amp * 0.90);
+            ctx.lineTo(i, amp + max * amp * 0.90);
         }
         ctx.stroke();
     }
