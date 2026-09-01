@@ -413,7 +413,16 @@
                         <span class="font-mono text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-pink-500"></span> SECCIONES DE LA CANCIÓN (Haz clic para editar o saltar):
                         </span>
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Control de Zoom / Expandir Línea de Tiempo -->
+                            <div class="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-lg">
+                                <span class="text-[9px] font-mono font-black text-zinc-400 uppercase tracking-widest mr-0.5">ZOOM:</span>
+                                <button id="zoomOutBtn" type="button" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-xs font-bold transition-colors btn-tactile" title="Alejar vista">-</button>
+                                <span id="zoomLevelDisplay" class="font-mono text-[11px] font-bold text-red-400 w-7 text-center select-none">1x</span>
+                                <button id="zoomInBtn" type="button" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-xs font-bold transition-colors btn-tactile" title="Acercar / Expandir para calzar">+</button>
+                                <button id="zoomResetBtn" type="button" class="px-1.5 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded font-mono text-[8px] font-bold uppercase transition-colors btn-tactile">1x</button>
+                            </div>
+
                             <button id="addSectionMarkerBtn" class="text-[9px] font-mono font-bold text-pink-400 hover:text-pink-300 uppercase transition-colors flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 px-2.5 py-1 rounded-lg btn-tactile" title="Crear un nuevo marcador de sección en la posición del cursor">
                                 + Dividir en Cursor
                             </button>

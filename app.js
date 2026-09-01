@@ -667,6 +667,7 @@ async function decodeAndSetupMixer(blob) {
                             tracks[stemId].audio.src = paddedUrl;
                             tracks[stemId].audio.load();
                             tracks[stemId].audioBuffer = paddedBuf;
+                            tracks[stemId].peaks = extractPeaks(paddedBuf, 2000);
                             tracks[stemId].sizeBytes = paddedWav.size;
 
                             const dlLink = document.getElementById(`download-${stemId}`);
@@ -844,6 +845,7 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
         tracks.metronome.bpm = bpm;
         tracks.metronome.volume = 0.70;
         tracks.metronome.audioBuffer = metronomeBuffer;
+        tracks.metronome.peaks = extractPeaks(metronomeBuffer, 2000);
         
         const dlLink = document.getElementById("download-metronome");
         if (dlLink) dlLink.href = blobUrl;
@@ -863,6 +865,7 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
             sizeBytes: wavBlob.size,
             bpm: bpm,
             audioBuffer: metronomeBuffer,
+            peaks: extractPeaks(metronomeBuffer, 2000),
             extension: "wav"
         };
 
@@ -1436,6 +1439,7 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
             tracks.guide.sizeBytes = wavBlob.size;
             tracks.guide.volume = 0.85;
             tracks.guide.audioBuffer = guideBuffer;
+            tracks.guide.peaks = extractPeaks(guideBuffer, 2000);
 
             if (tracks.guide.audio) {
                 const wasPlaying = isPlaying;
@@ -1465,6 +1469,7 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
                 blobUrl: blobUrl,
                 sizeBytes: wavBlob.size,
                 audioBuffer: guideBuffer,
+                peaks: extractPeaks(guideBuffer, 2000),
                 extension: "wav"
             };
 
@@ -2517,6 +2522,51 @@ function formatTime(secs) {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+let timelineZoom = 1.0;
+const zoomInBtn = document.getElementById("zoomInBtn");
+const zoomOutBtn = document.getElementById("zoomOutBtn");
+const zoomResetBtn = document.getElementById("zoomResetBtn");
+const zoomLevelDisplay = document.getElementById("zoomLevelDisplay");
+
+function setTimelineZoom(newZoom) {
+    timelineZoom = Math.max(1.0, Math.min(8.0, Math.round(newZoom * 10) / 10));
+    if (zoomLevelDisplay) zoomLevelDisplay.textContent = `${timelineZoom >= 1.5 && timelineZoom % 1 !== 0 ? timelineZoom.toFixed(1) : Math.round(timelineZoom)}x`;
+    renderAllWaveforms();
+}
+
+if (zoomInBtn) zoomInBtn.addEventListener("click", () => setTimelineZoom(timelineZoom * 1.5));
+if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => setTimelineZoom(timelineZoom / 1.5));
+if (zoomResetBtn) zoomResetBtn.addEventListener("click", () => setTimelineZoom(1.0));
+
+function extractPeaks(audioBuffer, targetPoints = 2000) {
+    if (!audioBuffer) return null;
+    const data = audioBuffer.getChannelData(0);
+    const len = data.length;
+    const blockSize = Math.floor(len / targetPoints);
+    const peaks = new Float32Array(targetPoints * 2);
+    
+    for (let i = 0; i < targetPoints; i++) {
+        let min = 1.0;
+        let max = -1.0;
+        const start = i * blockSize;
+        const end = Math.min(start + blockSize, len);
+        const stride = Math.max(1, Math.floor((end - start) / 32));
+        
+        for (let j = start; j < end; j += stride) {
+            const val = data[j];
+            if (val < min) min = val;
+            if (val > max) max = val;
+        }
+        if (min === 1.0 && max === -1.0) {
+            min = 0;
+            max = 0;
+        }
+        peaks[i * 2] = min;
+        peaks[i * 2 + 1] = max;
+    }
+    return peaks;
+}
+
 function createTimelineTrackUI(id) {
     const config = STEMS_CONFIG[id] || { name: id, icon: "tune" };
     let displayName = config.name.toUpperCase();
@@ -2545,9 +2595,9 @@ function createTimelineTrackUI(id) {
                 </div>
             </div>
 
-            <!-- 3. Waveform Timeline Canvas -->
-            <div class="flex-1 bg-zinc-950/80 rounded-xl border border-zinc-900/60 h-16 relative overflow-hidden flex items-center">
-                <canvas class="w-full h-full block" id="canvas-timeline-${id}" height="64" style="height: 64px; width: 100%;"></canvas>
+            <!-- 3. Waveform Timeline Canvas Contenedor con soporte de Zoom Horizontal -->
+            <div class="flex-1 bg-zinc-950/80 rounded-xl border border-zinc-900/60 h-16 relative overflow-x-auto overflow-y-hidden flex items-center scrollbar-thin">
+                <canvas class="h-16 block cursor-pointer transition-all duration-150" id="canvas-timeline-${id}" height="64" style="height: 64px;"></canvas>
             </div>
         </div>
     `;
@@ -2615,72 +2665,38 @@ function switchView(viewName) {
             viewMixerBtn.classList.add("text-zinc-500");
         }
         
-        if (!waveformsRendered) {
-            renderAllWaveforms();
-        }
+        renderAllWaveforms();
     }
 }
 
-async function renderAllWaveforms() {
+function renderAllWaveforms() {
     waveformsRendered = true;
     for (const [id, track] of Object.entries(tracks)) {
         const canvas = document.getElementById(`canvas-timeline-${id}`);
-        if (!canvas) continue;
+        if (!canvas || !canvas.parentElement) continue;
         
-        const ctx = canvas.getContext("2d");
-        const w = canvas.width = canvas.parentElement.clientWidth || 600;
-        const h = canvas.height = 64;
-        
-        ctx.fillStyle = "#09090b";
-        ctx.fillRect(0, 0, w, h);
-        ctx.font = "10px monospace";
-        ctx.fillStyle = "#ef4444";
-        ctx.fillText("DECODIFICANDO ONDA...", 20, 36);
-        
-        await drawWaveformFromBlob(id, track.blobUrl, canvas, ctx);
-        await new Promise(resolve => setTimeout(resolve, 20));
+        if (!track.peaks && track.audioBuffer) {
+            track.peaks = extractPeaks(track.audioBuffer, 2000);
+        }
+
+        drawWaveformWithGrid(track, canvas);
     }
 }
 
-async function drawWaveformFromBlob(id, blobUrl, canvas, ctx) {
-    const track = tracks[id];
-    if (!track) return;
-
-    if (track.audioBuffer) {
-        drawWaveformFromBuffer(track.audioBuffer, canvas, ctx);
-        return;
-    }
-
-    try {
-        const res = await fetch(blobUrl);
-        const arrayBuffer = await res.arrayBuffer();
-        
-        const OfflineContextClass = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        const tempCtx = new OfflineContextClass(1, 1, 44100);
-        const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
-        
-        track.audioBuffer = audioBuffer;
-        drawWaveformFromBuffer(audioBuffer, canvas, ctx);
-    } catch (err) {
-        console.error("Error al renderizar forma de onda:", err);
-        ctx.fillStyle = "#09090b";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#52525b";
-        ctx.fillText("FORMA DE ONDA NO DISPONIBLE", 20, 36);
-    }
-}
-
-function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
-    const w = canvas.width;
-    const h = canvas.height;
-    const data = audioBuffer.getChannelData(0);
-    const step = Math.ceil(data.length / w);
-    const amp = h / 2;
+function drawWaveformWithGrid(track, canvas) {
+    const parentWidth = canvas.parentElement.clientWidth || 600;
+    const w = Math.max(300, Math.round(parentWidth * timelineZoom));
+    const h = 64;
     
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    canvas.style.width = `${w}px`;
+    
+    const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#09090b";
     ctx.fillRect(0, 0, w, h);
     
-    // 1. Dibujar Rejilla Visual de Beats (Líneas verticales de tiempo sincronizadas con el click)
+    // 1. Rejilla Visual de Beats (Cyan en Beat 1, Tenue en Beats 2, 3, 4)
     if (duration > 0 && currentBpm > 0) {
         const beatInterval = 60 / currentBpm;
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
@@ -2694,7 +2710,7 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
                 const x = (t / duration) * w;
                 const isDownbeat = (beatIdx % beatsPerBar === 0);
                 
-                ctx.strokeStyle = isDownbeat ? "rgba(6, 182, 212, 0.40)" : "rgba(255, 255, 255, 0.08)";
+                ctx.strokeStyle = isDownbeat ? "rgba(6, 182, 212, 0.50)" : "rgba(255, 255, 255, 0.08)";
                 ctx.lineWidth = isDownbeat ? 1.5 : 1;
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
@@ -2706,7 +2722,7 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
         }
     }
 
-    // 2. Línea central
+    // 2. Línea Central
     ctx.strokeStyle = "#18181b";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -2714,35 +2730,27 @@ function drawWaveformFromBuffer(audioBuffer, canvas, ctx) {
     ctx.lineTo(w, h/2);
     ctx.stroke();
     
-    // 3. Onda de audio
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    
-    const maxSamplesPerPixel = 100;
-    const stride = Math.max(1, Math.floor(step / maxSamplesPerPixel));
-    
-    for (let i = 0; i < w; i++) {
-        let min = 1.0;
-        let max = -1.0;
-        const start = i * step;
-        const end = Math.min(start + step, data.length);
+    // 3. Dibujar Forma de Onda desde Peaks Pre-calculados en < 0.2ms
+    const peaks = track.peaks;
+    if (peaks && peaks.length > 0) {
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
         
-        for (let j = start; j < end; j += stride) {
-            const val = data[j];
-            if (val < min) min = val;
-            if (val > max) max = val;
+        const numPeaks = peaks.length / 2;
+        const amp = h / 2;
+        
+        for (let i = 0; i < w; i++) {
+            const peakIdx = Math.floor((i / w) * numPeaks);
+            const min = peaks[peakIdx * 2];
+            const max = peaks[peakIdx * 2 + 1];
+            
+            ctx.moveTo(i, amp + min * amp * 0.88);
+            ctx.lineTo(i, amp + max * amp * 0.88);
         }
-        
-        if (min === 1.0 && max === -1.0) {
-            min = 0;
-            max = 0;
-        }
-        
-        ctx.moveTo(i, amp + min * amp * 0.85);
-        ctx.lineTo(i, amp + max * amp * 0.85);
+        ctx.stroke();
     }
-    ctx.stroke();
+    
     canvas.waveformImage = ctx.getImageData(0, 0, w, h);
 }
 
