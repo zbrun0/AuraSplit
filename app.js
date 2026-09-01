@@ -3109,8 +3109,12 @@ async function initAuth() {
             } else {
                 currentUser = null;
                 userProfile = null;
+                cachedRepertoireProjects = [];
             }
             updateAuthUI();
+            if (vaultModal && !vaultModal.classList.contains("hidden")) {
+                loadVaultProjects();
+            }
         });
     } catch (err) {
         console.warn("Error al inicializar sesión Supabase:", err);
@@ -3404,15 +3408,35 @@ if (vaultSearchInput) {
 
 async function loadVaultProjects() {
     if (!vaultProjectsList) return;
+
+    if (!currentUser) {
+        vaultProjectsList.innerHTML = `
+            <div class="text-center py-12 text-zinc-400 font-mono text-xs space-y-3">
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
+                    <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                </div>
+                <p class="text-zinc-200 font-bold text-sm">Tu Repertorio es Personal y Privado</p>
+                <p class="text-zinc-500 text-[11px] max-w-xs mx-auto">Inicia sesión o regístrate con tu cuenta para guardar y acceder a tus canciones personalizadas.</p>
+                <button onclick="if (document.getElementById('authModal')) document.getElementById('authModal').classList.remove('hidden');" class="mt-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs font-mono transition-all shadow-lg shadow-red-600/20">
+                    INICIAR SESIÓN / REGISTRARSE
+                </button>
+            </div>
+        `;
+        if (repertoireCountLabel) {
+            repertoireCountLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-zinc-600"></span> Inicia sesión para ver tu repertorio`;
+        }
+        return;
+    }
+
     vaultProjectsList.innerHTML = `
         <div class="text-center py-12 text-zinc-500 font-mono text-xs flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-red-500 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
-            Cargando tu repertorio de canciones...
+            Cargando tu repertorio personal de canciones...
         </div>
     `;
 
     try {
-        const res = await fetch(`${BACKEND_URL}/vault/list`);
+        const res = await fetch(`${BACKEND_URL}/vault/list?user_id=${encodeURIComponent(currentUser.id)}`);
         if (!res.ok) throw new Error("No se pudo conectar con el servidor.");
         const data = await res.json();
         
@@ -3447,7 +3471,7 @@ function renderFilteredRepertoire(query = "") {
                 <div class="text-center py-12 text-zinc-500 font-mono text-xs space-y-2">
                     <svg class="w-10 h-10 mx-auto text-zinc-700 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                     <p class="text-zinc-300 font-bold">Tu repertorio está vacío</p>
-                    <p class="text-zinc-500 text-[11px]">Separa una canción y haz clic en "GUARDAR EN REPERTORIO" para tenerla siempre lista.</p>
+                    <p class="text-zinc-500 text-[11px]">Separa una canción y haz clic en "GUARDAR EN REPERTORIO" para tenerla siempre lista en tu cuenta.</p>
                 </div>
             `;
         } else {
@@ -3576,6 +3600,12 @@ window.deleteProjectFromVault = async function(folderId) {
 };
 
 async function saveCurrentProjectToVault() {
+    if (!currentUser) {
+        if (authModal) authModal.classList.remove("hidden");
+        alert("Debes iniciar sesión con tu cuenta para guardar canciones en tu repertorio personal.");
+        return;
+    }
+
     if (!currentJobId) {
         alert("Debes separar una canción antes de poder guardarla en tu repertorio.");
         return;
@@ -3601,6 +3631,7 @@ async function saveCurrentProjectToVault() {
 
         const formData = new FormData();
         formData.append("job_id", currentJobId);
+        formData.append("user_id", currentUser.id);
         formData.append("project_name", currentFileName || "Canción AuraSplit");
         formData.append("project_metadata", JSON.stringify(projectMetadata));
 
