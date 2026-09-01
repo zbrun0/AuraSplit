@@ -1562,77 +1562,47 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
             await getCueAudioBuffer("4")
         ];
 
-        // 1. Conteo Inicial en el Pre-Roll (de 0:00 a leadInSec):
-        if (leadInSec > 0 || preRollBars >= 1) {
-            const introCue = await getCueAudioBuffer("intro");
-            if (introCue) {
-                insertAudioBufferToChannel(left, right, introCue, 0);
-            }
-            if (beatsPerBar === 4) {
-                for (let b = 2; b <= 4; b++) {
-                    const countTime = (b - 1) * beatInterval;
-                    if (countTime < duration && countSamples[b]) {
-                        insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
-                    }
-                }
-            } else if (beatsPerBar === 3) {
-                for (let b = 2; b <= 3; b++) {
-                    const countTime = (b - 1) * beatInterval;
-                    if (countTime < duration && countSamples[b]) {
-                        insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
-                    }
-                }
-            }
-        }
-
-        // 2. Insertar avisos vocales 1 compás antes de cada sección subsiguiente
+        // Insertar avisos vocales 1 compás antes de cada sección en su posición exacta
         for (let s = 0; s < songSections.length; s++) {
             const sec = songSections[s];
-            if (s === 0 && (leadInSec > 0 || sec.startBar === 0)) {
-                // La Intro ya fue cantada en el conteo previo inicial
-                continue;
-            }
-
             const sectionTargetTime = sec.startTime;
-            const preMeasureTime = sectionTargetTime - barDuration;
+            const preMeasureTime = Math.max(0, sectionTargetTime - barDuration);
 
             let sampleCue = await getCueAudioBuffer(sec.cueKey || "verso");
             if (!sampleCue) sampleCue = await getCueAudioBuffer("verso");
 
-            if (preMeasureTime >= 0) {
-                if (beatsPerBar === 4) {
-                    // 4/4: Beat 1 = Sección ("Coro"), Beat 2 = "2", Beat 3 = "3", Beat 4 = "4"
-                    if (sampleCue) {
-                        insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
-                    }
-                    if (countSamples[2]) {
-                        insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
-                    }
-                    if (countSamples[3]) {
-                        insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
-                    }
-                    if (countSamples[4]) {
-                        insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
-                    }
-                } else if (beatsPerBar === 3) {
-                    // 3/4: Beat 1 = Sección, Beat 2 = "2", Beat 3 = "3"
-                    if (sampleCue) {
-                        insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
-                    }
-                    if (countSamples[2]) {
-                        insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
-                    }
-                    if (countSamples[3]) {
-                        insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
-                    }
-                } else {
-                    // 6/8: Beat 1 = Sección, Beat 4 = "4"
-                    if (sampleCue) {
-                        insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
-                    }
-                    if (countSamples[4]) {
-                        insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
-                    }
+            if (beatsPerBar === 4) {
+                // 4/4: Beat 1 = Sección ("Intro", "Verso", "Coro"...), Beat 2 = "2", Beat 3 = "3", Beat 4 = "4"
+                if (sampleCue) {
+                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                }
+                if (countSamples[2]) {
+                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
+                }
+                if (countSamples[3]) {
+                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
+                }
+                if (countSamples[4]) {
+                    insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
+                }
+            } else if (beatsPerBar === 3) {
+                // 3/4: Beat 1 = Sección, Beat 2 = "2", Beat 3 = "3"
+                if (sampleCue) {
+                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                }
+                if (countSamples[2]) {
+                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
+                }
+                if (countSamples[3]) {
+                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
+                }
+            } else {
+                // 6/8: Beat 1 = Sección, Beat 4 = "4"
+                if (sampleCue) {
+                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                }
+                if (countSamples[4]) {
+                    insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
                 }
             }
         }
@@ -1660,6 +1630,7 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
 
             const dlLink = document.getElementById("download-guide");
             if (dlLink) dlLink.href = blobUrl;
+            if (typeof renderAllWaveforms === "function") renderAllWaveforms();
         } else {
             const audio = new Audio(blobUrl);
             audio.preload = "auto";
@@ -2607,19 +2578,46 @@ function updatePhaseDisplay() {
     }
 }
 
+function syncSectionsToPhaseOffset(oldOffset, newOffset) {
+    if (!songSections || songSections.length === 0 || !duration) return;
+    const delta = newOffset - oldOffset;
+    if (Math.abs(delta) < 0.0001) return;
+
+    songSections.forEach(sec => {
+        let newStartTime = sec.startTime + delta;
+        newStartTime = Math.max(0, Math.min(duration - 0.5, newStartTime));
+        sec.startTime = newStartTime;
+    });
+
+    songSections.sort((a, b) => a.startTime - b.startTime);
+    for (let i = 0; i < songSections.length; i++) {
+        if (i < songSections.length - 1) {
+            songSections[i].endTime = songSections[i + 1].startTime;
+        } else {
+            songSections[i].endTime = duration;
+        }
+    }
+
+    renderSectionMarkers();
+}
+
 function adjustOffsetByMs(deltaMs) {
     const deltaSec = deltaMs / 1000;
     const beatInterval = 60 / currentBpm;
+    const oldOffset = currentOffsetSec;
     currentOffsetSec = (currentOffsetSec + deltaSec + beatInterval * 100) % beatInterval;
+    syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
     updatePhaseDisplay();
     renderAllWaveforms();
-    debounceSyncClickAndGuide(120);
+    debounceSyncClickAndGuide(100);
 }
 
 if (phaseSlider) {
     phaseSlider.addEventListener("input", (e) => {
         const msVal = parseFloat(e.target.value);
+        const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
+        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
         updatePhaseDisplay();
         renderAllWaveforms();
         debounceSyncClickAndGuide(100);
@@ -2629,7 +2627,9 @@ if (phaseSlider) {
 if (tlPhaseSlider) {
     tlPhaseSlider.addEventListener("input", (e) => {
         const msVal = parseFloat(e.target.value);
+        const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
+        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
         updatePhaseDisplay();
         renderAllWaveforms();
         debounceSyncClickAndGuide(100);
@@ -2720,7 +2720,9 @@ function executeAutoSnap() {
     }
     
     const exactPeakSec = peakSample / sampleRate;
+    const oldOffset = currentOffsetSec;
     currentOffsetSec = exactPeakSec % beatInterval;
+    syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
     updatePhaseDisplay();
     renderAllWaveforms();
     debounceSyncClickAndGuide(50);
@@ -2737,7 +2739,9 @@ if (autoSnapDrumBtn) {
 if (syncCursorBtn) {
     syncCursorBtn.addEventListener("click", () => {
         const beatInterval = 60 / currentBpm;
+        const oldOffset = currentOffsetSec;
         currentOffsetSec = playOffset % beatInterval;
+        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
         updatePhaseDisplay();
         renderAllWaveforms();
         debounceSyncClickAndGuide(50);
