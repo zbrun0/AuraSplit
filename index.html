@@ -375,9 +375,18 @@
                 <div class="bg-zinc-950/90 border border-zinc-900 p-3 rounded-2xl flex flex-col gap-2 mt-1">
                     <div class="flex flex-wrap justify-between items-center px-1 gap-2">
                         <span class="font-mono text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span> SECCIONES Y GUÍAS (Usa ◀ / ▶ en cada sección para moverla en la línea de tiempo):
+                            <span class="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span> SECCIONES Y GUÍAS (Mueve por tiempos o compases):
                         </span>
                         <div class="flex flex-wrap items-center gap-2">
+                            <!-- Desplazar Todo el Grupo de Guías -->
+                            <div class="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-xl">
+                                <span class="text-[9px] font-mono font-black text-amber-400 uppercase tracking-widest mr-0.5">GRUPO:</span>
+                                <button id="shiftAllBeatsLeftBtn" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded text-[9px] font-mono font-bold btn-tactile" title="Mover todas las guías 1 tiempo antes">-1t</button>
+                                <button id="shiftAllBarsLeftBtn" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded text-[9px] font-mono font-bold btn-tactile" title="Mover todas las guías 1 compás antes">-1c</button>
+                                <button id="shiftAllBarsRightBtn" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded text-[9px] font-mono font-bold btn-tactile" title="Mover todas las guías 1 compás después">+1c</button>
+                                <button id="shiftAllBeatsRightBtn" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded text-[9px] font-mono font-bold btn-tactile" title="Mover todas las guías 1 tiempo después">+1t</button>
+                            </div>
+
                             <button id="addSectionMarkerBtn" class="text-[9px] font-mono font-bold text-pink-400 hover:text-pink-300 uppercase transition-colors flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 px-2.5 py-1 rounded-lg btn-tactile" title="Crear un nuevo marcador de sección en la posición del cursor">
                                 + Dividir en Cursor
                             </button>
@@ -455,10 +464,12 @@
                         </label>
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <div class="flex items-center gap-1.5">
-                                <button id="modalMoveBarLeftBtn" type="button" class="px-2.5 py-1.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-lg border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover 1 compás antes">◀ -1 Compás</button>
-                                <button id="modalMoveBarRightBtn" type="button" class="px-2.5 py-1.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-lg border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover 1 compás después">+1 Compás ▶</button>
+                                <button id="modalMoveBeatLeftBtn" type="button" class="px-2 py-1 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-lg border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover 1 tiempo antes">-1 Tiempo</button>
+                                <button id="modalMoveBarLeftBtn" type="button" class="px-2 py-1 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-lg border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover 1 compás antes">◀ -1 Compás</button>
+                                <button id="modalMoveBarRightBtn" type="button" class="px-2 py-1 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-lg border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover 1 compás después">+1 Compás ▶</button>
+                                <button id="modalMoveBeatRightBtn" type="button" class="px-2 py-1 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-lg border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover 1 tiempo después">+1 Tiempo</button>
                             </div>
-                            <button id="modalMoveToCursorBtn" type="button" class="px-2.5 py-1.5 bg-cyan-950 hover:bg-cyan-900 text-cyan-400 rounded-lg border border-cyan-800/80 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover esta sección a la posición del cursor de reproducción">
+                            <button id="modalMoveToCursorBtn" type="button" class="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-400 rounded-lg border border-cyan-800/80 text-[10px] font-mono font-bold transition-all btn-tactile" title="Mover esta sección a la posición del cursor de reproducción">
                                 📍 En Cursor
                             </button>
                         </div>
@@ -572,6 +583,6 @@
     </footer>
 
     <!-- Script principal -->
-    <script src="app.js?v=2.9.0"></script>
+    <script src="app.js?v=3.0.0"></script>
 </body>
 </html>

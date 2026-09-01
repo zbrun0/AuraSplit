@@ -1168,9 +1168,17 @@ const editorBadgeColor = document.getElementById("editorBadgeColor");
 const editorSectionTitle = document.getElementById("editorSectionTitle");
 const editorSectionTiming = document.getElementById("editorSectionTiming");
 const addSectionMarkerBtn = document.getElementById("addSectionMarkerBtn");
+const modalMoveBeatLeftBtn = document.getElementById("modalMoveBeatLeftBtn");
 const modalMoveBarLeftBtn = document.getElementById("modalMoveBarLeftBtn");
 const modalMoveBarRightBtn = document.getElementById("modalMoveBarRightBtn");
+const modalMoveBeatRightBtn = document.getElementById("modalMoveBeatRightBtn");
 const modalMoveToCursorBtn = document.getElementById("modalMoveToCursorBtn");
+
+// Controles de Desplazamiento Global del Grupo de Guías
+const shiftAllBeatsLeftBtn = document.getElementById("shiftAllBeatsLeftBtn");
+const shiftAllBarsLeftBtn = document.getElementById("shiftAllBarsLeftBtn");
+const shiftAllBarsRightBtn = document.getElementById("shiftAllBarsRightBtn");
+const shiftAllBeatsRightBtn = document.getElementById("shiftAllBeatsRightBtn");
 
 function openSectionEditor(sectionId) {
     const sec = songSections.find(s => s.id === sectionId);
@@ -1230,16 +1238,18 @@ function renderSectionTypeButtons() {
 }
 
 // --- Funciones para Mover Guías y Secciones en la Línea de Tiempo ---
-function moveSection(sectionId, deltaBars) {
+function moveSection(sectionId, deltaUnits, unitType = "bars") {
     if (!songSections || songSections.length === 0 || !duration) return;
     const secIndex = songSections.findIndex(s => s.id === sectionId);
     if (secIndex === -1) return;
 
     const sec = songSections[secIndex];
+    const beatInterval = 60 / currentBpm;
     const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-    const barDuration = (60 / currentBpm) * beatsPerBar;
+    const barDuration = beatInterval * beatsPerBar;
     
-    let newStartTime = sec.startTime + (deltaBars * barDuration);
+    const deltaSec = (unitType === "beats") ? (deltaUnits * beatInterval) : (deltaUnits * barDuration);
+    let newStartTime = sec.startTime + deltaSec;
     newStartTime = Math.max(0, Math.min(duration - 0.5, newStartTime));
     
     sec.startTime = newStartTime;
@@ -1255,11 +1265,40 @@ function moveSection(sectionId, deltaBars) {
     }
 
     renderSectionMarkers();
+    if (typeof renderAllWaveforms === "function") renderAllWaveforms();
     
     if (editingSectionId === sectionId && editorSectionTiming) {
         editorSectionTiming.textContent = `Inicio: ${formatTime(sec.startTime)} - Fin: ${formatTime(sec.endTime)}`;
     }
 
+    debounceSyncClickAndGuide(100);
+}
+
+function shiftAllSections(deltaUnits, unitType = "bars") {
+    if (!songSections || songSections.length === 0 || !duration) return;
+    const beatInterval = 60 / currentBpm;
+    const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+    const barDuration = beatInterval * beatsPerBar;
+    const deltaSec = (unitType === "beats") ? (deltaUnits * beatInterval) : (deltaUnits * barDuration);
+
+    songSections.forEach(sec => {
+        let newStartTime = sec.startTime + deltaSec;
+        newStartTime = Math.max(0, Math.min(duration - 0.5, newStartTime));
+        sec.startTime = newStartTime;
+        sec.startBar = Math.round(newStartTime / barDuration);
+    });
+
+    songSections.sort((a, b) => a.startTime - b.startTime);
+    for (let i = 0; i < songSections.length; i++) {
+        if (i < songSections.length - 1) {
+            songSections[i].endTime = songSections[i + 1].startTime;
+        } else {
+            songSections[i].endTime = duration;
+        }
+    }
+
+    renderSectionMarkers();
+    if (typeof renderAllWaveforms === "function") renderAllWaveforms();
     debounceSyncClickAndGuide(100);
 }
 
@@ -1288,6 +1327,7 @@ function moveSectionToTime(sectionId, targetTime) {
     }
 
     renderSectionMarkers();
+    if (typeof renderAllWaveforms === "function") renderAllWaveforms();
     
     if (editingSectionId === sectionId && editorSectionTiming) {
         editorSectionTiming.textContent = `Inicio: ${formatTime(sec.startTime)} - Fin: ${formatTime(sec.endTime)}`;
@@ -1296,23 +1336,37 @@ function moveSectionToTime(sectionId, targetTime) {
     debounceSyncClickAndGuide(100);
 }
 
+if (modalMoveBeatLeftBtn) {
+    modalMoveBeatLeftBtn.addEventListener("click", () => {
+        if (editingSectionId) moveSection(editingSectionId, -1, "beats");
+    });
+}
 if (modalMoveBarLeftBtn) {
     modalMoveBarLeftBtn.addEventListener("click", () => {
-        if (editingSectionId) moveSection(editingSectionId, -1);
+        if (editingSectionId) moveSection(editingSectionId, -1, "bars");
     });
 }
-
 if (modalMoveBarRightBtn) {
     modalMoveBarRightBtn.addEventListener("click", () => {
-        if (editingSectionId) moveSection(editingSectionId, 1);
+        if (editingSectionId) moveSection(editingSectionId, 1, "bars");
     });
 }
-
+if (modalMoveBeatRightBtn) {
+    modalMoveBeatRightBtn.addEventListener("click", () => {
+        if (editingSectionId) moveSection(editingSectionId, 1, "beats");
+    });
+}
 if (modalMoveToCursorBtn) {
     modalMoveToCursorBtn.addEventListener("click", () => {
         if (editingSectionId) moveSectionToTime(editingSectionId, playOffset);
     });
 }
+
+// Botones para Desplazar Todo el Grupo
+if (shiftAllBeatsLeftBtn) shiftAllBeatsLeftBtn.addEventListener("click", () => shiftAllSections(-1, "beats"));
+if (shiftAllBarsLeftBtn) shiftAllBarsLeftBtn.addEventListener("click", () => shiftAllSections(-1, "bars"));
+if (shiftAllBarsRightBtn) shiftAllBarsRightBtn.addEventListener("click", () => shiftAllSections(1, "bars"));
+if (shiftAllBeatsRightBtn) shiftAllBeatsRightBtn.addEventListener("click", () => shiftAllSections(1, "beats"));
 
 if (saveSectionEditorBtn) {
     saveSectionEditorBtn.addEventListener("click", async () => {
@@ -2599,55 +2653,54 @@ if (tlNudgeRightBtn) tlNudgeRightBtn.addEventListener("click", () => adjustOffse
 if (tlNudgePlus10) tlNudgePlus10.addEventListener("click", () => adjustOffsetByMs(10));
 if (tlNudgePlus50) tlNudgePlus50.addEventListener("click", () => adjustOffsetByMs(50));
 
+function executeAutoSnap() {
+    const drumBuffer = cachedDecodedStemBuffers.drums || (tracks.drums && tracks.drums.audioBuffer);
+    if (!drumBuffer) {
+        alert("No se encontró la pista de batería para calzar.");
+        return;
+    }
+    
+    const sampleRate = drumBuffer.sampleRate;
+    const data = drumBuffer.getChannelData(0);
+    const beatInterval = 60 / currentBpm;
+    const searchCenter = playOffset > 0 ? playOffset : (currentOffsetSec || 0);
+    const startSec = Math.max(0, searchCenter - beatInterval * 0.8);
+    const endSec = Math.min(drumBuffer.duration, searchCenter + beatInterval * 0.8);
+    
+    const startIdx = Math.floor(startSec * sampleRate);
+    const endIdx = Math.floor(endSec * sampleRate);
+    
+    let maxEnergy = 0;
+    let peakSample = startIdx;
+    const win = 128;
+    
+    for (let i = startIdx; i < endIdx - win; i += win) {
+        let sumSq = 0;
+        for (let j = 0; j < win; j++) {
+            const v = data[i + j];
+            sumSq += v * v;
+        }
+        if (sumSq > maxEnergy) {
+            maxEnergy = sumSq;
+            peakSample = i;
+        }
+    }
+    
+    const exactPeakSec = peakSample / sampleRate;
+    currentOffsetSec = exactPeakSec % beatInterval;
+    updatePhaseDisplay();
+    if (typeof renderAllWaveforms === "function") {
+        renderAllWaveforms();
+    }
+    debounceSyncClickAndGuide(50);
+}
+
 if (tlAutoSnapDrumBtn) {
-    tlAutoSnapDrumBtn.addEventListener("click", () => {
-        if (autoSnapDrumBtn) autoSnapDrumBtn.click();
-    });
+    tlAutoSnapDrumBtn.addEventListener("click", executeAutoSnap);
 }
 
 if (autoSnapDrumBtn) {
-    autoSnapDrumBtn.addEventListener("click", () => {
-        const drumBuffer = cachedDecodedStemBuffers.drums || (tracks.drums && tracks.drums.audioBuffer);
-        if (!drumBuffer) {
-            alert("No se encontró la pista de batería para calzar.");
-            return;
-        }
-        
-        // Buscar el transitorio de bombo/caja más fuerte dentro de 1 tiempo alrededor de la posición actual
-        const sampleRate = drumBuffer.sampleRate;
-        const data = drumBuffer.getChannelData(0);
-        const beatInterval = 60 / currentBpm;
-        const searchCenter = playOffset > 0 ? playOffset : (currentOffsetSec || 0);
-        const startSec = Math.max(0, searchCenter - beatInterval * 0.8);
-        const endSec = Math.min(drumBuffer.duration, searchCenter + beatInterval * 0.8);
-        
-        const startIdx = Math.floor(startSec * sampleRate);
-        const endIdx = Math.floor(endSec * sampleRate);
-        
-        let maxEnergy = 0;
-        let peakSample = startIdx;
-        const win = 128;
-        
-        for (let i = startIdx; i < endIdx - win; i += win) {
-            let sumSq = 0;
-            for (let j = 0; j < win; j++) {
-                const v = data[i + j];
-                sumSq += v * v;
-            }
-            if (sumSq > maxEnergy) {
-                maxEnergy = sumSq;
-                peakSample = i;
-            }
-        }
-        
-        const exactPeakSec = peakSample / sampleRate;
-        currentOffsetSec = exactPeakSec % beatInterval;
-        updatePhaseDisplay();
-        if (waveformsRendered && typeof renderAllWaveforms === "function") {
-            renderAllWaveforms();
-        }
-        debounceSyncClickAndGuide(50);
-    });
+    autoSnapDrumBtn.addEventListener("click", executeAutoSnap);
 }
 
 if (syncCursorBtn) {
@@ -2655,10 +2708,8 @@ if (syncCursorBtn) {
         const beatInterval = 60 / currentBpm;
         currentOffsetSec = playOffset % beatInterval;
         updatePhaseDisplay();
-        if (waveformsRendered && typeof renderAllWaveforms === "function") {
-            renderAllWaveforms();
-        }
-        debounceSyncClickAndGuide(80);
+        renderAllWaveforms();
+        debounceSyncClickAndGuide(50);
     });
 }
 
@@ -2973,6 +3024,35 @@ function drawWaveformWithGrid(id, track, canvas) {
             ctx.lineTo(i, amp + max * amp * 0.90);
         }
         ctx.stroke();
+    }
+
+    // 4. Dibujar Marcadores y Banderas de Secciones Musicales en la Onda
+    if (duration > 0 && songSections && songSections.length > 0) {
+        songSections.forEach(sec => {
+            const secX = (sec.startTime / duration) * w;
+            if (secX >= 0 && secX <= w) {
+                // Línea vertical distintiva de sección
+                ctx.setLineDash([]);
+                ctx.strokeStyle = sec.color || "#ec4899";
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(secX, 0);
+                ctx.lineTo(secX, h);
+                ctx.stroke();
+
+                // Bandera/Etiqueta superior en la cabecera del lienzo
+                const labelText = sec.name.toUpperCase();
+                ctx.font = "bold 8.5px monospace";
+                const textWidth = ctx.measureText(labelText).width;
+                const badgeWidth = textWidth + 8;
+                
+                ctx.fillStyle = sec.color || "#ec4899";
+                ctx.fillRect(secX, 0, badgeWidth, 12);
+                
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText(labelText, secX + 4, 9);
+            }
+        });
     }
 }
 
