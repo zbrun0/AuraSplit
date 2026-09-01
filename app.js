@@ -2246,6 +2246,7 @@ function updateTrackGains() {
 
         if (currentPreviewTrack) {
             targetGain = (id === currentPreviewTrack) ? track.volume : 0;
+        } else {
             if (track.isMuted) {
                 targetGain = 0;
             } else if (anySoloed) {
@@ -3780,6 +3781,8 @@ function openUserProfileModal() {
     const proPerks = document.getElementById("profileProPerks");
     const upgradeBtn = document.getElementById("profileUpgradeBtn");
     const cancelBtn = document.getElementById("profileCancelSubBtn");
+    const repCountStat = document.getElementById("profileRepertoireStatCount");
+    const accountDetails = document.getElementById("profileAccountDetails");
 
     const name = userProfile?.full_name || currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Usuario";
     const email = currentUser.email || "";
@@ -3787,6 +3790,11 @@ function openUserProfileModal() {
     if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
     if (nameLabel) nameLabel.textContent = name;
     if (emailLabel) emailLabel.textContent = email;
+    if (repCountStat) repCountStat.textContent = (cachedRepertoireProjects && cachedRepertoireProjects.length > 0) ? `${cachedRepertoireProjects.length}` : "0";
+    if (accountDetails) {
+        const prov = currentUser.app_metadata?.provider || "email";
+        accountDetails.textContent = `Sesión iniciada con ${prov.toUpperCase()} (${email})`;
+    }
 
     const isPro = isUserPro();
     const subStatus = userProfile?.subscription_status || "none";
@@ -3811,7 +3819,7 @@ function openUserProfileModal() {
             if (renewalDate) renewalDate.textContent = "Renovación Automática Mensual";
         }
 
-        if (engineType) engineType.textContent = "GPU Serverless Dedicada (HD)";
+        if (engineType) engineType.textContent = "GPU Serverless (HD)";
         if (proPerks) proPerks.classList.remove("hidden");
         if (upgradeBtn) upgradeBtn.classList.add("hidden");
         if (cancelBtn) cancelBtn.classList.remove("hidden");
