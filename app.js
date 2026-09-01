@@ -119,6 +119,19 @@ const tlNudgePlus10 = document.getElementById("tlNudgePlus10");
 const tlNudgePlus50 = document.getElementById("tlNudgePlus50");
 const tlAutoSnapDrumBtn = document.getElementById("tlAutoSnapDrumBtn");
 
+// Controles de Cambio de Tono (Pitch Shifter) y Presets de Práctica
+const pitchDownBtn = document.getElementById("pitchDownBtn");
+const pitchDisplayVal = document.getElementById("pitchDisplayVal");
+const pitchUpBtn = document.getElementById("pitchUpBtn");
+const pitchResetBtn = document.getElementById("pitchResetBtn");
+
+const presetKaraokeBtn = document.getElementById("presetKaraokeBtn");
+const presetDrumlessBtn = document.getElementById("presetDrumlessBtn");
+const presetBasslessBtn = document.getElementById("presetBasslessBtn");
+const presetGuitarlessBtn = document.getElementById("presetGuitarlessBtn");
+const presetVocalsBtn = document.getElementById("presetVocalsBtn");
+const presetResetBtn = document.getElementById("presetResetBtn");
+
 // Controles de Configuración Inicial de Subida
 const initialBpmInput = document.getElementById("initialBpmInput");
 const autoBpmToggleBtn = document.getElementById("autoBpmToggleBtn");
@@ -2747,6 +2760,98 @@ if (syncCursorBtn) {
         debounceSyncClickAndGuide(50);
     });
 }
+
+// --- Cambio de Tono en Tiempo Real (Pitch Shifter en Semitonos) ---
+let currentPitchShift = 0; // -6 a +6 semitonos
+
+function applyPitchShift(semitones) {
+    currentPitchShift = Math.max(-6, Math.min(6, semitones));
+    if (pitchDisplayVal) {
+        const sign = currentPitchShift > 0 ? `+${currentPitchShift}` : `${currentPitchShift}`;
+        pitchDisplayVal.textContent = `${sign} st`;
+    }
+
+    const rate = Math.pow(2, currentPitchShift / 12);
+    for (const [id, track] of Object.entries(tracks)) {
+        if (track && track.audio) {
+            track.audio.preservesPitch = false;
+            track.audio.playbackRate = rate;
+        }
+    }
+}
+
+if (pitchDownBtn) pitchDownBtn.addEventListener("click", () => applyPitchShift(currentPitchShift - 1));
+if (pitchUpBtn) pitchUpBtn.addEventListener("click", () => applyPitchShift(currentPitchShift + 1));
+if (pitchResetBtn) pitchResetBtn.addEventListener("click", () => applyPitchShift(0));
+
+// --- Presets Rápidos de Ensayos / Práctica (Karaoke, Batería, Bajo, Guitarra, Voces, Reset) ---
+function applyMixPreset(presetName) {
+    for (const [id, track] of Object.entries(tracks)) {
+        track.isMuted = false;
+        track.isSoloed = false;
+        track.volume = 0.80;
+    }
+
+    if (presetName === "karaoke") {
+        if (tracks.vocals) tracks.vocals.isMuted = true;
+    } else if (presetName === "drumless") {
+        if (tracks.drums) tracks.drums.isMuted = true;
+        if (tracks.metronome) tracks.metronome.volume = 1.0;
+        if (tracks.guide) tracks.guide.volume = 1.0;
+    } else if (presetName === "bassless") {
+        if (tracks.bass) tracks.bass.isMuted = true;
+    } else if (presetName === "guitarless") {
+        if (tracks.guitar) tracks.guitar.isMuted = true;
+        if (tracks.other) tracks.other.volume = 0.35;
+    } else if (presetName === "vocals_only") {
+        if (tracks.vocals) tracks.vocals.isSoloed = true;
+        if (tracks.guide) tracks.guide.isSoloed = true;
+    } else if (presetName === "reset") {
+        for (const [id, track] of Object.entries(tracks)) {
+            track.isMuted = false;
+            track.isSoloed = false;
+            track.volume = 0.80;
+        }
+    }
+
+    // Actualizar interfaz gráfica de faders y botones de Mute/Solo
+    for (const [id, track] of Object.entries(tracks)) {
+        const muteBtn = document.getElementById(`mute-${id}`);
+        const muteTimelineBtn = document.getElementById(`mute-timeline-${id}`);
+        const soloBtn = document.getElementById(`solo-${id}`);
+        const soloTimelineBtn = document.getElementById(`solo-timeline-${id}`);
+        const fader = document.getElementById(`fader-${id}`);
+        const timelineFader = document.getElementById(`fader-timeline-${id}`);
+
+        if (muteBtn) {
+            if (track.isMuted) muteBtn.classList.add("bg-red-600", "text-white", "border-red-500");
+            else muteBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
+        }
+        if (muteTimelineBtn) {
+            if (track.isMuted) muteTimelineBtn.classList.add("bg-red-600", "text-white", "border-red-500");
+            else muteTimelineBtn.classList.remove("bg-red-600", "text-white", "border-red-500");
+        }
+        if (soloBtn) {
+            if (track.isSoloed) soloBtn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
+            else soloBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+        }
+        if (soloTimelineBtn) {
+            if (track.isSoloed) soloTimelineBtn.classList.add("bg-yellow-600", "text-white", "border-yellow-500");
+            else soloTimelineBtn.classList.remove("bg-yellow-600", "text-white", "border-yellow-500");
+        }
+        if (fader) fader.value = Math.round(track.volume * 100);
+        if (timelineFader) timelineFader.value = Math.round(track.volume * 100);
+    }
+
+    updateTrackGains();
+}
+
+if (presetKaraokeBtn) presetKaraokeBtn.addEventListener("click", () => applyMixPreset("karaoke"));
+if (presetDrumlessBtn) presetDrumlessBtn.addEventListener("click", () => applyMixPreset("drumless"));
+if (presetBasslessBtn) presetBasslessBtn.addEventListener("click", () => applyMixPreset("bassless"));
+if (presetGuitarlessBtn) presetGuitarlessBtn.addEventListener("click", () => applyMixPreset("guitarless"));
+if (presetVocalsBtn) presetVocalsBtn.addEventListener("click", () => applyMixPreset("vocals_only"));
+if (presetResetBtn) presetResetBtn.addEventListener("click", () => applyMixPreset("reset"));
 
 if (regenerateClickBtn) {
     regenerateClickBtn.addEventListener("click", () => {

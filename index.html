@@ -347,30 +347,49 @@
                     </div>
                 </div>
 
-                <!-- 3. Barra de Herramientas Musicales Pro (BPM y Alineación Milimétrica) -->
-                <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-900/80 text-xs">
-                    <!-- Control de BPM y Alineación Milimétrica Pro -->
-                    <div class="flex flex-wrap items-center gap-2 bg-zinc-950/90 border border-zinc-900 p-2.5 rounded-2xl w-full">
-                        <!-- BPM Input -->
-                    <!-- Controles Musicales Principales: BPM, COMPÁS, TAP -->
+                <!-- Presets Rápidos de Ensayos / Práctica -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-900/80">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="font-mono text-[9px] font-black text-zinc-400 uppercase tracking-widest mr-1 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5 text-red-500 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            PRESETS:
+                        </span>
+                        <button id="presetKaraokeBtn" type="button" class="px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-850 hover:border-red-500/40 text-zinc-300 hover:text-white rounded-xl border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Silenciar voces (Pista de Acompañamiento)">🎤 Karaoke</button>
+                        <button id="presetDrumlessBtn" type="button" class="px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-850 hover:border-blue-500/40 text-zinc-300 hover:text-white rounded-xl border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Para bateristas (Sin batería + Click y Guía)">🥁 Batería</button>
+                        <button id="presetBasslessBtn" type="button" class="px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-850 hover:border-emerald-500/40 text-zinc-300 hover:text-white rounded-xl border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Para bajistas (Sin bajo)">🎸 Bajo</button>
+                        <button id="presetGuitarlessBtn" type="button" class="px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-850 hover:border-amber-500/40 text-zinc-300 hover:text-white rounded-xl border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Para guitarristas (Sin guitarra/otros)">🎸 Guitarra</button>
+                        <button id="presetVocalsBtn" type="button" class="px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-850 hover:border-pink-500/40 text-zinc-300 hover:text-white rounded-xl border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Solo Voces y Guía (Armonías)">🗣️ Voces</button>
+                        <button id="presetResetBtn" type="button" class="px-2 py-1 bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl border border-zinc-800 text-[10px] font-mono font-bold transition-all btn-tactile" title="Restablecer todos los canales">🔄 Reset</button>
+                    </div>
+
+                    <!-- Controles Musicales Principales: BPM, COMPÁS, TONO, TAP -->
                     <div class="flex flex-wrap items-center gap-2">
-                        <div class="flex items-center gap-1.5 px-2.5 bg-zinc-900/60 py-1.5 rounded-xl border border-zinc-850">
-                            <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest font-mono">BPM:</span>
-                            <input type="number" id="bpmInput" step="0.1" min="40" max="260" value="120.0" class="w-16 bg-zinc-950 border border-zinc-800 text-red-500 font-mono font-bold text-xs px-2 py-1 rounded-lg text-center focus:border-red-500 outline-none"/>
+                        <div class="flex items-center gap-1.5 px-2.5 bg-zinc-900/60 py-1 rounded-xl border border-zinc-850">
+                            <span class="text-[9px] font-black text-zinc-400 uppercase tracking-widest font-mono">BPM:</span>
+                            <input type="number" id="bpmInput" step="0.1" min="40" max="260" value="120.0" class="w-14 bg-zinc-950 border border-zinc-800 text-red-500 font-mono font-bold text-xs px-1.5 py-0.5 rounded-lg text-center focus:border-red-500 outline-none"/>
                         </div>
-                        <div class="flex items-center gap-1 px-2.5 bg-zinc-900/60 py-1.5 rounded-xl border border-zinc-850">
-                            <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest font-mono">COMPÁS:</span>
-                            <select id="timeSignatureSelect" class="bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[11px] font-bold px-2 py-1 rounded-lg outline-none cursor-pointer">
+                        <div class="flex items-center gap-1 px-2.5 bg-zinc-900/60 py-1 rounded-xl border border-zinc-850">
+                            <span class="text-[9px] font-black text-zinc-400 uppercase tracking-widest font-mono">COMPÁS:</span>
+                            <select id="timeSignatureSelect" class="bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-lg outline-none cursor-pointer">
                                 <option value="4/4" selected>4/4</option>
                                 <option value="3/4">3/4</option>
                                 <option value="6/8">6/8</option>
                             </select>
                         </div>
-                        <button id="tapTempoBtn" class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white font-mono text-[10px] font-bold rounded-xl transition-colors btn-tactile" title="Pulsar rítmicamente para calcular BPM">
+                        <!-- Control de Cambio de Tonalidad (Pitch Shifting en Semitonos) -->
+                        <div class="flex items-center gap-1 px-2.5 bg-zinc-900/60 py-1 rounded-xl border border-zinc-850">
+                            <span class="text-[9px] font-black text-purple-400 uppercase tracking-widest font-mono">TONO:</span>
+                            <button id="pitchDownBtn" type="button" class="px-1.5 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-[10px] font-bold btn-tactile" title="Bajar 1 semitono">-</button>
+                            <span id="pitchDisplayVal" class="font-mono text-[10px] font-bold text-purple-300 min-w-[36px] text-center select-none bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">0 st</span>
+                            <button id="pitchUpBtn" type="button" class="px-1.5 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-[10px] font-bold btn-tactile" title="Subir 1 semitono">+</button>
+                            <button id="pitchResetBtn" type="button" class="px-1 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded font-mono text-[8px] font-bold uppercase btn-tactile">0</button>
+                        </div>
+                        <button id="tapTempoBtn" class="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white font-mono text-[10px] font-bold rounded-xl transition-colors btn-tactile" title="Pulsar rítmicamente para calcular BPM">
                             TAP
                         </button>
                     </div>
                 </div>
+
                 <!-- 4. Barra Persistente de Secciones de la Canción (Visible en Mezclador y Línea de Tiempo) -->
                 <div class="bg-zinc-950/90 border border-zinc-900 p-3 rounded-2xl flex flex-col gap-2 mt-1">
                     <div class="flex flex-wrap justify-between items-center px-1 gap-2">
@@ -583,6 +602,6 @@
     </footer>
 
     <!-- Script principal -->
-    <script src="app.js?v=3.3.0"></script>
+    <script src="app.js?v=3.4.0"></script>
 </body>
 </html>
