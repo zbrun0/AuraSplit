@@ -6,6 +6,9 @@ const PRO_BACKEND_URL = "https://zbrun0--aurasplit-pro-fastapi-app.modal.run";
 const SUPABASE_URL = "https://axyvfsgepyswfffmmtuq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_5_r0HfMfD2KyoccFHHInfA_FHrxsCJP";
 
+// Pasarela de Pagos (Lemon Squeezy Checkout con 5 días de Trial)
+const LEMON_SQUEEZY_CHECKOUT_URL = "https://aurasplit.lemonsqueezy.com/checkout/buy/6a491040-07c2-4a3f-bb22-c8b4bb7e4011";
+
 let supabaseClient = null;
 let currentUser = null;
 let userProfile = null;
@@ -3259,53 +3262,75 @@ if (closePlansModalBtn) {
     });
 }
 
-// Botón de activación de los 5 días de prueba Pro
+// Configurar listener de Lemon Squeezy para eventos de checkout
+if (typeof window !== "undefined") {
+    window.createLemonSqueezy = function() {
+        if (window.LemonSqueezy) {
+            window.LemonSqueezy.Setup({
+                eventHandler: async (event) => {
+                    if (event && event.event === "Checkout.Success") {
+                        console.log("[LemonSqueezy] Checkout exitoso:", event);
+                        if (currentUser && supabaseClient) {
+                            try {
+                                const trialEnd = new Date();
+                                trialEnd.setDate(trialEnd.getDate() + 5);
+                                await supabaseClient.from("profiles").update({
+                                    is_pro: true,
+                                    subscription_status: "trialing",
+                                    trial_end: trialEnd.toISOString()
+                                }).eq("id", currentUser.id);
+
+                                await loadUserProfile(currentUser.id);
+                                updateAuthUI();
+                                alert("👑 ¡Pago configurado con éxito! Tu prueba gratuita de 5 días de AuraSplit Pro está activa.");
+                            } catch (e) {
+                                console.error("Error al actualizar perfil tras checkout:", e);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    };
+    window.addEventListener("DOMContentLoaded", () => {
+        if (window.createLemonSqueezy) window.createLemonSqueezy();
+    });
+}
+
+// Botón de activación de los 5 días de prueba Pro (Lemon Squeezy Checkout)
 if (upgradeProBtn) {
     upgradeProBtn.addEventListener("click", async () => {
-        // 1. Si no ha iniciado sesión, abrir modal de registro
+        // 1. Si no ha iniciado sesión, abrir modal de registro primero
         if (!currentUser) {
             if (plansModal) plansModal.classList.add("hidden");
             if (authModal) authModal.classList.remove("hidden");
             if (authModalSubtitle) {
-                authModalSubtitle.innerHTML = "Crea tu cuenta para activar tu <strong>prueba gratuita de 5 días de AuraSplit Pro</strong> (GPU Serverless ultrarrápida).";
+                authModalSubtitle.innerHTML = "Inicia sesión o crea tu cuenta para comenzar tu <strong>prueba gratuita de 5 días de AuraSplit Pro</strong>.";
             }
-            // Activar modo registro por defecto
             if (!isAuthRegisterMode && authToggleModeBtn) {
                 authToggleModeBtn.click();
             }
             return;
         }
 
-        // 2. Si ya está autenticado, activar la prueba de 5 días en Supabase
+        // 2. Si ya está autenticado, abrir Lemon Squeezy Checkout pasando sus datos
         try {
-            upgradeProBtn.disabled = true;
-            upgradeProBtn.textContent = "ACTIVANDO PRUEBA...";
+            const userEmail = encodeURIComponent(currentUser.email || "");
+            const userName = encodeURIComponent(userProfile?.full_name || currentUser.user_metadata?.full_name || "");
+            const userId = encodeURIComponent(currentUser.id);
 
-            const trialEnd = new Date();
-            trialEnd.setDate(trialEnd.getDate() + 5);
-
-            const { error } = await supabaseClient
-                .from("profiles")
-                .update({
-                    is_pro: true,
-                    subscription_status: "trialing",
-                    trial_end: trialEnd.toISOString()
-                })
-                .eq("id", currentUser.id);
-
-            if (error) throw error;
-
-            await loadUserProfile(currentUser.id);
-            updateAuthUI();
+            const checkoutUrl = `${LEMON_SQUEEZY_CHECKOUT_URL}?checkout[custom][user_id]=${userId}&checkout[email]=${userEmail}&checkout[name]=${userName}&embed=1`;
 
             if (plansModal) plansModal.classList.add("hidden");
-            alert("👑 ¡FELICITACIONES! Has activado tus 5 DÍAS DE PRUEBA GRATIS en AuraSplit Pro.\n\nTus separaciones ahora se procesarán en GPU ultrarrápida en ~10 segundos.");
+
+            if (window.LemonSqueezy && typeof window.LemonSqueezy.Url?.Open === "function") {
+                window.LemonSqueezy.Url.Open(checkoutUrl);
+            } else {
+                window.open(checkoutUrl, "_blank");
+            }
         } catch (err) {
-            console.error("Error activando trial:", err);
-            alert("No se pudo activar la prueba: " + err.message);
-        } finally {
-            upgradeProBtn.disabled = false;
-            upgradeProBtn.textContent = "PROBAR 5 DÍAS GRATIS 👑";
+            console.error("Error abriendo checkout de Lemon Squeezy:", err);
+            window.open(LEMON_SQUEEZY_CHECKOUT_URL, "_blank");
         }
     });
 }
