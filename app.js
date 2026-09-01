@@ -605,6 +605,8 @@ async function decodeAndSetupMixer(blob) {
                     }
                 }
 
+                cachedDecodedStemBuffers = decodedStemBuffers;
+
                 // 1. Detección o uso de BPM
                 const primaryBuffer = decodedStemBuffers.drums || decodedStemBuffers.bass || decodedStemBuffers.vocals || Object.values(decodedStemBuffers)[0];
                 if (primaryBuffer) {
@@ -2023,14 +2025,25 @@ function estimateBeatInterval(rawBeats) {
     return bestInterval;
 }
 
+let cachedDecodedStemBuffers = {};
+
+// Helper para sincronizar click, secciones y guía vocal al ajustar controles
+function syncClickAndGuide() {
+    generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
+    detectSongSections(currentBpm, currentOffsetSec, duration);
+    if (tracks.guide) {
+        const lang = guideLangSelect ? guideLangSelect.value : "es";
+        generateGuideTrack(lang, userConfiguredPreRoll);
+    }
+}
+
 // --- Listeners de Controles Musicales (BPM, Tap Tempo, Offset, Guías) ---
 if (bpmInput) {
     bpmInput.addEventListener("change", () => {
         const val = parseFloat(bpmInput.value);
         if (!isNaN(val) && val >= 40 && val <= 260) {
             currentBpm = val;
-            generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-            detectSongSections(currentBpm, currentOffsetSec, duration);
+            syncClickAndGuide();
         }
     });
 }
@@ -2052,8 +2065,7 @@ if (tapTempoBtn) {
                 const calcBpm = Math.round((60 / avgDiff) * 10) / 10;
                 currentBpm = Math.max(40, Math.min(260, calcBpm));
                 if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
-                generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-                detectSongSections(currentBpm, currentOffsetSec, duration);
+                syncClickAndGuide();
             }
         }
     });
@@ -2062,16 +2074,14 @@ if (tapTempoBtn) {
 if (nudgeLeftBtn) {
     nudgeLeftBtn.addEventListener("click", () => {
         currentOffsetSec = Math.max(0, currentOffsetSec - 0.010);
-        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-        detectSongSections(currentBpm, currentOffsetSec, duration);
+        syncClickAndGuide();
     });
 }
 
 if (nudgeRightBtn) {
     nudgeRightBtn.addEventListener("click", () => {
         currentOffsetSec += 0.010;
-        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-        detectSongSections(currentBpm, currentOffsetSec, duration);
+        syncClickAndGuide();
     });
 }
 
@@ -2079,28 +2089,30 @@ if (syncCursorBtn) {
     syncCursorBtn.addEventListener("click", () => {
         const beatInterval = 60 / currentBpm;
         currentOffsetSec = playOffset % beatInterval;
-        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-        detectSongSections(currentBpm, currentOffsetSec, duration);
+        syncClickAndGuide();
     });
 }
 
 if (regenerateClickBtn) {
     regenerateClickBtn.addEventListener("click", () => {
-        generateMetronomeTrack(currentBpm, currentOffsetSec, duration);
-        detectSongSections(currentBpm, currentOffsetSec, duration);
+        syncClickAndGuide();
     });
 }
 
 if (reanalyzeSectionsBtn) {
     reanalyzeSectionsBtn.addEventListener("click", () => {
         detectSongSections(currentBpm, currentOffsetSec, duration);
+        if (tracks.guide) {
+            const lang = guideLangSelect ? guideLangSelect.value : "es";
+            generateGuideTrack(lang, userConfiguredPreRoll);
+        }
     });
 }
 
 if (generateGuideBtn) {
     generateGuideBtn.addEventListener("click", () => {
         const lang = guideLangSelect ? guideLangSelect.value : "es";
-        generateGuideTrack(lang);
+        generateGuideTrack(lang, userConfiguredPreRoll);
     });
 }
 
