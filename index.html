@@ -191,19 +191,31 @@
                         <span class="text-[10px] font-mono text-zinc-500 uppercase">Automático Pro</span>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <!-- BPM Input -->
                         <div class="flex flex-col gap-1.5">
                             <label for="initialBpmInput" class="font-mono text-[9px] font-extrabold text-zinc-400 uppercase tracking-widest flex justify-between items-center">
-                                <span>BPM de la Canción</span>
+                                <span>BPM</span>
                                 <span class="text-zinc-500 text-[8px]">Opcional</span>
                             </label>
-                            <div class="flex items-center gap-2">
-                                <input type="number" id="initialBpmInput" step="0.1" min="40" max="260" placeholder="Auto-detectar" class="bg-zinc-950 text-zinc-200 text-xs font-mono font-bold py-2.5 px-3 rounded-xl border border-zinc-800 focus:border-red-500 outline-none w-full shadow-inner"/>
-                                <button type="button" id="autoBpmToggleBtn" class="px-3 py-2.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-red-400 font-mono text-[10px] font-bold rounded-xl whitespace-nowrap" title="Detectar automáticamente el tempo de la canción">
+                            <div class="flex items-center gap-1.5">
+                                <input type="number" id="initialBpmInput" step="0.1" min="40" max="260" placeholder="Auto" class="bg-zinc-950 text-zinc-200 text-xs font-mono font-bold py-2.5 px-2.5 rounded-xl border border-zinc-800 focus:border-red-500 outline-none w-full shadow-inner"/>
+                                <button type="button" id="autoBpmToggleBtn" class="px-2.5 py-2.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-red-400 font-mono text-[10px] font-bold rounded-xl whitespace-nowrap" title="Detectar automáticamente el tempo">
                                     AUTO
                                 </button>
                             </div>
+                        </div>
+
+                        <!-- Selector de Compás / Métrica -->
+                        <div class="flex flex-col gap-1.5">
+                            <label for="initialTimeSignatureSelect" class="font-mono text-[9px] font-extrabold text-zinc-400 uppercase tracking-widest">
+                                Compás (Métrica)
+                            </label>
+                            <select id="initialTimeSignatureSelect" class="bg-zinc-950 text-zinc-300 text-xs font-semibold py-2.5 px-3 rounded-xl border border-zinc-800 hover:border-red-500/40 focus:border-red-500 outline-none transition-all cursor-pointer w-full shadow-inner">
+                                <option value="4/4" selected>4/4 (Estándar: 1, 2, 3, 4)</option>
+                                <option value="3/4">3/4 (Vals: 1, 2, 3)</option>
+                                <option value="6/8">6/8 (Compuesto: 1 al 6)</option>
+                            </select>
                         </div>
 
                         <!-- Conteo Inicial / Pre-Roll -->
@@ -212,9 +224,9 @@
                                 Conteo Previo (Lead-in)
                             </label>
                             <select id="initialPreRollSelect" class="bg-zinc-950 text-zinc-300 text-xs font-semibold py-2.5 px-3 rounded-xl border border-zinc-800 hover:border-red-500/40 focus:border-red-500 outline-none transition-all cursor-pointer w-full shadow-inner">
-                                <option value="4" selected>1 Compás (4 Beats: Intro, 2, 3, 4)</option>
-                                <option value="8">2 Compases (8 Beats: 1, 2, 3, 4...)</option>
-                                <option value="0">Sin Conteo (Inicio directo 0:00)</option>
+                                <option value="1" selected>1 Compás de Conteo</option>
+                                <option value="2">2 Compases de Conteo</option>
+                                <option value="0">Sin Conteo (0:00)</option>
                             </select>
                         </div>
                     </div>
@@ -338,6 +350,14 @@
                         <div class="flex items-center gap-1.5 px-1">
                             <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest font-mono">BPM:</span>
                             <input type="number" id="bpmInput" step="0.1" min="40" max="260" value="120.0" class="w-16 bg-zinc-900 border border-zinc-800 text-red-500 font-mono font-bold text-xs px-2 py-1 rounded-lg text-center focus:border-red-500 outline-none"/>
+                        </div>
+                        <div class="flex items-center gap-1 px-1">
+                            <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest font-mono hidden sm:inline-block">COMPÁS:</span>
+                            <select id="timeSignatureSelect" class="bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[11px] font-bold px-2 py-1 rounded-lg outline-none cursor-pointer">
+                                <option value="4/4" selected>4/4</option>
+                                <option value="3/4">3/4</option>
+                                <option value="6/8">6/8</option>
+                            </select>
                         </div>
                         <button id="tapTempoBtn" class="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white font-mono text-[10px] font-bold rounded-lg transition-colors btn-tactile" title="Pulsar rítmicamente para calcular BPM">
                             TAP

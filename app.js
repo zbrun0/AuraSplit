@@ -91,6 +91,7 @@ const reanalyzeSectionsBtn = document.getElementById("reanalyzeSectionsBtn");
 
 // Controles Musicales
 const bpmInput = document.getElementById("bpmInput");
+const timeSignatureSelect = document.getElementById("timeSignatureSelect");
 const tapTempoBtn = document.getElementById("tapTempoBtn");
 const nudgeLeftBtn = document.getElementById("nudgeLeftBtn");
 const nudgeRightBtn = document.getElementById("nudgeRightBtn");
@@ -102,8 +103,17 @@ const generateGuideBtn = document.getElementById("generateGuideBtn");
 // Controles de Configuración Inicial de Subida
 const initialBpmInput = document.getElementById("initialBpmInput");
 const autoBpmToggleBtn = document.getElementById("autoBpmToggleBtn");
+const initialTimeSignatureSelect = document.getElementById("initialTimeSignatureSelect");
 const initialPreRollSelect = document.getElementById("initialPreRollSelect");
 const autoGenerateGuideCheck = document.getElementById("autoGenerateGuideCheck");
+let currentTimeSignature = "4/4";
+
+if (timeSignatureSelect) {
+    timeSignatureSelect.addEventListener("change", () => {
+        currentTimeSignature = timeSignatureSelect.value || "4/4";
+        syncClickAndGuide();
+    });
+}
 
 if (autoBpmToggleBtn && initialBpmInput) {
     autoBpmToggleBtn.addEventListener("click", () => {
@@ -233,7 +243,7 @@ function uploadAndSeparate(file) {
         `;
     }
     
-    // Capturar configuraciones de BPM, Pre-roll y Guía definidas por el usuario
+    // Capturar configuraciones de BPM, Compás, Pre-roll y Guía definidas por el usuario
     if (initialBpmInput && initialBpmInput.value) {
         const val = parseFloat(initialBpmInput.value);
         if (!isNaN(val) && val >= 40 && val <= 260) {
@@ -245,8 +255,14 @@ function uploadAndSeparate(file) {
         userConfiguredBpm = null;
     }
 
+    if (initialTimeSignatureSelect) {
+        currentTimeSignature = initialTimeSignatureSelect.value || "4/4";
+        if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
+    }
+
     if (initialPreRollSelect) {
-        userConfiguredPreRoll = parseInt(initialPreRollSelect.value, 10) || 4;
+        const val = parseInt(initialPreRollSelect.value, 10);
+        userConfiguredPreRoll = isNaN(val) ? 1 : val;
     }
     if (autoGenerateGuideCheck) {
         userConfiguredAutoGuide = autoGenerateGuideCheck.checked;
@@ -690,41 +706,69 @@ async function getCueAudioBuffer(sampleKey) {
     }
 }
 
-// Cálculo del downbeat offset (primer pulso) usando correlación de transitorios
+// Cálculo del downbeat offset (primer pulso) con correlación de envolvente de transitorios de alta precisión
 function calculateDownbeatOffset(audioBuffer, bpm) {
     if (!audioBuffer) return 0.0;
     const T = 60 / bpm;
     const sampleRate = audioBuffer.sampleRate;
     const data = audioBuffer.getChannelData(0);
     
-    const maxSec = Math.min(8.0, audioBuffer.duration);
+    // Analizar los primeros 12 segundos para correlación de transitorios (Kick/Snare)
+    const maxSec = Math.min(12.0, audioBuffer.duration);
     const maxSamples = Math.floor(maxSec * sampleRate);
-    const windowSize = Math.floor(0.015 * sampleRate);
-    
-    let foundFirstOnset = false;
-    let firstPeakTime = 0.0;
+    const hop = Math.floor(sampleRate * 0.005); // Resolución de 5ms
+    const numHops = Math.floor(maxSamples / hop);
+    const envelope = new Float32Array(numHops);
 
-    for (let i = 0; i < maxSamples; i += windowSize) {
+    for (let h = 0; h < numHops; h++) {
         let sumSq = 0;
-        for (let j = 0; j < windowSize && (i + j) < maxSamples; j++) {
-            const v = data[i + j];
-            sumSq += v * v;
+        const start = h * hop;
+        const end = Math.min(start + hop, maxSamples);
+        for (let i = start; i < end; i++) {
+            const val = data[i];
+            sumSq += val * val;
         }
-        const rms = Math.sqrt(sumSq / windowSize);
-        if (rms > 0.035) {
-            firstPeakTime = i / sampleRate;
-            foundFirstOnset = true;
-            break;
+        envelope[h] = Math.sqrt(sumSq / Math.max(1, end - start));
+    }
+
+    const onsets = new Float32Array(numHops);
+    for (let h = 1; h < numHops; h++) {
+        onsets[h] = Math.max(0, envelope[h] - envelope[h - 1]);
+    }
+
+    // Buscar la fase óptima phi en [0, T) con resolución sub-milisegundo
+    const steps = 120;
+    let bestPhi = 0;
+    let maxCorrelation = -1;
+
+    for (let s = 0; s < steps; s++) {
+        const phi = (s / steps) * T;
+        let score = 0;
+        let count = 0;
+        for (let t = phi; t < maxSec; t += T) {
+            const h = Math.floor((t * sampleRate) / hop);
+            if (h >= 0 && h < numHops) {
+                let localMax = 0;
+                for (let dh = -2; dh <= 2; dh++) {
+                    if (h + dh >= 0 && h + dh < numHops) {
+                        localMax = Math.max(localMax, onsets[h + dh]);
+                    }
+                }
+                score += localMax;
+                count++;
+            }
+        }
+        if (count > 0) score /= count;
+        if (score > maxCorrelation) {
+            maxCorrelation = score;
+            bestPhi = phi;
         }
     }
 
-    if (foundFirstOnset) {
-        return firstPeakTime % T;
-    }
-    return 0.0;
+    return bestPhi;
 }
 
-// --- Generar Pista de Metrónomo Pro Sincronizado (Accents en 4/4) ---
+// --- Generar Pista de Metrónomo Pro Sincronizado según Métrica (4/4, 3/4, 6/8) ---
 async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
     if (!audioCtx) return;
     
@@ -742,11 +786,10 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
         t += interval;
     }
 
-    const metronomeBuffer = createAccentedMetronomeBuffer(beatTimes, totalDuration, sampleRate);
+    const metronomeBuffer = createAccentedMetronomeBuffer(beatTimes, totalDuration, sampleRate, currentTimeSignature);
     const wavBlob = bufferToWav(metronomeBuffer);
     const blobUrl = URL.createObjectURL(wavBlob);
 
-    // Si ya existía el track, reasignar audio src suavemente
     if (tracks.metronome) {
         tracks.metronome.audio.src = blobUrl;
         tracks.metronome.audio.load();
@@ -784,7 +827,7 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
 
     setupSingleTrackAudioNode("metronome");
     updateTrackGains();
-    updateTrackDisplayName("metronome", `METRÓNOMO (${bpm.toFixed(1)} BPM)`);
+    updateTrackDisplayName("metronome", `METRÓNOMO (${bpm.toFixed(1)} BPM - ${currentTimeSignature})`);
 
     const fader = document.getElementById("fader-metronome");
     if (fader) fader.value = 70;
@@ -796,8 +839,8 @@ async function generateMetronomeTrack(bpm, offsetSec, totalDuration) {
     }
 }
 
-// Sintetizador de Click Pro 4/4 (Beat 1: 1300Hz agudo | Beats 2,3,4: 850Hz)
-function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate) {
+// Sintetizador de Click Pro con acentos según métrica
+function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate, timeSig = "4/4") {
     const numSamples = Math.floor(duration * sampleRate);
     const metronomeBuffer = audioCtx.createBuffer(2, numSamples, sampleRate);
     
@@ -808,13 +851,15 @@ function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate) {
     const clickSamples = Math.floor(clickDuration * sampleRate);
 
     const downbeatSignal = new Float32Array(clickSamples);
+    const midbeatSignal = new Float32Array(clickSamples);
     const offbeatSignal = new Float32Array(clickSamples);
 
     for (let i = 0; i < clickSamples; i++) {
         const t = i / sampleRate;
         const envDown = Math.exp(-t * 150);
         const envOff = Math.exp(-t * 120);
-        downbeatSignal[i] = Math.sin(2 * Math.PI * 1300 * t) * envDown * 0.85;
+        downbeatSignal[i] = Math.sin(2 * Math.PI * 1350 * t) * envDown * 0.90;
+        midbeatSignal[i] = Math.sin(2 * Math.PI * 1050 * t) * envOff * 0.70;
         offbeatSignal[i] = Math.sin(2 * Math.PI * 850 * t) * envOff * 0.55;
     }
 
@@ -823,8 +868,16 @@ function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate) {
         const startSample = Math.floor(time * sampleRate);
         if (startSample >= numSamples) continue;
 
-        const isDownbeat = (b % 4 === 0);
-        const sig = isDownbeat ? downbeatSignal : offbeatSignal;
+        let sig = offbeatSignal;
+        if (timeSig === "3/4") {
+            if (b % 3 === 0) sig = downbeatSignal;
+        } else if (timeSig === "6/8") {
+            if (b % 6 === 0) sig = downbeatSignal;
+            else if (b % 6 === 3) sig = midbeatSignal;
+        } else {
+            // 4/4
+            if (b % 4 === 0) sig = downbeatSignal;
+        }
 
         for (let i = 0; i < clickSamples; i++) {
             const idx = startSample + i;
@@ -863,17 +916,18 @@ function calculateStemRmsPerBar(stemAudioBuffer, bpm, offsetSec, totalBars, barD
     return rmsValues;
 }
 
-// --- Detección Dinámica de Secciones por Análisis de Energía Multi-Stem ---
+// --- Detección Dinámica de Secciones por Macro-Estructura Musical (Sin números repetitivos) ---
 async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuffers = {}) {
     if (!totalDuration || totalDuration <= 0) return;
 
-    const barDuration = (60 / bpm) * 4; // Duración de 1 compás (4/4)
+    const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+    const barDuration = (60 / bpm) * beatsPerBar;
     const totalBars = Math.floor((totalDuration - offsetSec) / barDuration);
     if (totalBars <= 0) return;
 
     songSections = [];
 
-    // Calcular RMS por compás para cada canal de audio
+    // Calcular RMS por compás para cada canal
     const vocalRms = calculateStemRmsPerBar(stemBuffers.vocals, bpm, offsetSec, totalBars, barDuration);
     const drumRms = calculateStemRmsPerBar(stemBuffers.drums, bpm, offsetSec, totalBars, barDuration);
     const bassRms = calculateStemRmsPerBar(stemBuffers.bass, bpm, offsetSec, totalBars, barDuration);
@@ -892,8 +946,8 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
     const otherSoloThresh = maxOther * 0.45;
     const guitarSoloThresh = maxGuitar * 0.45;
 
-    // Etiquetar bloques de compases (en grupos de 4 compases o 2 compases)
-    const stepBars = (totalBars > 32) ? 4 : 2;
+    // Macro-bloques limpios de al menos 8 compases (o 4 para canciones muy breves)
+    const stepBars = (totalBars >= 32) ? 8 : 4;
     const rawSegments = [];
 
     for (let b = 0; b < totalBars; b += stepBars) {
@@ -923,8 +977,8 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
             cueKey = "intro";
             color = "#3b82f6";
         } else if (b >= totalBars - 8 && (avgV < vocalSilenceThresh || (avgD < drumActiveThresh && avgB < maxBass * 0.2))) {
-            type = "OUTRO";
-            cueKey = "outro";
+            type = "FINAL";
+            cueKey = "final";
             color = "#06b6d4";
         } else if (avgV < vocalSilenceThresh) {
             // Sección Instrumental o Solos (sin voz)
@@ -951,7 +1005,7 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
                 type = "CORO";
                 cueKey = "coro";
                 color = "#ef4444";
-            } else if (b > totalBars * 0.55 && b < totalBars * 0.8 && avgV > vocalSilenceThresh && avgD < drumActiveThresh) {
+            } else if (b > totalBars * 0.55 && b < totalBars * 0.85 && avgV > vocalSilenceThresh && avgD < drumActiveThresh) {
                 type = "PUENTE";
                 cueKey = "puente";
                 color = "#a855f7";
@@ -971,7 +1025,7 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
         });
     }
 
-    // Unificar segmentos contiguos del mismo tipo
+    // Unificar segmentos contiguos del mismo tipo (Macro-Estructura)
     const merged = [];
     for (let i = 0; i < rawSegments.length; i++) {
         const seg = rawSegments[i];
@@ -982,37 +1036,16 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
         }
     }
 
-    // Enumerar secciones (VERSO 1, CORO 1, VERSO 2, CORO 2, etc.)
-    let verseCount = 0;
-    let chorusCount = 0;
-    let bridgeCount = 0;
-
+    // Guardar secciones limpias SIN números repetitivos
     for (let i = 0; i < merged.length; i++) {
         const m = merged[i];
-        let displayName = m.type;
-        let cue = m.cueKey;
-
-        if (m.type === "VERSO") {
-            verseCount++;
-            displayName = `VERSO ${verseCount}`;
-            cue = (verseCount <= 6) ? `verso${verseCount}` : "verso";
-        } else if (m.type === "CORO") {
-            chorusCount++;
-            displayName = (i === merged.length - 2 || (i === merged.length - 1 && merged[i].type === "CORO")) ? "CORO FINAL" : `CORO ${chorusCount}`;
-            cue = (chorusCount <= 4) ? `coro${chorusCount}` : "coro";
-        } else if (m.type === "PUENTE") {
-            bridgeCount++;
-            displayName = `PUENTE ${bridgeCount}`;
-            cue = (bridgeCount <= 4) ? `puente${bridgeCount}` : "puente";
-        }
-
         const startTime = offsetSec + (m.startBar * barDuration);
         const endTime = Math.min(totalDuration, offsetSec + (m.endBar * barDuration));
 
         songSections.push({
             id: `sec-${i}`,
-            name: displayName,
-            cueKey: cue,
+            name: m.type,
+            cueKey: m.cueKey,
             color: m.color,
             startTime: startTime,
             endTime: endTime,
@@ -1027,7 +1060,7 @@ async function detectSongSectionsDynamic(bpm, offsetSec, totalDuration, stemBuff
 // Fallback de estructura para recalcular si el usuario cambia el BPM manualmente
 function detectSongSections(bpm, offsetSec, totalDuration) {
     if (!duration || duration <= 0) return;
-    detectSongSectionsDynamic(bpm, offsetSec, totalDuration, {});
+    detectSongSectionsDynamic(bpm, offsetSec, totalDuration, cachedDecodedStemBuffers);
 }
 
 function renderSectionMarkers() {
@@ -1078,8 +1111,8 @@ function updateActiveSectionBadge(currentTime) {
     }
 }
 
-// --- Generador de Guías Vocales con Banco de Samples de Estudio ("Intro, 2, 3, 4") ---
-async function generateGuideTrack(lang = "es", preRollBeats = 4) {
+// --- Generador de Guías Vocales con Banco de Samples de Estudio ("Intro, 2, 3, 4" o "Intro, 2, 3") ---
+async function generateGuideTrack(lang = "es", preRollBars = 1) {
     if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         audioCtx = new AudioContextClass();
@@ -1106,6 +1139,8 @@ async function generateGuideTrack(lang = "es", preRollBeats = 4) {
         const right = guideBuffer.getChannelData(1);
 
         const beatInterval = 60 / currentBpm;
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        const barDuration = beatInterval * beatsPerBar;
 
         // Pre-cargar conteos "1", "2", "3", "4"
         const countSamples = [
@@ -1119,43 +1154,62 @@ async function generateGuideTrack(lang = "es", preRollBeats = 4) {
         for (let s = 0; s < songSections.length; s++) {
             const sec = songSections[s];
             const sectionTargetTime = sec.startTime;
-            const preMeasureTime = sectionTargetTime - (4 * beatInterval);
+            const preMeasureTime = sectionTargetTime - barDuration;
 
-            // Obtener el buffer del sample correspondiente a la sección
+            // Obtener el buffer del sample correspondiente a la sección limpia
             let sampleCue = await getCueAudioBuffer(sec.cueKey || "intro");
-            if (!sampleCue && sec.cueKey) {
-                const baseKey = sec.cueKey.replace(/\d+$/, "");
-                sampleCue = await getCueAudioBuffer(baseKey);
-            }
             if (!sampleCue) sampleCue = await getCueAudioBuffer("intro");
 
             if (preMeasureTime >= 0) {
                 // 1 compás antes de la sección:
-                // Beat 1: Nombre de la sección (ej. "Intro", "Verso 1", "Coro 1", "Guitarra", "Solo")
-                if (sampleCue) {
-                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
-                }
-                // Beats 2, 3, 4: Conteo rítmico "DOS", "TRES", "CUATRO"
-                for (let b = 2; b <= 4; b++) {
-                    const countTime = preMeasureTime + ((b - 1) * beatInterval);
-                    const cntBuf = countSamples[b];
-                    if (cntBuf) {
-                        insertAudioBufferToChannel(left, right, cntBuf, Math.floor(countTime * sampleRate));
+                if (beatsPerBar === 4) {
+                    // 4/4: Beat 1 = Sección, Beat 2 = Silencio (respiración), Beat 3 = "3", Beat 4 = "4"
+                    if (sampleCue) {
+                        insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                    }
+                    if (countSamples[3]) {
+                        insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
+                    }
+                    if (countSamples[4]) {
+                        insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
+                    }
+                } else if (beatsPerBar === 3) {
+                    // 3/4: Beat 1 = Sección, Beat 2 = "2", Beat 3 = "3"
+                    if (sampleCue) {
+                        insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                    }
+                    if (countSamples[2]) {
+                        insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
+                    }
+                    if (countSamples[3]) {
+                        insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
+                    }
+                } else {
+                    // 6/8: Beat 1 = Sección, Beat 4 = "4"
+                    if (sampleCue) {
+                        insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                    }
+                    if (countSamples[4]) {
+                        insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
                     }
                 }
-            } else if (sec.startBar === 0 && preRollBeats >= 4) {
+            } else if (sec.startBar === 0 && preRollBars >= 1) {
                 // Si la canción empieza en 0.0 (Intro al inicio) y tenemos conteo de entrada:
-                // Beat 1: Sample de Intro
                 if (sampleCue) {
                     insertAudioBufferToChannel(left, right, sampleCue, 0);
                 }
-                // Beats 2, 3, 4 de conteo
-                for (let b = 2; b <= 4; b++) {
-                    const countTime = (b - 1) * beatInterval;
-                    if (countTime < duration) {
-                        const cntBuf = countSamples[b];
-                        if (cntBuf) {
-                            insertAudioBufferToChannel(left, right, cntBuf, Math.floor(countTime * sampleRate));
+                if (beatsPerBar === 4) {
+                    for (let b = 2; b <= 4; b++) {
+                        const countTime = (b - 1) * beatInterval;
+                        if (countTime < duration && countSamples[b]) {
+                            insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
+                        }
+                    }
+                } else if (beatsPerBar === 3) {
+                    for (let b = 2; b <= 3; b++) {
+                        const countTime = (b - 1) * beatInterval;
+                        if (countTime < duration && countSamples[b]) {
+                            insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
                         }
                     }
                 }
