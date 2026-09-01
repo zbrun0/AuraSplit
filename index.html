@@ -393,6 +393,28 @@
                         </button>
                     </div>
                 </div>
+                <!-- 4. Barra Persistente de Secciones de la Canción (Visible en Mezclador y Línea de Tiempo) -->
+                <div class="bg-zinc-950/90 border border-zinc-900 p-3 rounded-2xl flex flex-col gap-2 mt-1">
+                    <div class="flex flex-wrap justify-between items-center px-1 gap-2">
+                        <span class="font-mono text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span> SECCIONES DETECTADAS (Haz clic en una sección para saltar o editar):
+                        </span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button id="addSectionMarkerBtn" class="text-[9px] font-mono font-bold text-pink-400 hover:text-pink-300 uppercase transition-colors flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 px-2.5 py-1 rounded-lg btn-tactile" title="Crear un nuevo marcador de sección en la posición del cursor">
+                                + Dividir en Cursor
+                            </button>
+                            <button id="reanalyzeSectionsBtn" class="text-[9px] font-mono font-bold text-zinc-400 hover:text-white uppercase transition-colors bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 px-2.5 py-1 rounded-lg btn-tactile">
+                                ⟳ Re-analizar
+                            </button>
+                            <button id="regenerateGuideBtn" class="text-[9px] font-mono font-bold text-amber-400 hover:text-amber-300 uppercase transition-colors flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 px-2.5 py-1 rounded-lg btn-tactile" title="Re-sintetizar la pista de voz guía vocal">
+                                🎙️ Re-generar Guías
+                            </button>
+                        </div>
+                    </div>
+                    <div id="sectionMarkersBar" class="flex flex-wrap items-center gap-2 pt-1 min-h-[36px]">
+                        <!-- Se rellena automáticamente con badges de secciones (INTRO, VERSO, CORO...) -->
+                    </div>
+                </div>
             </div>
 
             <!-- Vista 1: Mezclador Clásico Vertical (Se muestra por defecto) -->
@@ -402,32 +424,18 @@
 
             <!-- Vista 2: Línea de Tiempo DAW Horizontal (Oculto por defecto) -->
             <div class="flex flex-col gap-4 py-2 hidden" id="timelineViewContainer">
-                <!-- Barra de Secciones de la Canción -->
-                <div class="bg-zinc-950/80 border border-zinc-900 p-3 rounded-2xl flex flex-col gap-2">
-                    <div class="flex flex-wrap justify-between items-center px-1 gap-2">
-                        <span class="font-mono text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-pink-500"></span> SECCIONES DE LA CANCIÓN (Haz clic para editar o saltar):
-                        </span>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <!-- Control de Zoom / Expandir Línea de Tiempo -->
-                            <div class="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-lg">
-                                <span class="text-[9px] font-mono font-black text-zinc-400 uppercase tracking-widest mr-0.5">ZOOM:</span>
-                                <button id="zoomOutBtn" type="button" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-xs font-bold transition-colors btn-tactile" title="Alejar vista">-</button>
-                                <span id="zoomLevelDisplay" class="font-mono text-[11px] font-bold text-red-400 w-7 text-center select-none">1x</span>
-                                <button id="zoomInBtn" type="button" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-xs font-bold transition-colors btn-tactile" title="Acercar / Expandir para calzar">+</button>
-                                <button id="zoomResetBtn" type="button" class="px-1.5 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded font-mono text-[8px] font-bold uppercase transition-colors btn-tactile">1x</button>
-                            </div>
-
-                            <button id="addSectionMarkerBtn" class="text-[9px] font-mono font-bold text-pink-400 hover:text-pink-300 uppercase transition-colors flex items-center gap-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 px-2.5 py-1 rounded-lg btn-tactile" title="Crear un nuevo marcador de sección en la posición del cursor">
-                                + Dividir en Cursor
-                            </button>
-                            <button id="reanalyzeSectionsBtn" class="text-[9px] font-mono font-bold text-zinc-500 hover:text-zinc-300 uppercase transition-colors">
-                                ⟳ Re-analizar
-                            </button>
-                        </div>
-                    </div>
-                    <div id="sectionMarkersBar" class="flex flex-wrap items-center gap-2 pt-1 min-h-[36px]">
-                        <!-- Se rellena con badges de secciones -->
+                <!-- Header con Zoom para la Línea de Tiempo -->
+                <div class="bg-zinc-950/80 border border-zinc-900 px-4 py-2.5 rounded-2xl flex items-center justify-between">
+                    <span class="font-mono text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                        <svg class="w-4 h-4 text-cyan-400 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/></svg>
+                        LÍNEA DE TIEMPO MULTIPISTA (DAW)
+                    </span>
+                    <div class="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-lg">
+                        <span class="text-[9px] font-mono font-black text-zinc-400 uppercase tracking-widest mr-0.5">ZOOM:</span>
+                        <button id="zoomOutBtn" type="button" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-xs font-bold transition-colors btn-tactile" title="Alejar vista">-</button>
+                        <span id="zoomLevelDisplay" class="font-mono text-[11px] font-bold text-red-400 w-7 text-center select-none">1x</span>
+                        <button id="zoomInBtn" type="button" class="px-2 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded font-mono text-xs font-bold transition-colors btn-tactile" title="Acercar / Expandir para calzar">+</button>
+                        <button id="zoomResetBtn" type="button" class="px-1.5 py-0.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded font-mono text-[8px] font-bold uppercase transition-colors btn-tactile">1x</button>
                     </div>
                 </div>
 

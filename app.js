@@ -88,6 +88,7 @@ const timelineTracksList = document.getElementById("timelineTracksList");
 const timelineViewContainer = document.getElementById("timelineViewContainer");
 const sectionMarkersBar = document.getElementById("sectionMarkersBar");
 const reanalyzeSectionsBtn = document.getElementById("reanalyzeSectionsBtn");
+const regenerateGuideBtn = document.getElementById("regenerateGuideBtn");
 
 // Controles Musicales
 const bpmInput = document.getElementById("bpmInput");
@@ -2484,9 +2485,16 @@ if (reanalyzeSectionsBtn) {
         const barDuration = (60 / currentBpm) * beatsPerBar;
         const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
         detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, cachedDecodedStemBuffers, leadInSec);
-        if (tracks.guide) {
-            generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
-        }
+        generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+    });
+}
+
+if (regenerateGuideBtn) {
+    regenerateGuideBtn.addEventListener("click", async () => {
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        const barDuration = (60 / currentBpm) * beatsPerBar;
+        const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+        await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
     });
 }
 
