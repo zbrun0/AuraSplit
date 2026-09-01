@@ -124,14 +124,23 @@
     <div class="red-ambient-glow glow-bottom-left"></div>
 
     <!-- TopAppBar -->
-    <header class="bg-zinc-950/80 border-b border-zinc-900/60 flex justify-between items-center w-full px-8 py-4 fixed top-0 z-50 backdrop-blur-md">
+    <header class="bg-zinc-950/80 border-b border-zinc-900/60 flex justify-between items-center w-full px-4 md:px-8 py-3.5 fixed top-0 z-50 backdrop-blur-md">
         <div class="flex items-center gap-4">
             <!-- AuraSplit Logo and Branding -->
             <img src="iconlogo_aurasplit.svg" alt="AuraSplit Logo" class="h-9 w-auto filter drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]"/>
         </div>
-        <div class="flex items-center gap-4">
-            <span id="engineBadge" class="hidden sm:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg">
-                Procesamiento IA Demucs v4
+        <div class="flex items-center gap-2.5">
+            <button id="openVaultBtn" type="button" class="px-3.5 py-1.5 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-amber-300 text-xs font-bold font-mono tracking-wider rounded-xl transition-all flex items-center gap-2 btn-tactile shadow-sm" title="Abrir proyectos guardados en tu Bóveda de 50TB">
+                <svg class="w-4 h-4 text-amber-400 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+                <span class="hidden sm:inline">BÓVEDA 50TB</span>
+                <span class="sm:hidden">BÓVEDA</span>
+            </button>
+            <button id="openPlansModalBtn" type="button" class="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold font-mono tracking-wider rounded-xl transition-all shadow-md shadow-red-600/20 flex items-center gap-1.5 btn-tactile">
+                👑 <span class="hidden sm:inline">PLANES PRO</span>
+                <span class="sm:hidden">PRO</span>
+            </button>
+            <span id="engineBadge" class="hidden md:inline-block font-mono text-[10px] font-extrabold text-zinc-400 bg-zinc-900 border border-zinc-800/80 px-3 py-1 uppercase tracking-widest rounded-lg">
+                Demucs v4
             </span>
         </div>
     </header>
@@ -338,13 +347,16 @@
                         </button>
                     </div>
 
-                    <!-- Descargas -->
-                    <div class="flex items-center gap-2">
-                        <button id="downloadMixBtn" class="px-5 py-2.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 text-white font-bold text-xs tracking-widest rounded-xl transition-colors flex items-center gap-2 btn-tactile">
-                            <svg class="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"/></svg> DESCARGAR MEZCLA
+                    <!-- Descargas y Guardado Cloud -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button id="saveToVaultBtn" class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-850 text-amber-300 font-bold text-xs tracking-widest rounded-xl transition-all flex items-center gap-2 btn-tactile" title="Guardar proyecto completo en tu Bóveda Cloud de 50TB">
+                            <svg class="w-4 h-4 fill-current text-amber-400" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg> GUARDAR EN BÓVEDA
                         </button>
-                        <button id="downloadZipBtn" class="px-5 py-2.5 bg-white text-zinc-950 font-bold text-xs tracking-widest rounded-xl hover:bg-zinc-200 transition-colors flex items-center gap-2 btn-tactile">
-                            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> DESCARGAR TODO
+                        <button id="downloadMixBtn" class="px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 text-white font-bold text-xs tracking-widest rounded-xl transition-colors flex items-center gap-2 btn-tactile">
+                            <svg class="w-4 h-4 fill-current text-red-500" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"/></svg> MEZCLA
+                        </button>
+                        <button id="downloadZipBtn" class="px-4 py-2.5 bg-white text-zinc-950 font-bold text-xs tracking-widest rounded-xl hover:bg-zinc-200 transition-colors flex items-center gap-2 btn-tactile">
+                            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> TODO (ZIP)
                         </button>
                     </div>
                 </div>
@@ -588,6 +600,107 @@
         </section>
     </main>
 
+    <!-- Modal: Bóveda Cloud 50TB (Google Drive) -->
+    <div id="vaultModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 md:p-8 space-y-6 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between border-b border-zinc-900 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
+                        <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white tracking-wide">Bóveda Cloud 50TB</h3>
+                        <p class="text-xs text-zinc-400">Tus proyectos guardados con stems, metrónomo y guías en Google Drive</p>
+                    </div>
+                </div>
+                <button id="closeVaultModalBtn" class="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold">✕</button>
+            </div>
+
+            <!-- Lista de Proyectos Guardados -->
+            <div id="vaultProjectsList" class="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+                <div class="text-center py-12 text-zinc-500 font-mono text-xs flex flex-col items-center gap-2">
+                    <svg class="w-8 h-8 text-zinc-700 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
+                    Cargando proyectos de tu Bóveda Cloud...
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-zinc-900 flex justify-between items-center text-[11px] text-zinc-500 font-mono">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Conectado a Google Drive 50TB</span>
+                <button id="refreshVaultBtn" class="text-amber-400 hover:text-amber-300 transition-colors uppercase font-bold">Actualizar Lista</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Planes Gratis vs PRO VIP -->
+    <div id="plansModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-3xl w-full p-6 md:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-zinc-900 pb-4">
+                <div>
+                    <h3 class="text-xl font-black text-white tracking-wide flex items-center gap-2">
+                        Elige tu Plan <span class="text-xs bg-red-600/20 border border-red-500/40 text-red-400 px-2 py-0.5 rounded-md font-mono">AuraSplit</span>
+                    </h3>
+                    <p class="text-xs text-zinc-400 mt-0.5">Separación de audio profesional y almacenamiento ilimitado</p>
+                </div>
+                <button id="closePlansModalBtn" class="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono font-bold">✕</button>
+            </div>
+
+            <!-- Grid de Planes -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Plan GRATIS -->
+                <div class="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-mono font-bold text-zinc-400 uppercase tracking-widest">Plan Actual</span>
+                            <span class="text-lg font-black text-white">GRATIS</span>
+                        </div>
+                        <p class="text-xs text-zinc-500 mb-4">Para músicos independientes y ensayos rápidos</p>
+                        <ul class="space-y-2.5 text-xs text-zinc-300 font-sans">
+                            <li class="flex items-center gap-2">✓ Separación de 4 y 6 Stems</li>
+                            <li class="flex items-center gap-2">✓ Hasta <strong>7 minutos</strong> por canción</li>
+                            <li class="flex items-center gap-2">✓ Hasta <strong>6 canciones al mes</strong></li>
+                            <li class="flex items-center gap-2">✓ Exportación en MP3 Alta Calidad</li>
+                            <li class="flex items-center gap-2">✓ Metrónomo y Guías Inteligentes</li>
+                            <li class="flex items-center gap-2 text-zinc-600">✕ Bóveda Cloud Persistente (50TB)</li>
+                            <li class="flex items-center gap-2 text-zinc-600">✕ Descargas WAV 24-bit sin compresión</li>
+                        </ul>
+                    </div>
+                    <button class="w-full py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs font-bold font-mono tracking-wider cursor-default">
+                        PLAN ACTIVO
+                    </button>
+                </div>
+
+                <!-- Plan PRO -->
+                <div class="bg-gradient-to-b from-red-950/40 via-zinc-900/60 to-zinc-950 border-2 border-red-500/60 rounded-2xl p-6 flex flex-col justify-between space-y-4 shadow-xl shadow-red-950/40 relative">
+                    <div class="absolute -top-3 right-6 bg-gradient-to-r from-red-600 to-amber-500 text-white text-[9px] font-black uppercase font-mono px-3 py-0.5 rounded-full shadow-md">
+                        RECOMENDADO
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">PRO VIP</span>
+                            <div class="text-right">
+                                <span class="text-2xl font-black text-white">$6.99</span>
+                                <span class="text-[10px] text-zinc-400 font-mono">/mes</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-zinc-400 mb-4">Para directores de banda, productores y estudios</p>
+                        <ul class="space-y-2.5 text-xs text-zinc-200 font-sans">
+                            <li class="flex items-center gap-2 text-amber-300 font-semibold">★ Bóveda Cloud 50TB (Guarda tus proyectos)</li>
+                            <li class="flex items-center gap-2 text-red-400 font-semibold">★ Canciones ILIMITADAS al mes</li>
+                            <li class="flex items-center gap-2 text-red-400 font-semibold">★ Sin límite de duración (canciones largas/mixes)</li>
+                            <li class="flex items-center gap-2">✓ Cola GPU Dedicada de Alta Prioridad</li>
+                            <li class="flex items-center gap-2">✓ Descargas WAV 24-bit PCM Master</li>
+                            <li class="flex items-center gap-2">✓ Cambio de tono y tempo ilimitado</li>
+                            <li class="flex items-center gap-2">✓ Exportar mezcla completa personalizada</li>
+                        </ul>
+                    </div>
+                    <button id="upgradeProBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black font-mono tracking-wider transition-all shadow-lg shadow-red-600/30 btn-tactile">
+                        MEJORAR A PRO AHORA 👑
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="bg-zinc-950 border-t border-zinc-900/60 flex flex-col md:flex-row justify-between items-center w-full px-8 md:px-12 py-6 gap-4 mt-auto">
         <div class="flex flex-col items-start">
@@ -604,6 +717,6 @@
     </footer>
 
     <!-- Script principal -->
-    <script src="app.js?v=3.5.0"></script>
+    <script src="app.js?v=3.6.0"></script>
 </body>
 </html>

@@ -90,6 +90,22 @@ const sectionMarkersBar = document.getElementById("sectionMarkersBar");
 const reanalyzeSectionsBtn = document.getElementById("reanalyzeSectionsBtn");
 const regenerateGuideBtn = document.getElementById("regenerateGuideBtn");
 
+// --- Bóveda Cloud 50TB (Google Drive) y Planes PRO ---
+const openVaultBtn = document.getElementById("openVaultBtn");
+const closeVaultModalBtn = document.getElementById("closeVaultModalBtn");
+const vaultModal = document.getElementById("vaultModal");
+const vaultProjectsList = document.getElementById("vaultProjectsList");
+const refreshVaultBtn = document.getElementById("refreshVaultBtn");
+const saveToVaultBtn = document.getElementById("saveToVaultBtn");
+
+const openPlansModalBtn = document.getElementById("openPlansModalBtn");
+const closePlansModalBtn = document.getElementById("closePlansModalBtn");
+const plansModal = document.getElementById("plansModal");
+const upgradeProBtn = document.getElementById("upgradeProBtn");
+
+let currentJobId = null;
+let currentFileName = "audio.wav";
+
 // Controles Musicales
 const bpmInput = document.getElementById("bpmInput");
 const timeSignatureSelect = document.getElementById("timeSignatureSelect");
@@ -210,8 +226,21 @@ function processSelectedFile(file) {
         return;
     }
     
+    // Verificación de límite de 7 minutos (420 seg) para el plan gratuito
+    const tempAudio = new Audio(URL.createObjectURL(file));
+    tempAudio.addEventListener("loadedmetadata", () => {
+        if (tempAudio.duration > 420) {
+            const minutes = Math.floor(tempAudio.duration / 60);
+            const seconds = Math.floor(tempAudio.duration % 60);
+            if (confirm(`El archivo seleccionado dura ${minutes}:${seconds.toString().padStart(2, '0')} min. El límite para cuentas gratuitas es de 7:00 minutos.\n\n¿Deseas conocer los beneficios de AuraSplit PRO VIP con duración ilimitada y Bóveda Cloud 50TB?`)) {
+                if (plansModal) plansModal.classList.remove("hidden");
+            }
+        }
+    });
+
     resetAudio();
     selectedFile = file;
+    currentFileName = file.name || "audio.wav";
     
     if (uploadState && configState && configFileName) {
         uploadState.classList.add("hidden");
@@ -368,6 +397,8 @@ function showError(msg) {
 
 // --- Escucha de Progreso en Tiempo Real (SSE con fallback a Polling) ---
 function listenJobProgress(jobId, file) {
+    currentJobId = jobId;
+    if (file && file.name) currentFileName = file.name;
     stopProcessingProgress();
     progressBar.classList.add("animate-pulse");
 
@@ -2886,6 +2917,242 @@ if (presetBasslessBtn) presetBasslessBtn.addEventListener("click", () => applyMi
 if (presetGuitarlessBtn) presetGuitarlessBtn.addEventListener("click", () => applyMixPreset("guitarless"));
 if (presetVocalsBtn) presetVocalsBtn.addEventListener("click", () => applyMixPreset("vocals_only"));
 if (presetResetBtn) presetResetBtn.addEventListener("click", () => applyMixPreset("reset"));
+
+// --- Lógica de Modales: Bóveda Cloud 50TB y Planes PRO ---
+if (openPlansModalBtn) {
+    openPlansModalBtn.addEventListener("click", () => {
+        if (plansModal) plansModal.classList.remove("hidden");
+    });
+}
+if (closePlansModalBtn) {
+    closePlansModalBtn.addEventListener("click", () => {
+        if (plansModal) plansModal.classList.add("hidden");
+    });
+}
+if (upgradeProBtn) {
+    upgradeProBtn.addEventListener("click", () => {
+        alert("¡Gracias por tu interés en AuraSplit PRO VIP! El almacenamiento Cloud de 50TB y los beneficios exclusivos estarán disponibles al instante.");
+    });
+}
+
+if (openVaultBtn) {
+    openVaultBtn.addEventListener("click", () => {
+        if (vaultModal) vaultModal.classList.remove("hidden");
+        loadVaultProjects();
+    });
+}
+if (closeVaultModalBtn) {
+    closeVaultModalBtn.addEventListener("click", () => {
+        if (vaultModal) vaultModal.classList.add("hidden");
+    });
+}
+if (refreshVaultBtn) {
+    refreshVaultBtn.addEventListener("click", () => {
+        loadVaultProjects();
+    });
+}
+
+async function loadVaultProjects() {
+    if (!vaultProjectsList) return;
+    vaultProjectsList.innerHTML = `
+        <div class="text-center py-12 text-zinc-500 font-mono text-xs flex flex-col items-center gap-2">
+            <svg class="w-8 h-8 text-amber-500 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
+            Consultando proyectos en tu Bóveda Cloud de 50TB en Google Drive...
+        </div>
+    `;
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/vault/list`);
+        if (!res.ok) throw new Error("No se pudo conectar con el servicio de Bóveda.");
+        const data = await res.json();
+        
+        if (!data.projects || data.projects.length === 0) {
+            vaultProjectsList.innerHTML = `
+                <div class="text-center py-12 text-zinc-500 font-mono text-xs space-y-2">
+                    <svg class="w-10 h-10 mx-auto text-zinc-700 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+                    <p class="text-zinc-400 font-bold">Tu Bóveda Cloud está lista pero vacía</p>
+                    <p class="text-zinc-600 text-[11px]">Separa una canción y haz clic en "GUARDAR EN BÓVEDA" para guardarla permanentemente.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = "";
+        data.projects.forEach(proj => {
+            const meta = proj.metadata || {};
+            const bpm = meta.bpm ? `${parseFloat(meta.bpm).toFixed(1)} BPM` : "";
+            const compas = meta.timeSignature || "4/4";
+            const dateStr = proj.created_time ? new Date(proj.created_time).toLocaleDateString() : "";
+
+            html += `
+                <div class="bg-zinc-900/60 border border-zinc-800/80 hover:border-amber-500/40 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all" data-vault-id="${proj.folder_id}">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-amber-400">
+                            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-white uppercase tracking-wider">${proj.name}</h4>
+                            <div class="flex items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-500">
+                                <span>📅 ${dateStr}</span>
+                                ${bpm ? `<span>• ⚡ ${bpm}</span>` : ""}
+                                <span>• 🎼 ${compas}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${proj.web_view_link ? `
+                            <a href="${proj.web_view_link}" target="_blank" class="px-3 py-1.5 bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl border border-zinc-800 text-xs font-mono" title="Abrir carpeta en Google Drive">
+                                📁 Drive
+                            </a>
+                        ` : ""}
+                        <button onclick="loadProjectFromVault('${proj.folder_id}')" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-mono font-bold transition-all">
+                            Cargar
+                        </button>
+                        <button onclick="deleteProjectFromVault('${proj.folder_id}')" class="p-1.5 bg-zinc-950 hover:bg-red-950/40 text-zinc-500 hover:text-red-400 rounded-xl border border-zinc-800 text-xs font-mono" title="Eliminar de la Bóveda">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        vaultProjectsList.innerHTML = html;
+    } catch (err) {
+        vaultProjectsList.innerHTML = `
+            <div class="text-center py-8 text-red-400 font-mono text-xs">
+                No se pudo consultar la Bóveda: ${err.message}
+            </div>
+        `;
+    }
+}
+
+window.loadProjectFromVault = async function(folderId) {
+    if (!folderId) return;
+    if (vaultModal) vaultModal.classList.add("hidden");
+    
+    if (mixerSection) mixerSection.classList.add("hidden");
+    if (resultsSection) resultsSection.classList.add("hidden");
+    if (processing) processing.classList.remove("hidden");
+    
+    updateStatus("CARGANDO DE BÓVEDA...", "Obteniendo proyecto de Google Drive...", 30);
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`);
+        if (!res.ok) throw new Error("No se pudo obtener el proyecto de la Bóveda.");
+        const projData = await res.json();
+        
+        const zipFile = (projData.files || []).find(f => f.name.endsWith(".zip"));
+        if (zipFile) {
+            updateStatus("DESCARGANDO STEMS...", "Obteniendo archivos de audio...", 65);
+            const zipRes = await fetch(`${BACKEND_URL}/vault/file/${zipFile.id}`);
+            const zipBlob = await zipRes.blob();
+            
+            await decodeAndSetupMixer(zipBlob);
+
+            if (projData.metadata) {
+                const meta = projData.metadata;
+                if (meta.bpm) {
+                    currentBpm = parseFloat(meta.bpm);
+                    if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
+                }
+                if (meta.timeSignature) {
+                    currentTimeSignature = meta.timeSignature;
+                    if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
+                }
+                if (meta.songSections && Array.isArray(meta.songSections) && meta.songSections.length > 0) {
+                    songSections = meta.songSections;
+                    renderSectionMarkers();
+                }
+                if (meta.offset !== undefined) {
+                    currentOffsetSec = parseFloat(meta.offset);
+                    updatePhaseDisplay();
+                }
+                syncClickAndGuide();
+            }
+
+            updateStatus("LISTO", "Proyecto cargado desde la Bóveda Cloud.", 100);
+            if (processing) processing.classList.add("hidden");
+            if (mixerSection) mixerSection.classList.remove("hidden");
+            if (resultsSection) resultsSection.classList.remove("hidden");
+        } else {
+            throw new Error("No se encontró el paquete de stems en el proyecto.");
+        }
+    } catch (err) {
+        showError("Error al cargar el proyecto de la Bóveda: " + err.message);
+    }
+};
+
+window.deleteProjectFromVault = async function(folderId) {
+    if (!confirm("¿Seguro que deseas eliminar este proyecto de tu Bóveda Cloud de Google Drive?")) return;
+    try {
+        const res = await fetch(`${BACKEND_URL}/vault/project/${folderId}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Error eliminando el proyecto.");
+        loadVaultProjects();
+    } catch (err) {
+        alert("Error al eliminar: " + err.message);
+    }
+};
+
+async function saveCurrentProjectToVault() {
+    if (!currentJobId) {
+        alert("Debes procesar una canción primero para poder guardarla en tu Bóveda Cloud.");
+        return;
+    }
+
+    if (!saveToVaultBtn) return;
+    const origHtml = saveToVaultBtn.innerHTML;
+    saveToVaultBtn.disabled = true;
+    saveToVaultBtn.innerHTML = `
+        <svg class="w-4 h-4 text-amber-400 animate-spin fill-current" viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg> GUARDANDO...
+    `;
+
+    try {
+        const projectMetadata = {
+            bpm: currentBpm,
+            timeSignature: currentTimeSignature,
+            duration: duration,
+            offset: currentOffsetSec,
+            songSections: songSections,
+            pitchShift: currentPitchShift,
+            savedAt: new Date().toISOString()
+        };
+
+        const formData = new FormData();
+        formData.append("job_id", currentJobId);
+        formData.append("project_name", currentFileName || "Canción AuraSplit");
+        formData.append("project_metadata", JSON.stringify(projectMetadata));
+
+        const res = await fetch(`${BACKEND_URL}/vault/save`, {
+            method: "POST",
+            body: formData
+        });
+
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || "Error al subir a Google Drive.");
+        }
+
+        saveToVaultBtn.classList.remove("bg-zinc-900", "text-amber-300");
+        saveToVaultBtn.classList.add("bg-emerald-600", "text-white");
+        saveToVaultBtn.innerHTML = `✓ ¡GUARDADO EN BÓVEDA!`;
+
+        setTimeout(() => {
+            saveToVaultBtn.classList.remove("bg-emerald-600", "text-white");
+            saveToVaultBtn.classList.add("bg-zinc-900", "text-amber-300");
+            saveToVaultBtn.innerHTML = origHtml;
+            saveToVaultBtn.disabled = false;
+        }, 4000);
+
+    } catch (err) {
+        alert("Error al guardar en la Bóveda Cloud: " + err.message);
+        saveToVaultBtn.innerHTML = origHtml;
+        saveToVaultBtn.disabled = false;
+    }
+}
+
+if (saveToVaultBtn) {
+    saveToVaultBtn.addEventListener("click", saveCurrentProjectToVault);
+}
 
 if (regenerateClickBtn) {
     regenerateClickBtn.addEventListener("click", () => {
