@@ -105,6 +105,8 @@ const nudgePlus50 = document.getElementById("nudgePlus50");
 const autoSnapDrumBtn = document.getElementById("autoSnapDrumBtn");
 const syncCursorBtn = document.getElementById("syncCursorBtn");
 const regenerateClickBtn = document.getElementById("regenerateClickBtn");
+const guideLangSelect = document.getElementById("guideLangSelect");
+const generateGuideBtn = document.getElementById("generateGuideBtn");
 
 // Controles de Configuración Inicial de Subida
 const initialBpmInput = document.getElementById("initialBpmInput");
@@ -2533,12 +2535,13 @@ if (reanalyzeSectionsBtn) {
     });
 }
 
-if (regenerateGuideBtn) {
-    regenerateGuideBtn.addEventListener("click", async () => {
+if (generateGuideBtn) {
+    generateGuideBtn.addEventListener("click", async () => {
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
         const barDuration = (60 / currentBpm) * beatsPerBar;
         const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
-        await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+        const lang = guideLangSelect ? guideLangSelect.value : "es";
+        await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
     });
 }
 
