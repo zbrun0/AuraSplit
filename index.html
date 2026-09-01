@@ -164,7 +164,7 @@
                 <p id="configFileName" class="text-sm font-mono text-zinc-400 bg-zinc-950/80 border border-zinc-800/60 px-4 py-2 rounded-xl mb-6 max-w-lg truncate uppercase tracking-wider w-full"></p>
 
                 <!-- Selectores de Configuración -->
-                <div class="flex flex-col sm:flex-row gap-6 justify-center items-stretch sm:items-center w-full max-w-xl mx-auto mb-8 bg-zinc-950/40 border border-zinc-900/80 p-5 rounded-2xl">
+                <div class="flex flex-col sm:flex-row gap-6 justify-center items-stretch sm:items-center w-full max-w-xl mx-auto mb-5 bg-zinc-950/40 border border-zinc-900/80 p-5 rounded-2xl">
                     <div class="flex flex-col gap-2 flex-1 text-left">
                         <label for="modelSelect" class="font-mono text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest">Modelo de Separación</label>
                         <select id="modelSelect" class="bg-zinc-950 text-zinc-300 text-xs font-semibold py-3 px-4 rounded-xl border border-zinc-800 hover:border-red-500/40 focus:border-red-500 outline-none transition-all cursor-pointer w-full shadow-inner" onchange="updateEstimatedTime()">
@@ -178,6 +178,54 @@
                             <option value="mp3" selected>MP3 - 320 kbps (Descarga Rápida)</option>
                             <option value="wav">WAV - 16-bit PCM (Calidad Estudio)</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- Configuración de Tempo, Sincronización y Guía -->
+                <div class="w-full max-w-xl mx-auto mb-6 bg-zinc-950/60 border border-zinc-900/90 p-5 rounded-2xl space-y-4 text-left">
+                    <div class="flex items-center justify-between pb-2 border-b border-zinc-900">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-red-500 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.48 0-4.5-2.02-4.5-4.5s2.02-4.5 4.5-4.5 4.5 2.02 4.5 4.5-2.02 4.5-4.5 4.5z"/></svg>
+                            <span class="font-mono text-xs font-bold text-zinc-300 uppercase tracking-wider">Tempo, Sincronización y Guía Vocal</span>
+                        </div>
+                        <span class="text-[10px] font-mono text-zinc-500 uppercase">Automático Pro</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- BPM Input -->
+                        <div class="flex flex-col gap-1.5">
+                            <label for="initialBpmInput" class="font-mono text-[9px] font-extrabold text-zinc-400 uppercase tracking-widest flex justify-between items-center">
+                                <span>BPM de la Canción</span>
+                                <span class="text-zinc-500 text-[8px]">Opcional</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="initialBpmInput" step="0.1" min="40" max="260" placeholder="Auto-detectar" class="bg-zinc-950 text-zinc-200 text-xs font-mono font-bold py-2.5 px-3 rounded-xl border border-zinc-800 focus:border-red-500 outline-none w-full shadow-inner"/>
+                                <button type="button" id="autoBpmToggleBtn" class="px-3 py-2.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-red-400 font-mono text-[10px] font-bold rounded-xl whitespace-nowrap" title="Detectar automáticamente el tempo de la canción">
+                                    AUTO
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Conteo Inicial / Pre-Roll -->
+                        <div class="flex flex-col gap-1.5">
+                            <label for="initialPreRollSelect" class="font-mono text-[9px] font-extrabold text-zinc-400 uppercase tracking-widest">
+                                Conteo Previo (Lead-in)
+                            </label>
+                            <select id="initialPreRollSelect" class="bg-zinc-950 text-zinc-300 text-xs font-semibold py-2.5 px-3 rounded-xl border border-zinc-800 hover:border-red-500/40 focus:border-red-500 outline-none transition-all cursor-pointer w-full shadow-inner">
+                                <option value="4" selected>1 Compás (4 Beats: Intro, 2, 3, 4)</option>
+                                <option value="8">2 Compases (8 Beats: 1, 2, 3, 4...)</option>
+                                <option value="0">Sin Conteo (Inicio directo 0:00)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Generación automática de Guía y Metrónomo -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-900 text-xs">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="autoGenerateGuideCheck" checked class="w-4 h-4 rounded bg-zinc-900 border-zinc-800 text-red-600 focus:ring-red-500 accent-red-600"/>
+                            <span class="text-xs text-zinc-300 font-medium">Generar Click y Voz Guía con Samples</span>
+                        </label>
+                        <span class="text-[10px] text-zinc-500 font-mono">Samples Cues 100% Reales</span>
                     </div>
                 </div>
 
