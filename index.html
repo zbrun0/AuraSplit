@@ -187,8 +187,8 @@
                         
                         <!-- Menú de Usuario Logueado -->
                         <div id="userProfileMenu" class="hidden flex items-center gap-2 bg-zinc-900/90 border border-zinc-800/80 px-2.5 py-1 rounded-xl">
-                            <button type="button" onclick="openUserProfileModal()" class="w-6 h-6 rounded-full bg-red-600 text-white font-mono text-[10px] font-black flex items-center justify-center border border-red-500/40 uppercase cursor-pointer hover:scale-105 transition-transform" id="userAvatar" title="Ver mi cuenta y suscripción">U</button>
-                            <span id="userNameLabel" class="text-xs font-medium text-zinc-200 max-w-[100px] truncate hidden md:inline">Usuario</span>
+                            <a href="/profile" class="w-6 h-6 rounded-full bg-red-600 text-white font-mono text-[10px] font-black flex items-center justify-center border border-red-500/40 uppercase cursor-pointer hover:scale-105 transition-transform" id="userAvatar" title="Ver mi perfil (/profile)">U</a>
+                            <a href="/profile" id="userNameLabel" class="text-xs font-medium text-zinc-200 max-w-[100px] truncate hidden md:inline hover:text-red-400 transition-colors" title="Ver mi perfil (/profile)">Usuario</a>
                             <span id="userProBadge" class="text-[9px] bg-red-600 text-white font-mono font-extrabold px-1.5 py-0.5 rounded shadow-xs hidden">PRO</span>
                             <button id="signOutBtn" type="button" title="Cerrar Sesión" class="text-zinc-500 hover:text-red-400 text-xs font-mono ml-1 cursor-pointer">
                                 <i class="fa-solid fa-right-from-bracket"></i>
@@ -826,6 +826,7 @@
                 <ul class="space-y-2 text-zinc-400">
                     <li><a class="hover:text-red-400 transition-colors" href="#hero">Separador de Stems</a></li>
                     <li><a class="hover:text-red-400 transition-colors" href="#hero">Consola DAW en Vivo</a></li>
+                    <li><a class="hover:text-red-400 transition-colors" href="/profile">Mi Perfil & Suscripción</a></li>
                     <li><a class="hover:text-red-400 transition-colors" href="javascript:void(0)" onclick="openVaultModal()">Repertorio Cloud</a></li>
                     <li><a class="hover:text-red-400 transition-colors" href="#pricing">Planes y Precios</a></li>
                 </ul>
@@ -1113,9 +1114,15 @@
                 </div>
             </div>
             
-            <button id="closeProfileModalBtn" onclick="closeUserProfileModal()" type="button" class="absolute top-4 right-4 sm:static text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono font-bold cursor-pointer transition-colors">
-                <i class="fa-solid fa-xmark text-sm"></i>
-            </button>
+            <div class="flex items-center gap-2">
+                <a href="/profile" class="text-zinc-400 hover:text-white px-3 py-1.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono font-bold transition-colors flex items-center gap-1.5" title="Ir a la página completa de perfil">
+                    <i class="fa-solid fa-up-right-from-square text-[10px]"></i>
+                    <span class="hidden sm:inline">Página Completa</span>
+                </a>
+                <button id="closeProfileModalBtn" onclick="closeUserProfileModal()" type="button" class="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-mono font-bold cursor-pointer transition-colors">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Bento Stats Grid (3 Columas) -->

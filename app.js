@@ -4235,6 +4235,21 @@ window.loadProjectFromVault = async function(folderId) {
     }
 };
 
+// Detección de canción seleccionada desde /profile (?vault_id=...)
+if (typeof window !== "undefined") {
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialVaultId = urlParams.get("vault_id");
+    if (initialVaultId) {
+        window.addEventListener("load", () => {
+            setTimeout(() => {
+                if (window.loadProjectFromVault) {
+                    window.loadProjectFromVault(initialVaultId);
+                }
+            }, 400);
+        });
+    }
+}
+
 window.deleteProjectFromVault = async function(folderId) {
     if (!confirm("¿Seguro que deseas eliminar esta canción de tu repertorio?")) return;
     try {

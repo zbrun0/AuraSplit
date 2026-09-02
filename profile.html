@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html class="scroll-smooth dark" lang="es">
+<head>
+    <script
+      src="https://js.sentry-cdn.com/67f912d832c31e6b701d38b420992616.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Mi Perfil y Suscripción - AuraSplit</title>
+    <meta name="description" content="Gestiona tu suscripción PRO, tu repertorio de canciones guardadas en la nube, cuotas de procesamiento y ajustes de cuenta en AuraSplit."/>
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Mi Perfil - AuraSplit"/>
+    <meta property="og:description" content="Gestiona tu cuenta, suscripción PRO y canciones guardadas en AuraSplit."/>
+    <meta property="og:image" content="https://aurasplit.vercel.app/AuraSplit.png"/>
+    <meta property="og:url" content="https://aurasplit.vercel.app/profile"/>
+    <meta property="og:type" content="website"/>
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://aurasplit.vercel.app/profile"/>
+    <link rel="icon" type="image/svg+xml" href="iconlogo.svg"/>
+
+    <!-- Tailwind CSS with Forms and Container Queries -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- FontAwesome 6 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lexend:wght@500;600;700;800;900&family=Geist+Mono:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css?v=3.8.9"/>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+
+    <!-- Tailwind Configuration -->
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              fadr: {
+                red: '#ef4444',
+                redHover: '#dc2626',
+                dark: '#121212',
+                darker: '#0a0a0a',
+                card: '#1e1e1e',
+                text: '#f3f4f6',
+                muted: '#9ca3af'
+              },
+              primary: '#ef4444'
+            },
+            fontFamily: {
+              sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+              display: ['Lexend', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+              mono: ['Geist Mono', 'monospace']
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-zinc-950 text-fadr-text overflow-x-hidden antialiased flex flex-col min-h-screen selection:bg-red-600 selection:text-white">
+    
+    <!-- BEGIN: Top Announcement Banner -->
+    <div id="topAnnouncementBanner" class="w-full bg-white text-black py-2 px-4 flex items-center justify-between text-xs sm:text-sm font-bold overflow-hidden whitespace-nowrap z-50">
+        <div class="flex items-center space-x-8 animate-marquee shrink-0 min-w-full">
+            <span class="flex items-center"><i class="fa-solid fa-crown text-red-600 mr-2"></i> 5 Días de Prueba Gratis AuraSplit PRO</span>
+            <span class="flex items-center"><i class="fa-solid fa-bolt text-red-600 mr-2"></i> Separación de 4 y 6 Stems con IA</span>
+            <span class="flex items-center"><i class="fa-solid fa-microphone-lines text-red-600 mr-2"></i> Guías Vocales Cues y Metrónomo Sincronizado</span>
+            <span class="flex items-center"><i class="fa-solid fa-cloud text-red-600 mr-2"></i> Almacenamiento en la Nube para tu Repertorio Personal</span>
+            <span class="flex items-center"><i class="fa-solid fa-crown text-red-600 mr-2"></i> 5 Días de Prueba Gratis AuraSplit PRO</span>
+        </div>
+    </div>
+    <!-- END: Top Announcement Banner -->
+
+    <!-- BEGIN: Main Header -->
+    <header class="fixed top-10 left-0 right-0 z-50 transition-all duration-300" id="mainHeader">
+        <div class="container mx-auto max-w-6xl px-4 sm:px-6">
+            <div class="flex items-center justify-between h-16 bg-zinc-950/85 backdrop-blur-xl rounded-2xl px-4 md:px-6 border border-white/10 shadow-2xl">
+                
+                <!-- Logo & Back to App -->
+                <div class="flex items-center space-x-4">
+                    <a class="flex items-center space-x-3 group" href="/">
+                        <img src="iconlogo_aurasplit.svg" alt="AuraSplit" class="h-7 sm:h-8 w-auto hover:opacity-90 transition-opacity"/>
+                    </a>
+                    <span class="text-zinc-600 font-mono text-xs hidden sm:inline">/</span>
+                    <span class="text-xs font-mono font-bold text-zinc-300 uppercase tracking-widest hidden sm:inline">Perfil & Cuenta</span>
+                </div>
+
+                <!-- Navigation (Desktop) -->
+                <nav class="hidden md:flex items-center space-x-6 font-medium text-xs font-mono tracking-wider">
+                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="/"><i class="fa-solid fa-sliders mr-1 text-zinc-500"></i> SEPARADOR</a>
+                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#repertoire"><i class="fa-solid fa-folder-open mr-1 text-zinc-500"></i> MI REPERTORIO</a>
+                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#subscription"><i class="fa-solid fa-crown mr-1 text-amber-500"></i> SUSCRIPCIÓN</a>
+                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#settings"><i class="fa-solid fa-gear mr-1 text-zinc-500"></i> AJUSTES</a>
+                </nav>
+
+                <!-- Actions -->
+                <div class="flex items-center space-x-3">
+                    <a href="/" class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/50 text-zinc-200 hover:text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-arrow-left text-[11px] text-red-500"></i>
+                        <span class="hidden sm:inline">VOLVER AL ESTUDIO</span>
+                        <span class="sm:hidden">ESTUDIO</span>
+                    </a>
+
+                    <div id="authNavContainer" class="flex items-center">
+                        <button id="headerSignOutBtn" onclick="handleSignOut()" type="button" class="hidden px-3 py-1.5 bg-red-950/40 hover:bg-red-950 border border-red-900/50 hover:border-red-600/60 text-red-300 hover:text-red-200 text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-1.5 cursor-pointer" title="Cerrar Sesión">
+                            <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                            <span class="hidden sm:inline">SALIR</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- END: Main Header -->
+
+    <main class="flex-1 pt-32 pb-24 px-4 sm:px-6">
+        <div class="container mx-auto max-w-5xl space-y-8">
+
+            <!-- Estado 1: Loading Spinner mientras comprueba sesión -->
+            <div id="loadingView" class="py-24 flex flex-col items-center justify-center text-center space-y-4">
+                <div class="w-12 h-12 rounded-full border-2 border-red-500/30 border-t-red-500 animate-spin"></div>
+                <p class="text-zinc-400 font-mono text-xs">Cargando perfil de usuario...</p>
+            </div>
+
+            <!-- Estado 2: Vista No Autenticado (Formulario de Acceso Directo) -->
+            <div id="unauthView" class="hidden max-w-md mx-auto bg-zinc-900/80 border border-zinc-800/90 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-6">
+                <div class="text-center space-y-2">
+                    <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-red-600 to-amber-600 flex items-center justify-center text-white shadow-[0_0_20px_rgba(239,68,68,0.35)]">
+                        <i class="fa-solid fa-user-lock text-2xl"></i>
+                    </div>
+                    <h1 class="text-2xl font-display font-black text-white">Acceso a tu Perfil</h1>
+                    <p class="text-zinc-400 text-xs font-mono">Inicia sesión para gestionar tu suscripción PRO y tu repertorio personal.</p>
+                </div>
+
+                <!-- Google Button -->
+                <div class="flex justify-center">
+                    <div id="googleBtnContainer" class="w-full flex justify-center"></div>
+                </div>
+
+                <div class="flex items-center my-4">
+                    <div class="flex-grow border-t border-zinc-800"></div>
+                    <span class="px-3 text-zinc-500 font-mono text-[11px] uppercase">o con correo</span>
+                    <div class="flex-grow border-t border-zinc-800"></div>
+                </div>
+
+                <form id="profileLoginForm" class="space-y-4">
+                    <div id="loginNameGroup" class="hidden">
+                        <label class="block text-xs font-mono text-zinc-400 mb-1">Nombre Completo</label>
+                        <input type="text" id="loginNameInput" placeholder="Tu Nombre o Banda" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500 transition-colors"/>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-mono text-zinc-400 mb-1">Correo Electrónico</label>
+                        <input type="email" id="loginEmailInput" required placeholder="tu@correo.com" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500 transition-colors"/>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-mono text-zinc-400 mb-1">Contraseña</label>
+                        <input type="password" id="loginPasswordInput" required placeholder="••••••••" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500 transition-colors"/>
+                    </div>
+
+                    <div id="loginErrorMsg" class="hidden text-xs text-red-400 bg-red-950/40 border border-red-900/60 rounded-xl p-3 font-mono"></div>
+                    <div id="loginSuccessMsg" class="hidden text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-900/60 rounded-xl p-3 font-mono"></div>
+
+                    <button type="submit" id="loginSubmitBtn" class="w-full py-3 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-red-600/25 cursor-pointer">
+                        INICIAR SESIÓN
+                    </button>
+
+                    <div class="text-center pt-2">
+                        <button type="button" id="loginToggleModeBtn" class="text-xs text-zinc-400 hover:text-white font-mono transition-colors">
+                            ¿No tienes cuenta? <span class="text-red-500 font-bold underline">Regístrate gratis</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Estado 3: Vista Principal de Usuario Autenticado -->
+            <div id="authView" class="hidden space-y-8">
+                
+                <!-- 1. Creator Profile Hero Card -->
+                <div class="bg-gradient-to-r from-zinc-900/90 via-zinc-900/50 to-zinc-950 border border-white/10 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+                    <div class="absolute -top-24 -right-24 w-72 h-72 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
+                    
+                    <div class="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 relative z-10">
+                        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
+                            <div class="w-24 h-24 rounded-3xl bg-gradient-to-tr from-red-600 via-red-500 to-amber-500 text-white font-mono text-3xl font-black flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] border-2 border-red-500/50 flex-shrink-0" id="profileAvatar">
+                                U
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                                    <h1 class="text-2xl sm:text-3xl font-display font-black text-white" id="profileFullName">Creador Musical</h1>
+                                    <span id="profilePlanBadge" class="px-3 py-1 bg-red-600/20 border border-red-500/40 text-red-400 rounded-full font-mono text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+                                        <i class="fa-solid fa-crown text-amber-400 text-xs"></i> Plan Básico
+                                    </span>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs font-mono text-zinc-400">
+                                    <span class="flex items-center gap-1.5">
+                                        <i class="fa-regular fa-envelope text-zinc-500"></i>
+                                        <span id="profileEmail">usuario@correo.com</span>
+                                    </span>
+                                    <span class="text-zinc-600">•</span>
+                                    <span class="flex items-center gap-1.5" id="profileProviderBadge">
+                                        <i class="fa-solid fa-shield-check text-emerald-400"></i> Sesión Segura
+                                    </span>
+                                </div>
+                                <p class="text-xs text-zinc-400 font-mono pt-1" id="profileMemberSince">Miembro de AuraSplit</p>
+                            </div>
+                        </div>
+
+                        <!-- Quick Navigation CTA -->
+                        <div class="flex flex-wrap sm:flex-col gap-2 w-full sm:w-auto">
+                            <a href="#repertoire" class="flex-1 sm:flex-initial px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-200 hover:text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-folder-open text-red-500"></i> Mi Repertorio
+                            </a>
+                            <a href="#subscription" class="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-red-600/20">
+                                <i class="fa-solid fa-crown text-amber-300"></i> Suscripción
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Bento Stats Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <!-- Stat 1: Engine -->
+                    <div class="bg-zinc-900/40 border border-zinc-800/80 hover:border-red-500/40 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm">
+                        <div class="flex items-center justify-between text-zinc-400 text-xs font-mono mb-3">
+                            <span class="uppercase tracking-wider font-bold">Motor IA Activo</span>
+                            <i class="fa-solid fa-bolt text-amber-500"></i>
+                        </div>
+                        <div>
+                            <span class="text-2xl font-black text-white font-display block" id="bentoEngineName">Demucs v4</span>
+                            <p class="text-[11px] text-zinc-400 font-mono mt-1" id="bentoEngineDesc">Separación de audio estándar</p>
+                        </div>
+                    </div>
+
+                    <!-- Stat 2: Repertoire Count -->
+                    <a href="#repertoire" class="bg-zinc-900/40 border border-zinc-800/80 hover:border-red-500/40 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm group cursor-pointer">
+                        <div class="flex items-center justify-between text-zinc-400 text-xs font-mono mb-3">
+                            <span class="uppercase tracking-wider font-bold">Canciones en la Nube</span>
+                            <i class="fa-solid fa-cloud text-red-500"></i>
+                        </div>
+                        <div>
+                            <span class="text-2xl font-black text-white font-display block" id="bentoRepertoireCount">0</span>
+                            <p class="text-[11px] text-red-400 font-mono mt-1 flex items-center gap-1 group-hover:underline">
+                                <span>Explorar repertorio</span> <i class="fa-solid fa-arrow-right text-[9px]"></i>
+                            </p>
+                        </div>
+                    </a>
+
+                    <!-- Stat 3: Processing Capacity -->
+                    <div class="bg-zinc-900/40 border border-zinc-800/80 hover:border-red-500/40 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm">
+                        <div class="flex items-center justify-between text-zinc-400 text-xs font-mono mb-3">
+                            <span class="uppercase tracking-wider font-bold">Herramientas de Estudio</span>
+                            <i class="fa-solid fa-sliders text-cyan-400"></i>
+                        </div>
+                        <div>
+                            <span class="text-2xl font-black text-white font-display block" id="bentoStemsCapacity">6 Canales</span>
+                            <p class="text-[11px] text-zinc-400 font-mono mt-1">Cues Vocales, Click & Pitch Shifter</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Section: Suscripción y Facturación -->
+                <section id="subscription" class="scroll-mt-24 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-crown text-amber-500 text-lg"></i>
+                            <h2 class="text-xl font-display font-black text-white">Plan y Suscripción</h2>
+                        </div>
+                        <span id="subscriptionStatusPill" class="text-xs font-mono font-bold px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">Plan Básico</span>
+                    </div>
+
+                    <div class="bg-gradient-to-b from-zinc-900/90 to-zinc-950 border border-zinc-800/90 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-xl grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <!-- Left Details (2 cols) -->
+                        <div class="lg:col-span-2 space-y-6">
+                            <div>
+                                <h3 class="text-2xl font-display font-black text-white mb-1" id="subPlanTitle">AuraSplit PRO</h3>
+                                <p class="text-xs font-mono text-zinc-400" id="subRenewalInfo">Acceso Gratuito Estándar</p>
+                            </div>
+
+                            <!-- Perks Grid -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                <div class="flex items-start gap-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
+                                    <i class="fa-solid fa-check text-emerald-400 text-sm mt-0.5"></i>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-white">Separación de 6 Stems HD</h4>
+                                        <p class="text-[10px] text-zinc-400 font-mono mt-0.5">Voz, Batería, Bajo, Guitarra, Piano y Otros</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start gap-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
+                                    <i class="fa-solid fa-check text-emerald-400 text-sm mt-0.5"></i>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-white">GPU Dedicada Serverless</h4>
+                                        <p class="text-[10px] text-zinc-400 font-mono mt-0.5">Procesamiento ultra rápido en segundos</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start gap-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
+                                    <i class="fa-solid fa-check text-emerald-400 text-sm mt-0.5"></i>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-white">Guías Vocales Cues y Metrónomo</h4>
+                                        <p class="text-[10px] text-zinc-400 font-mono mt-0.5">Avisos de Intro, Verso, Coro y conteo</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start gap-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
+                                    <i class="fa-solid fa-check text-emerald-400 text-sm mt-0.5"></i>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-white">Bóveda Cloud Ilimitada</h4>
+                                        <p class="text-[10px] text-zinc-400 font-mono mt-0.5">Guarda tus canciones y ajustes de ensayo</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Pricing & Actions Card -->
+                        <div class="lg:col-span-1 bg-gradient-to-b from-red-950/30 to-zinc-900/90 border border-red-500/30 rounded-2xl p-6 flex flex-col justify-between space-y-6">
+                            <div>
+                                <div class="text-[11px] font-mono text-red-400 font-extrabold uppercase tracking-wider">Inversión Mensual</div>
+                                <div class="flex items-baseline gap-1 mt-1">
+                                    <span class="text-4xl font-display font-black text-white">$6.99</span>
+                                    <span class="text-xs font-mono text-zinc-400">/ mes USD</span>
+                                </div>
+                                <p class="text-[11px] text-zinc-400 font-mono mt-2" id="subStatusNote">Prueba de 5 días sin costo. Cancela en cualquier momento.</p>
+                            </div>
+
+                            <div class="space-y-3">
+                                <button id="subUpgradeBtn" onclick="handleProCheckout()" type="button" class="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black font-mono tracking-wider transition-all shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 cursor-pointer btn-tactile">
+                                    <i class="fa-solid fa-crown text-amber-300"></i> ACTIVAR 5 DÍAS PRO GRATIS
+                                </button>
+
+                                <button id="subCancelBtn" onclick="handleCancelSubscription()" type="button" class="hidden w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-red-950 border border-zinc-800 hover:border-red-600/50 text-zinc-400 hover:text-red-400 text-xs font-bold font-mono tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                    <i class="fa-solid fa-ban"></i> Cancelar Suscripción
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. Section: Mi Repertorio en la Nube -->
+                <section id="repertoire" class="scroll-mt-24 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-folder-open text-red-500 text-lg"></i>
+                            <h2 class="text-xl font-display font-black text-white">Mi Repertorio Cloud</h2>
+                        </div>
+                        
+                        <!-- Search & Refresh -->
+                        <div class="flex items-center gap-3">
+                            <div class="relative w-full sm:w-64">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs"></i>
+                                <input type="text" id="repertoireSearchInput" placeholder="Buscar canción..." class="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 transition-colors font-mono"/>
+                            </div>
+                            <button onclick="loadUserRepertoire()" type="button" class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs transition-colors cursor-pointer" title="Actualizar repertorio">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Repertoire Projects List Container -->
+                    <div id="repertoireList" class="space-y-3 min-h-[160px]">
+                        <!-- Dynamic content via JS -->
+                    </div>
+                </section>
+
+                <!-- 5. Section: Ajustes de Cuenta & Seguridad -->
+                <section id="settings" class="scroll-mt-24 space-y-4">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fa-solid fa-sliders text-cyan-400 text-lg"></i>
+                        <h2 class="text-xl font-display font-black text-white">Ajustes y Seguridad</h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Update Name Form -->
+                        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 space-y-4">
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-user-pen text-zinc-400"></i> Actualizar Datos Personales
+                            </h3>
+                            <form id="updateProfileForm" class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-mono text-zinc-400 mb-1">Nombre Completo</label>
+                                    <input type="text" id="editFullNameInput" placeholder="Tu Nombre" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500 font-mono"/>
+                                </div>
+                                <div id="updateProfileFeedback" class="hidden text-xs font-mono p-2.5 rounded-xl"></div>
+                                <button type="submit" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-mono font-bold rounded-xl transition-all cursor-pointer">
+                                    Guardar Cambios
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Developer / API Documentation -->
+                        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 flex flex-col justify-between space-y-4">
+                            <div>
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-code text-cyan-400"></i> API de Separación & Swagger
+                                </h3>
+                                <p class="text-xs text-zinc-400 font-mono mt-2 leading-relaxed">
+                                    Accede a la documentación interactiva de nuestra API REST con modelos Demucs v4 y procesamiento de guías automáticas.
+                                </p>
+                            </div>
+                            <div>
+                                <a href="https://zbrun0-aurasplit.hf.space/docs" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 hover:text-white text-xs font-mono font-bold rounded-xl transition-all">
+                                    <span>Abrir Swagger Docs</span>
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Danger Zone -->
+                    <div class="border border-red-950/80 bg-red-950/15 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h4 class="text-xs font-bold text-red-400 font-mono uppercase tracking-wider">Cerrar Sesión Activa</h4>
+                            <p class="text-[11px] text-zinc-400 mt-0.5">Finaliza tu sesión en este dispositivo de forma segura.</p>
+                        </div>
+                        <button onclick="handleSignOut()" type="button" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-red-950 border border-zinc-800 hover:border-red-600/50 text-xs font-mono font-bold text-zinc-300 hover:text-red-400 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
+                        </button>
+                    </div>
+                </section>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-zinc-950 border-t border-zinc-900 py-8 px-4 text-center text-xs text-zinc-500 font-mono">
+        <div class="container mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <img src="iconlogo_aurasplit.svg" alt="AuraSplit" class="h-5 w-auto opacity-70"/>
+                <span>AuraSplit © 2026. Todos los derechos reservados.</span>
+            </div>
+            <div class="flex items-center space-x-6 text-zinc-400">
+                <a href="/" class="hover:text-white transition-colors">Separador</a>
+                <a href="/#pricing" class="hover:text-white transition-colors">Planes</a>
+                <a href="https://zbrun0-aurasplit.hf.space/docs" target="_blank" class="hover:text-white transition-colors">API</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Logic Script -->
+    <script src="profile.js?v=1.0.0"></script>
+</body>
+</html>
