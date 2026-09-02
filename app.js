@@ -3481,7 +3481,7 @@ function updateAuthUI() {
         const name = userProfile?.full_name || currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Usuario";
         if (userNameLabel) userNameLabel.textContent = name;
         if (userAvatar) {
-            userAvatar.textContent = name.charAt(0).toUpperCase();
+            userAvatar.innerHTML = '<i class="fa-solid fa-user text-xs"></i>';
         }
 
         const isPro = isUserPro();
@@ -3852,7 +3852,7 @@ function closeUserProfileModal() {
 async function handleCancelSubscription() {
     if (!currentUser) return;
     
-    const confirmed = confirm("¿Estás seguro de que deseas cancelar tu suscripción PRO?\n\nPerderás el acceso a las guías vocales sincronizadas, GPU Serverless y almacenamiento ilimitado al terminar tu periodo actual.");
+    const confirmed = confirm("¿Estás seguro de que deseas cancelar tu suscripción PRO?\n\nTu cuenta se actualizará al plan gratuito y no recibirás cobros futuros.");
     if (!confirmed) return;
 
     try {
@@ -3870,7 +3870,11 @@ async function handleCancelSubscription() {
 
         updateAuthUI();
         openUserProfileModal();
-        alert("Tu suscripción ha sido cancelada. Tu cuenta ha vuelto al plan básico gratuito.");
+        
+        const openPortal = confirm("Tu suscripción ha sido cancelada en AuraSplit.\n\n¿Deseas abrir el Portal de Facturación de Lemon Squeezy para ver tus comprobantes o gestionar tus métodos de pago?");
+        if (openPortal) {
+            window.open("https://aurasplit.lemonsqueezy.com/billing", "_blank");
+        }
     } catch (err) {
         alert("Error al procesar la cancelación: " + err.message);
     }
@@ -4459,6 +4463,13 @@ if (cancelProcessBtn) {
 
 if (newSeparationBtn) {
     newSeparationBtn.addEventListener("click", () => {
+        resetAudio();
+    });
+}
+
+const exitStudioBtn = document.getElementById("exitStudioBtn");
+if (exitStudioBtn) {
+    exitStudioBtn.addEventListener("click", () => {
         resetAudio();
     });
 }

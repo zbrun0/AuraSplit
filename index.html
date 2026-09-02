@@ -131,23 +131,8 @@
 </head>
 <body class="bg-zinc-950 text-fadr-text overflow-x-hidden antialiased flex flex-col min-h-screen selection:bg-red-600 selection:text-white">
     
-    <!-- BEGIN: Top Announcement Banner -->
-    <div id="topAnnouncementBanner" class="w-full bg-white text-black py-2 px-4 flex items-center justify-between text-xs sm:text-sm font-bold overflow-hidden whitespace-nowrap z-50 transition-opacity duration-300">
-        <div class="flex items-center space-x-8 animate-marquee shrink-0 min-w-full">
-            <span class="flex items-center"><i class="fa-solid fa-crown text-red-600 mr-2"></i> 5 Días de Prueba Gratis AuraSplit PRO</span>
-            <span class="flex items-center"><i class="fa-solid fa-bolt text-red-600 mr-2"></i> Separación de 4 y 6 Stems con IA</span>
-            <span class="flex items-center"><i class="fa-solid fa-microphone-lines text-red-600 mr-2"></i> Guías Vocales Cues y Metrónomo Sincronizado</span>
-            <span class="flex items-center"><i class="fa-solid fa-cloud text-red-600 mr-2"></i> Almacenamiento en la Nube para tu Repertorio Personal</span>
-            <span class="flex items-center"><i class="fa-solid fa-crown text-red-600 mr-2"></i> 5 Días de Prueba Gratis AuraSplit PRO</span>
-            <span class="flex items-center"><i class="fa-solid fa-bolt text-red-600 mr-2"></i> Separación de 4 y 6 Stems con IA</span>
-            <span class="flex items-center"><i class="fa-solid fa-microphone-lines text-red-600 mr-2"></i> Guías Vocales Cues y Metrónomo Sincronizado</span>
-            <span class="flex items-center"><i class="fa-solid fa-cloud text-red-600 mr-2"></i> Almacenamiento en la Nube para tu Repertorio Personal</span>
-        </div>
-    </div>
-    <!-- END: Top Announcement Banner -->
-
     <!-- BEGIN: Main Floating Header -->
-    <header class="fixed top-10 left-0 right-0 z-50 transition-all duration-300" id="mainHeader">
+    <header class="fixed top-4 left-0 right-0 z-50 transition-all duration-300" id="mainHeader">
         <div class="container mx-auto max-w-6xl px-4 sm:px-6">
             <div class="flex items-center justify-between h-16 bg-zinc-950/80 backdrop-blur-xl rounded-2xl px-4 md:px-6 border border-white/10 shadow-2xl">
                 
@@ -157,17 +142,16 @@
                 </a>
 
                 <!-- Navigation (Desktop) -->
-                <nav class="hidden lg:flex items-center space-x-7 font-medium text-xs font-mono tracking-wider">
+                <nav class="hidden lg:flex items-center space-x-6 font-medium text-xs font-mono tracking-wider">
                     <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#dropzone">SEPARADOR</a>
-                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#features">FUNCIONES</a>
-                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#pricing">PLANES PRO</a>
-                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#faq">PREGUNTAS</a>
-                    
                     <!-- Botón Mi Repertorio (Oculto por defecto, visible para usuarios PRO) -->
-                    <button id="openVaultBtn" onclick="openVaultModal()" type="button" class="hidden px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/50 text-white text-xs font-bold font-mono tracking-wider rounded-xl transition-all flex items-center gap-2 shadow-sm cursor-pointer" title="Ver mi repertorio de canciones guardadas">
+                    <button id="openVaultBtn" onclick="openVaultModal()" type="button" class="hidden px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/50 text-white text-xs font-bold font-mono tracking-wider rounded-xl transition-all inline-flex items-center justify-center gap-2 shadow-sm cursor-pointer" title="Ver mi repertorio de canciones guardadas">
                         <i class="fa-solid fa-folder-open text-red-500"></i>
                         <span>MI REPERTORIO</span>
                     </button>
+                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#features">FUNCIONES</a>
+                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#pricing">PLANES PRO</a>
+                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#faq">PREGUNTAS</a>
                 </nav>
 
                 <!-- Actions: Auth & PRO Upgrade -->
@@ -187,7 +171,9 @@
                         
                         <!-- Menú de Usuario Logueado -->
                         <div id="userProfileMenu" class="hidden flex items-center gap-2 bg-zinc-900/90 border border-zinc-800/80 px-2.5 py-1 rounded-xl">
-                            <a href="/profile" class="w-6 h-6 rounded-full bg-red-600 text-white font-mono text-[10px] font-black flex items-center justify-center border border-red-500/40 uppercase cursor-pointer hover:scale-105 transition-transform" id="userAvatar" title="Ver mi perfil (/profile)">U</a>
+                            <a href="/profile" class="w-7 h-7 rounded-xl bg-zinc-800 hover:bg-red-600/20 border border-zinc-700 hover:border-red-500/50 text-zinc-300 hover:text-red-400 flex items-center justify-center transition-all cursor-pointer" id="userAvatar" title="Ver mi perfil (/profile)">
+                                <i class="fa-solid fa-user text-xs"></i>
+                            </a>
                             <a href="/profile" id="userNameLabel" class="text-xs font-medium text-zinc-200 max-w-[100px] truncate hidden md:inline hover:text-red-400 transition-colors" title="Ver mi perfil (/profile)">Usuario</a>
                             <span id="userProBadge" class="text-[9px] bg-red-600 text-white font-mono font-extrabold px-1.5 py-0.5 rounded shadow-xs hidden">PRO</span>
                             <button id="signOutBtn" type="button" title="Cerrar Sesión" class="text-zinc-500 hover:text-red-400 text-xs font-mono ml-1 cursor-pointer">
@@ -382,7 +368,7 @@
             </div>
             <div class="flex flex-col sm:flex-row justify-between text-[11px] text-zinc-500 font-mono mt-1 gap-1">
                 <span>Por favor, mantén esta ventana abierta mientras la IA procesa las pistas.</span>
-                <span class="text-red-500/90 animate-pulse">▲ El procesamiento completo puede tardar varios minutos.</span>
+                <span class="text-red-500/90 animate-pulse"><i class="fa-solid fa-triangle-exclamation mr-1"></i> El procesamiento completo puede tardar varios minutos.</span>
             </div>
         </section>
 
@@ -414,6 +400,9 @@
                     </button>
                     <button id="newSeparationBtn" class="px-3.5 py-2 bg-zinc-900 border border-zinc-800 hover:border-red-500/40 text-red-400 hover:text-white font-mono text-[10px] font-black tracking-widest rounded-xl transition-colors flex items-center gap-1.5 btn-tactile cursor-pointer">
                         <i class="fa-solid fa-plus"></i> <span class="hidden sm:inline">NUEVA SEPARACIÓN</span>
+                    </button>
+                    <button id="exitStudioBtn" type="button" class="px-3.5 py-2 bg-red-950/40 border border-red-900/60 hover:border-red-500 hover:bg-red-950 text-red-300 hover:text-white font-mono text-[10px] font-black tracking-widest rounded-xl transition-all flex items-center gap-1.5 btn-tactile cursor-pointer" title="Salir de la consola y volver al inicio">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i> <span>SALIR</span>
                     </button>
                 </div>
             </div>
@@ -1229,10 +1218,10 @@
                         <!-- Beneficios PRO Activos -->
                         <div id="profileProPerks" class="hidden bg-red-950/30 border border-red-500/30 rounded-xl p-3 text-[10px] text-zinc-300 space-y-1 font-mono">
                             <div class="text-amber-300 font-bold mb-1">Beneficios PRO:</div>
-                            <div>✓ GPU Dedicada Serverless</div>
-                            <div>✓ Guías Vocales Cues y Click</div>
-                            <div>✓ Repertorio Ilimitado</div>
-                            <div>✓ Pitch Shifter ±12 st</div>
+                            <div class="flex items-center"><i class="fa-solid fa-check text-emerald-400 mr-1.5 text-[9px]"></i> GPU Dedicada Serverless</div>
+                            <div class="flex items-center"><i class="fa-solid fa-check text-emerald-400 mr-1.5 text-[9px]"></i> Guías Vocales Cues y Click</div>
+                            <div class="flex items-center"><i class="fa-solid fa-check text-emerald-400 mr-1.5 text-[9px]"></i> Repertorio Ilimitado</div>
+                            <div class="flex items-center"><i class="fa-solid fa-check text-emerald-400 mr-1.5 text-[9px]"></i> Pitch Shifter ±12 st</div>
                         </div>
                     </div>
 

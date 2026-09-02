@@ -66,26 +66,14 @@
     </script>
 </head>
 <body class="bg-zinc-950 text-fadr-text overflow-x-hidden antialiased flex flex-col min-h-screen selection:bg-red-600 selection:text-white">
-    
-    <!-- BEGIN: Top Announcement Banner -->
-    <div id="topAnnouncementBanner" class="w-full bg-white text-black py-2 px-4 flex items-center justify-between text-xs sm:text-sm font-bold overflow-hidden whitespace-nowrap z-50">
-        <div class="flex items-center space-x-8 animate-marquee shrink-0 min-w-full">
-            <span class="flex items-center"><i class="fa-solid fa-crown text-red-600 mr-2"></i> 5 Días de Prueba Gratis AuraSplit PRO</span>
-            <span class="flex items-center"><i class="fa-solid fa-bolt text-red-600 mr-2"></i> Separación de 4 y 6 Stems con IA</span>
-            <span class="flex items-center"><i class="fa-solid fa-microphone-lines text-red-600 mr-2"></i> Guías Vocales Cues y Metrónomo Sincronizado</span>
-            <span class="flex items-center"><i class="fa-solid fa-cloud text-red-600 mr-2"></i> Almacenamiento en la Nube para tu Repertorio Personal</span>
-            <span class="flex items-center"><i class="fa-solid fa-crown text-red-600 mr-2"></i> 5 Días de Prueba Gratis AuraSplit PRO</span>
-        </div>
-    </div>
-    <!-- END: Top Announcement Banner -->
 
     <!-- BEGIN: Main Header -->
-    <header class="fixed top-10 left-0 right-0 z-50 transition-all duration-300" id="mainHeader">
-        <div class="container mx-auto max-w-6xl px-4 sm:px-6">
+    <header class="fixed top-4 left-0 right-0 z-50 transition-all duration-300" id="mainHeader">
+        <div class="container mx-auto max-w-5xl px-4 sm:px-6">
             <div class="flex items-center justify-between h-16 bg-zinc-950/85 backdrop-blur-xl rounded-2xl px-4 md:px-6 border border-white/10 shadow-2xl">
                 
                 <!-- Logo & Back to App -->
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3">
                     <a class="flex items-center space-x-3 group" href="/">
                         <img src="iconlogo_aurasplit.svg" alt="AuraSplit" class="h-7 sm:h-8 w-auto hover:opacity-90 transition-opacity"/>
                     </a>
@@ -93,24 +81,15 @@
                     <span class="text-xs font-mono font-bold text-zinc-300 uppercase tracking-widest hidden sm:inline">Perfil & Cuenta</span>
                 </div>
 
-                <!-- Navigation (Desktop) -->
-                <nav class="hidden md:flex items-center space-x-6 font-medium text-xs font-mono tracking-wider">
-                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="/"><i class="fa-solid fa-sliders mr-1 text-zinc-500"></i> SEPARADOR</a>
-                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#repertoire"><i class="fa-solid fa-folder-open mr-1 text-zinc-500"></i> MI REPERTORIO</a>
-                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#subscription"><i class="fa-solid fa-crown mr-1 text-amber-500"></i> SUSCRIPCIÓN</a>
-                    <a class="text-zinc-300 hover:text-red-400 transition-colors" href="#settings"><i class="fa-solid fa-gear mr-1 text-zinc-500"></i> AJUSTES</a>
-                </nav>
-
                 <!-- Actions -->
                 <div class="flex items-center space-x-3">
-                    <a href="/" class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/50 text-zinc-200 hover:text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+                    <a href="/" class="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/50 text-zinc-200 hover:text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-2 shadow-sm">
                         <i class="fa-solid fa-arrow-left text-[11px] text-red-500"></i>
-                        <span class="hidden sm:inline">VOLVER AL ESTUDIO</span>
-                        <span class="sm:hidden">ESTUDIO</span>
+                        <span>VOLVER AL ESTUDIO</span>
                     </a>
 
                     <div id="authNavContainer" class="flex items-center">
-                        <button id="headerSignOutBtn" onclick="handleSignOut()" type="button" class="hidden px-3 py-1.5 bg-red-950/40 hover:bg-red-950 border border-red-900/50 hover:border-red-600/60 text-red-300 hover:text-red-200 text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-1.5 cursor-pointer" title="Cerrar Sesión">
+                        <button id="headerSignOutBtn" onclick="handleSignOut()" type="button" class="hidden px-3.5 py-1.5 bg-red-950/40 hover:bg-red-950 border border-red-900/50 hover:border-red-600/60 text-red-300 hover:text-red-200 text-xs font-bold font-mono rounded-xl transition-all flex items-center gap-1.5 cursor-pointer" title="Cerrar Sesión">
                             <i class="fa-solid fa-right-from-bracket text-xs"></i>
                             <span class="hidden sm:inline">SALIR</span>
                         </button>
@@ -121,23 +100,23 @@
     </header>
     <!-- END: Main Header -->
 
-    <main class="flex-1 pt-32 pb-24 px-4 sm:px-6">
+    <main class="flex-1 pt-28 pb-24 px-4 sm:px-6">
         <div class="container mx-auto max-w-5xl space-y-8">
 
             <!-- Estado 1: Loading Spinner mientras comprueba sesión -->
             <div id="loadingView" class="py-24 flex flex-col items-center justify-center text-center space-y-4">
-                <div class="w-12 h-12 rounded-full border-2 border-red-500/30 border-t-red-500 animate-spin"></div>
+                <div class="w-10 h-10 rounded-full border-2 border-red-500/30 border-t-red-500 animate-spin"></div>
                 <p class="text-zinc-400 font-mono text-xs">Cargando perfil de usuario...</p>
             </div>
 
             <!-- Estado 2: Vista No Autenticado (Formulario de Acceso Directo) -->
             <div id="unauthView" class="hidden max-w-md mx-auto bg-zinc-900/80 border border-zinc-800/90 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-6">
                 <div class="text-center space-y-2">
-                    <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-red-600 to-amber-600 flex items-center justify-center text-white shadow-[0_0_20px_rgba(239,68,68,0.35)]">
+                    <div class="w-14 h-14 mx-auto rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-red-500 shadow-inner">
                         <i class="fa-solid fa-user-lock text-2xl"></i>
                     </div>
                     <h1 class="text-2xl font-display font-black text-white">Acceso a tu Perfil</h1>
-                    <p class="text-zinc-400 text-xs font-mono">Inicia sesión para gestionar tu suscripción PRO y tu repertorio personal.</p>
+                    <p class="text-zinc-400 text-xs font-mono">Inicia sesión para gestionar tu suscripción y tu repertorio personal.</p>
                 </div>
 
                 <!-- Google Button -->
@@ -191,8 +170,8 @@
                     
                     <div class="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 relative z-10">
                         <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
-                            <div class="w-24 h-24 rounded-3xl bg-gradient-to-tr from-red-600 via-red-500 to-amber-500 text-white font-mono text-3xl font-black flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] border-2 border-red-500/50 flex-shrink-0" id="profileAvatar">
-                                U
+                            <div class="w-20 h-20 rounded-2xl bg-zinc-900 border border-zinc-700 text-zinc-300 font-mono text-2xl font-black flex items-center justify-center shadow-lg flex-shrink-0" id="profileAvatar">
+                                <i class="fa-solid fa-user text-2xl text-zinc-400"></i>
                             </div>
                             <div class="space-y-2">
                                 <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
@@ -211,18 +190,8 @@
                                         <i class="fa-solid fa-shield-check text-emerald-400"></i> Sesión Segura
                                     </span>
                                 </div>
-                                <p class="text-xs text-zinc-400 font-mono pt-1" id="profileMemberSince">Miembro de AuraSplit</p>
+                                <p class="text-xs text-zinc-500 font-mono pt-0.5" id="profileMemberSince">Miembro de AuraSplit</p>
                             </div>
-                        </div>
-
-                        <!-- Quick Navigation CTA -->
-                        <div class="flex flex-wrap sm:flex-col gap-2 w-full sm:w-auto">
-                            <a href="#repertoire" class="flex-1 sm:flex-initial px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-200 hover:text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-folder-open text-red-500"></i> Mi Repertorio
-                            </a>
-                            <a href="#subscription" class="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-bold font-mono rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-red-600/20">
-                                <i class="fa-solid fa-crown text-amber-300"></i> Suscripción
-                            </a>
                         </div>
                     </div>
                 </div>
@@ -230,7 +199,7 @@
                 <!-- 2. Bento Stats Grid -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <!-- Stat 1: Engine -->
-                    <div class="bg-zinc-900/40 border border-zinc-800/80 hover:border-red-500/40 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm">
+                    <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm">
                         <div class="flex items-center justify-between text-zinc-400 text-xs font-mono mb-3">
                             <span class="uppercase tracking-wider font-bold">Motor IA Activo</span>
                             <i class="fa-solid fa-bolt text-amber-500"></i>
@@ -242,21 +211,19 @@
                     </div>
 
                     <!-- Stat 2: Repertoire Count -->
-                    <a href="#repertoire" class="bg-zinc-900/40 border border-zinc-800/80 hover:border-red-500/40 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm group cursor-pointer">
+                    <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm">
                         <div class="flex items-center justify-between text-zinc-400 text-xs font-mono mb-3">
                             <span class="uppercase tracking-wider font-bold">Canciones en la Nube</span>
                             <i class="fa-solid fa-cloud text-red-500"></i>
                         </div>
                         <div>
                             <span class="text-2xl font-black text-white font-display block" id="bentoRepertoireCount">0</span>
-                            <p class="text-[11px] text-red-400 font-mono mt-1 flex items-center gap-1 group-hover:underline">
-                                <span>Explorar repertorio</span> <i class="fa-solid fa-arrow-right text-[9px]"></i>
-                            </p>
+                            <p class="text-[11px] text-zinc-400 font-mono mt-1">Bóveda privada de pistas y tempos</p>
                         </div>
-                    </a>
+                    </div>
 
                     <!-- Stat 3: Processing Capacity -->
-                    <div class="bg-zinc-900/40 border border-zinc-800/80 hover:border-red-500/40 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm">
+                    <div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5 flex flex-col justify-between transition-all backdrop-blur-sm">
                         <div class="flex items-center justify-between text-zinc-400 text-xs font-mono mb-3">
                             <span class="uppercase tracking-wider font-bold">Herramientas de Estudio</span>
                             <i class="fa-solid fa-sliders text-cyan-400"></i>
@@ -273,7 +240,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2.5">
                             <i class="fa-solid fa-crown text-amber-500 text-lg"></i>
-                            <h2 class="text-xl font-display font-black text-white">Plan y Suscripción</h2>
+                            <h2 class="text-xl font-display font-black text-white">Plan y Facturación</h2>
                         </div>
                         <span id="subscriptionStatusPill" class="text-xs font-mono font-bold px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">Plan Básico</span>
                     </div>
@@ -286,8 +253,24 @@
                                 <p class="text-xs font-mono text-zinc-400" id="subRenewalInfo">Acceso Gratuito Estándar</p>
                             </div>
 
+                            <!-- Billing Period & Details Box -->
+                            <div class="bg-zinc-950/80 border border-zinc-800/80 rounded-2xl p-4 space-y-2 font-mono text-xs text-zinc-300" id="billingDetailsCard">
+                                <div class="flex justify-between items-center py-1 border-b border-zinc-800/60">
+                                    <span class="text-zinc-500">Ciclo de Facturación:</span>
+                                    <span class="font-bold text-white" id="billingCycleLabel">Mensual Recurrente ($6.99 USD)</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1 border-b border-zinc-800/60">
+                                    <span class="text-zinc-500">Próxima Fecha de Cobro:</span>
+                                    <span class="font-bold text-amber-400" id="billingNextDateLabel">Sin cobros pendientes</span>
+                                </div>
+                                <div class="flex justify-between items-center py-1">
+                                    <span class="text-zinc-500">Pasarela de Pago:</span>
+                                    <span class="text-zinc-300">Lemon Squeezy (Stripe / PayPal)</span>
+                                </div>
+                            </div>
+
                             <!-- Perks Grid -->
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                                 <div class="flex items-start gap-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
                                     <i class="fa-solid fa-check text-emerald-400 text-sm mt-0.5"></i>
                                     <div>
@@ -337,6 +320,10 @@
                                 <button id="subUpgradeBtn" onclick="handleProCheckout()" type="button" class="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black font-mono tracking-wider transition-all shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 cursor-pointer btn-tactile">
                                     <i class="fa-solid fa-crown text-amber-300"></i> ACTIVAR 5 DÍAS PRO GRATIS
                                 </button>
+
+                                <a id="manageBillingPortalBtn" href="https://aurasplit.lemonsqueezy.com/billing" target="_blank" class="hidden w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-bold font-mono tracking-wider transition-all flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> Portal Lemon Squeezy
+                                </a>
 
                                 <button id="subCancelBtn" onclick="handleCancelSubscription()" type="button" class="hidden w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-red-950 border border-zinc-800 hover:border-red-600/50 text-zinc-400 hover:text-red-400 text-xs font-bold font-mono tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer">
                                     <i class="fa-solid fa-ban"></i> Cancelar Suscripción
@@ -449,6 +436,6 @@
     </footer>
 
     <!-- Logic Script -->
-    <script src="profile.js?v=1.0.0"></script>
+    <script src="profile.js?v=1.1.0"></script>
 </body>
 </html>

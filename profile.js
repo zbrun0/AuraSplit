@@ -3,6 +3,7 @@ const SUPABASE_URL = "https://axyvfsgepyswfffmmtuq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_5_r0HfMfD2KyoccFHHInfA_FHrxsCJP";
 const BACKEND_URL = "https://zbrun0-aurasplit.hf.space";
 const LEMON_SQUEEZY_CHECKOUT_URL = "https://aurasplit.lemonsqueezy.com/checkout/buy/6a491040-07c2-4a3f-bb22-c8b4bb7e4011";
+const LEMON_SQUEEZY_PORTAL_URL = "https://aurasplit.lemonsqueezy.com/billing";
 const GOOGLE_CLIENT_ID = "325105260753-98kcps42emo3cs1l0uej4pn4537fm6f5.apps.googleusercontent.com";
 
 let supabaseClient = null;
@@ -82,7 +83,6 @@ function updateProfileUI() {
     const subStatus = userProfile?.subscription_status || "none";
 
     // Hero Profile Card
-    const avatar = document.getElementById("profileAvatar");
     const fullNameLabel = document.getElementById("profileFullName");
     const emailLabel = document.getElementById("profileEmail");
     const planBadge = document.getElementById("profilePlanBadge");
@@ -90,7 +90,6 @@ function updateProfileUI() {
     const memberSinceLabel = document.getElementById("profileMemberSince");
     const editFullNameInput = document.getElementById("editFullNameInput");
 
-    if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
     if (fullNameLabel) fullNameLabel.textContent = name;
     if (emailLabel) emailLabel.textContent = email;
     if (editFullNameInput) editFullNameInput.value = name;
@@ -110,13 +109,16 @@ function updateProfileUI() {
     const bentoEngineDesc = document.getElementById("bentoEngineDesc");
     const bentoStemsCapacity = document.getElementById("bentoStemsCapacity");
 
-    // Subscription Section Details
+    // Subscription & Billing Section Details
     const subscriptionStatusPill = document.getElementById("subscriptionStatusPill");
     const subPlanTitle = document.getElementById("subPlanTitle");
     const subRenewalInfo = document.getElementById("subRenewalInfo");
     const subStatusNote = document.getElementById("subStatusNote");
     const subUpgradeBtn = document.getElementById("subUpgradeBtn");
     const subCancelBtn = document.getElementById("subCancelBtn");
+    const manageBillingPortalBtn = document.getElementById("manageBillingPortalBtn");
+    const billingCycleLabel = document.getElementById("billingCycleLabel");
+    const billingNextDateLabel = document.getElementById("billingNextDateLabel");
 
     if (isPro) {
         if (subStatus === "trialing") {
@@ -129,10 +131,12 @@ function updateProfileUI() {
                 subscriptionStatusPill.textContent = "Prueba Activa";
             }
             if (subPlanTitle) subPlanTitle.textContent = "AuraSplit PRO (Prueba 5 Días)";
-            if (subRenewalInfo) {
-                const dateStr = userProfile?.trial_end ? new Date(userProfile.trial_end).toLocaleDateString() : "en 5 días";
-                subRenewalInfo.textContent = `Periodo de prueba válido hasta el ${dateStr}`;
-            }
+            
+            const dateStr = userProfile?.trial_end ? new Date(userProfile.trial_end).toLocaleDateString() : "en 5 días";
+            if (subRenewalInfo) subRenewalInfo.textContent = `Periodo de prueba válido hasta el ${dateStr}`;
+            if (billingCycleLabel) billingCycleLabel.textContent = "Mensual Recurrente ($6.99 USD/mes)";
+            if (billingNextDateLabel) billingNextDateLabel.textContent = `Primer cobro programado: ${dateStr} ($6.99 USD)`;
+            if (subStatusNote) subStatusNote.textContent = `Prueba gratuita activa hasta el ${dateStr}. Puedes cancelar en cualquier momento sin costo.`;
         } else {
             if (planBadge) {
                 planBadge.className = "px-3 py-1 bg-red-600/20 border border-red-500/40 text-red-400 rounded-full font-mono text-xs font-extrabold flex items-center gap-1.5 shadow-sm";
@@ -143,7 +147,10 @@ function updateProfileUI() {
                 subscriptionStatusPill.textContent = "Suscripción Activa";
             }
             if (subPlanTitle) subPlanTitle.textContent = "AuraSplit PRO VIP";
-            if (subRenewalInfo) subRenewalInfo.textContent = "Renovación automática mensual activa ($6.99 USD)";
+            if (subRenewalInfo) subRenewalInfo.textContent = "Renovación mensual activa ($6.99 USD / mes)";
+            if (billingCycleLabel) billingCycleLabel.textContent = "Mensual Recurrente ($6.99 USD/mes)";
+            if (billingNextDateLabel) billingNextDateLabel.textContent = "Renovación automática cada 30 días";
+            if (subStatusNote) subStatusNote.textContent = "Disfrutas de todas las ventajas PRO ilimitadas.";
         }
 
         if (bentoEngineName) bentoEngineName.textContent = "GPU Serverless HD";
@@ -152,7 +159,7 @@ function updateProfileUI() {
 
         if (subUpgradeBtn) subUpgradeBtn.classList.add("hidden");
         if (subCancelBtn) subCancelBtn.classList.remove("hidden");
-        if (subStatusNote) subStatusNote.textContent = "Disfrutas de todas las ventajas PRO ilimitadas.";
+        if (manageBillingPortalBtn) manageBillingPortalBtn.classList.remove("hidden");
     } else {
         if (planBadge) {
             planBadge.className = "px-3 py-1 bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-full font-mono text-xs font-extrabold flex items-center gap-1.5 shadow-sm";
@@ -164,6 +171,8 @@ function updateProfileUI() {
         }
         if (subPlanTitle) subPlanTitle.textContent = "AuraSplit Básico (Gratis)";
         if (subRenewalInfo) subRenewalInfo.textContent = "Acceso estándar sin costo. Desbloquea 6 stems y GPU con PRO.";
+        if (billingCycleLabel) billingCycleLabel.textContent = "Gratuito (Sin ciclo de cobro)";
+        if (billingNextDateLabel) billingNextDateLabel.textContent = subStatus === "cancelled" ? "Cancelada / Sin cobros" : "Sin cobros pendientes";
 
         if (bentoEngineName) bentoEngineName.textContent = "Demucs v4";
         if (bentoEngineDesc) bentoEngineDesc.textContent = "Separación de audio estándar en CPU";
@@ -171,6 +180,7 @@ function updateProfileUI() {
 
         if (subUpgradeBtn) subUpgradeBtn.classList.remove("hidden");
         if (subCancelBtn) subCancelBtn.classList.add("hidden");
+        if (manageBillingPortalBtn) manageBillingPortalBtn.classList.add("hidden");
         if (subStatusNote) subStatusNote.textContent = "Prueba de 5 días sin costo. Cancela cuando desees.";
     }
 
@@ -364,7 +374,7 @@ function handleProCheckout() {
 async function handleCancelSubscription() {
     if (!currentUser) return;
     
-    const confirmed = confirm("¿Estás seguro de que deseas cancelar tu suscripción PRO?\n\nPerderás el acceso a las guías vocales sincronizadas, GPU Serverless y almacenamiento ilimitado al terminar tu periodo actual.");
+    const confirmed = confirm("¿Deseas cancelar tu suscripción PRO?\n\nTu suscripción se marcará como cancelada y no recibirás cobros futuros. Si deseas administrar comprobantes, tarjetas o métodos de pago en Lemon Squeezy, también puedes abrir el portal de facturación.");
     if (!confirmed) return;
 
     try {
@@ -381,7 +391,12 @@ async function handleCancelSubscription() {
         }
 
         updateProfileUI();
-        alert("Tu suscripción ha sido cancelada. Tu cuenta ha vuelto al plan básico gratuito.");
+        
+        // Ofrecer redirigir al portal oficial de Lemon Squeezy para gestión de pagos
+        const openPortal = confirm("Tu cuenta ha sido actualizada al plan gratuito en AuraSplit.\n\n¿Deseas abrir el Portal de Facturación de Lemon Squeezy para ver tus comprobantes o gestionar tus métodos de pago?");
+        if (openPortal) {
+            window.open(LEMON_SQUEEZY_PORTAL_URL, "_blank");
+        }
     } catch (err) {
         alert("Error al procesar la cancelación: " + err.message);
     }
