@@ -846,7 +846,7 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                         .then(decBuf => {
                             decodedStemBuffers[stemId] = decBuf;
                             tracks[stemId].audioBuffer = decBuf;
-                            tracks[stemId].peaks = extractPeaks(decBuf, 2400);
+                            tracks[stemId].peaks = extractPeaks(decBuf, 1200);
                             if (!duration && decBuf.duration) {
                                 duration = decBuf.duration;
                             }
@@ -872,32 +872,6 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
             updatePhaseDisplay();
 
-            // Conteo previo / Pre-Roll según configuración guardada
-            const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-            const barDuration = (60 / currentBpm) * beatsPerBar;
-            const leadInSec = (userConfiguredAutoGuide && userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
-
-            // Si hay conteo previo guardado (1 o 2 compases) y guías activas, insertar silencio inicial en los stems
-            if (leadInSec > 0) {
-                for (const stemId of Object.keys(decodedStemBuffers)) {
-                    const origBuf = decodedStemBuffers[stemId];
-                    const paddedBuf = padAudioBufferWithLeadIn(origBuf, leadInSec);
-                    decodedStemBuffers[stemId] = paddedBuf;
-
-                    if (tracks[stemId]) {
-                        const paddedWav = bufferToWav(paddedBuf);
-                        const paddedUrl = URL.createObjectURL(paddedWav);
-                        tracks[stemId].blobUrl = paddedUrl;
-                        tracks[stemId].audio.src = paddedUrl;
-                        tracks[stemId].audio.load();
-                        tracks[stemId].audioBuffer = paddedBuf;
-                        tracks[stemId].peaks = extractPeaks(paddedBuf, 2400);
-                        tracks[stemId].sizeBytes = paddedWav.size;
-                    }
-                }
-                duration += leadInSec;
-            }
-
             if (presetMetadata.songSections && Array.isArray(presetMetadata.songSections) && presetMetadata.songSections.length > 0) {
                 songSections = presetMetadata.songSections;
                 renderSectionMarkers();
@@ -910,7 +884,7 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 await generateMetronomeTrack(currentBpm, currentOffsetSec, duration || 180, currentTimeSignature);
                 try {
                     const lang = presetMetadata.guideLang || (guideLangSelect ? guideLangSelect.value : "es");
-                    await generateGuideTrack(lang, userConfiguredPreRoll, leadInSec);
+                    await generateGuideTrack(lang, userConfiguredPreRoll, 0);
                 } catch (e) {}
             }
 
@@ -938,41 +912,15 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 currentOffsetSec = calculatedOffset;
                 updatePhaseDisplay();
 
-                // Conteo previo / Pre-Roll según configuración de compases
-                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-                const barDuration = (60 / currentBpm) * beatsPerBar;
-                const leadInSec = (userConfiguredAutoGuide && userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
-
-                // Si hay conteo previo y guías activas, insertar silencio inicial en los stems
-                if (leadInSec > 0) {
-                    for (const stemId of Object.keys(decodedStemBuffers)) {
-                        const origBuf = decodedStemBuffers[stemId];
-                        const paddedBuf = padAudioBufferWithLeadIn(origBuf, leadInSec);
-                        decodedStemBuffers[stemId] = paddedBuf;
-
-                        if (tracks[stemId]) {
-                            const paddedWav = bufferToWav(paddedBuf);
-                            const paddedUrl = URL.createObjectURL(paddedWav);
-                            tracks[stemId].blobUrl = paddedUrl;
-                            tracks[stemId].audio.src = paddedUrl;
-                            tracks[stemId].audio.load();
-                            tracks[stemId].audioBuffer = paddedBuf;
-                            tracks[stemId].peaks = extractPeaks(paddedBuf, 2400);
-                            tracks[stemId].sizeBytes = paddedWav.size;
-                        }
-                    }
-                    duration += leadInSec;
-                }
-
                 // Análisis Estructural con IA (Intro, Versos, Coros, Puente, Solos, Final)
-                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration || 180, decodedStemBuffers, leadInSec);
+                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration || 180, decodedStemBuffers, 0);
 
                 if (userConfiguredAutoGuide) {
                     // Generar Metrónomo Sintetizado y Guía Vocal Cues
                     await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
                     
                     try {
-                        await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+                        await generateGuideTrack("es", userConfiguredPreRoll, 0);
                     } catch (guideErr) {
                         console.error("Error al generar guía vocal:", guideErr);
                     }
@@ -1949,17 +1897,14 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
         const barDuration = beatInterval * beatsPerBar;
 
-        // Pre-cargar conteos "1", "2", "3", "4", "5", "6", "7"
-        const countSamples = [
-            null,
-            await getCueAudioBuffer("1"),
-            await getCueAudioBuffer("2"),
-            await getCueAudioBuffer("3"),
-            await getCueAudioBuffer("4"),
-            await getCueAudioBuffer("5"),
-            await getCueAudioBuffer("6"),
-            await getCueAudioBuffer("7")
-        ];
+        // Pre-cargar conteos "1" al "7" y todas las cues de secciones en paralelo
+        const countKeys = ["1", "2", "3", "4", "5", "6", "7"];
+        const uniqueSecKeys = Array.from(new Set(songSections.map(s => s.cueKey || "verso")));
+        const [counts, _loadedSecs] = await Promise.all([
+            Promise.all(countKeys.map(k => getCueAudioBuffer(k))),
+            Promise.all(uniqueSecKeys.map(k => getCueAudioBuffer(k)))
+        ]);
+        const countSamples = [null, ...counts];
 
         // Insertar avisos vocales 1 compás antes de cada sección en su posición exacta
         for (let s = 0; s < songSections.length; s++) {
