@@ -194,6 +194,37 @@ const initialPreRollSelect = document.getElementById("initialPreRollSelect");
 const autoGenerateGuideCheck = document.getElementById("autoGenerateGuideCheck");
 let currentTimeSignature = "4/4";
 
+function updateTempoSyncInputsState() {
+    const isPro = typeof isUserPro === "function" ? isUserPro() : false;
+    const tempoCard = document.getElementById("tempoSyncSettingsCard");
+    if (tempoCard) {
+        if (isPro) {
+            tempoCard.classList.remove("hidden");
+        } else {
+            tempoCard.classList.add("hidden");
+        }
+    }
+
+    const enabled = autoGenerateGuideCheck ? autoGenerateGuideCheck.checked : false;
+    userConfiguredAutoGuide = isPro ? enabled : false;
+
+    const grid = document.getElementById("tempoSyncInputsGrid");
+    if (grid) {
+        grid.classList.toggle("opacity-40", !enabled);
+        grid.classList.toggle("pointer-events-none", !enabled);
+    }
+    if (initialBpmInput) initialBpmInput.disabled = !enabled;
+    if (autoBpmToggleBtn) autoBpmToggleBtn.disabled = !enabled;
+    if (initialTimeSignatureSelect) initialTimeSignatureSelect.disabled = !enabled;
+    if (initialPreRollSelect) initialPreRollSelect.disabled = !enabled;
+}
+
+if (autoGenerateGuideCheck) {
+    autoGenerateGuideCheck.addEventListener("change", () => {
+        updateTempoSyncInputsState();
+    });
+}
+
 if (timeSignatureSelect) {
     timeSignatureSelect.addEventListener("change", () => {
         currentTimeSignature = timeSignatureSelect.value || "4/4";
@@ -284,6 +315,7 @@ function processSelectedFile(file) {
         uploadState.classList.add("hidden");
         configState.classList.remove("hidden");
         configFileName.textContent = file.name.toUpperCase();
+        updateTempoSyncInputsState();
         updateEstimatedTime();
     }
 }
@@ -318,7 +350,7 @@ function updateEstimatedTime() {
     if (format === "wav") {
         timeText += " (Descarga lenta)";
     } else {
-        timeText += " (Descarga rápida)";
+        timeText += " (Recomendado)";
     }
     
     estimatedTimeText.textContent = timeText;
@@ -342,29 +374,38 @@ function uploadAndSeparate(file) {
         `;
     }
     
-    // Capturar configuraciones de BPM, Compás, Pre-roll y Guía definidas por el usuario
-    if (initialBpmInput && initialBpmInput.value) {
-        const val = parseFloat(initialBpmInput.value);
-        if (!isNaN(val) && val >= 40 && val <= 260) {
-            userConfiguredBpm = val;
+    // Capturar configuraciones de BPM, Compás, Pre-roll y Guía definidas por el usuario PRO
+    const isPro = typeof isUserPro === "function" ? isUserPro() : false;
+    if (isPro && autoGenerateGuideCheck && autoGenerateGuideCheck.checked) {
+        userConfiguredAutoGuide = true;
+    } else {
+        userConfiguredAutoGuide = false;
+    }
+
+    if (userConfiguredAutoGuide) {
+        if (initialBpmInput && initialBpmInput.value) {
+            const val = parseFloat(initialBpmInput.value);
+            if (!isNaN(val) && val >= 40 && val <= 260) {
+                userConfiguredBpm = val;
+            } else {
+                userConfiguredBpm = null;
+            }
         } else {
             userConfiguredBpm = null;
         }
+
+        if (initialTimeSignatureSelect) {
+            currentTimeSignature = initialTimeSignatureSelect.value || "4/4";
+            if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
+        }
+
+        if (initialPreRollSelect) {
+            const val = parseInt(initialPreRollSelect.value, 10);
+            userConfiguredPreRoll = isNaN(val) ? 1 : val;
+        }
     } else {
         userConfiguredBpm = null;
-    }
-
-    if (initialTimeSignatureSelect) {
-        currentTimeSignature = initialTimeSignatureSelect.value || "4/4";
-        if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
-    }
-
-    if (initialPreRollSelect) {
-        const val = parseInt(initialPreRollSelect.value, 10);
-        userConfiguredPreRoll = isNaN(val) ? 1 : val;
-    }
-    if (autoGenerateGuideCheck) {
-        userConfiguredAutoGuide = autoGenerateGuideCheck.checked;
+        userConfiguredPreRoll = 0;
     }
 
     const modelSelect = document.getElementById("modelSelect");
@@ -373,7 +414,7 @@ function uploadAndSeparate(file) {
     const selectedFormat = formatSelect ? formatSelect.value : "mp3";
 
     // Si el usuario es PRO o está en su Periodo de Prueba de 5 días -> GPU en Modal
-    if (isUserPro()) {
+    if (isPro) {
         processProWithModal(file, selectedModel, selectedFormat);
         return;
     }
@@ -761,7 +802,6 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
 
             const audio = new Audio();
             audio.preload = "auto";
-            audio.crossOrigin = "anonymous";
             audio.src = blobUrl;
             audio.load();
 
@@ -2107,6 +2147,43 @@ function createResultUI(id) {
     resultsList.insertAdjacentHTML("beforeend", resultHtml);
 }
 
+// --- Actualizar Ruteo de Pitch Shifter Dinámicamente ---
+function updateTrackPitchRouting(id) {
+    const track = tracks[id];
+    if (!track || !track.sourceNode || !track.gainNode) return;
+    if (id === "metronome" || id === "guide") return;
+
+    try {
+        track.sourceNode.disconnect();
+        if (track.pitchShift) {
+            try {
+                track.pitchShift.disconnect();
+            } catch (e) {}
+        }
+
+        if (currentPitchShift !== 0 && window.Tone && typeof Tone.PitchShift === "function") {
+            if (!track.pitchShift) {
+                track.pitchShift = new Tone.PitchShift({
+                    pitch: currentPitchShift,
+                    windowSize: 0.1
+                });
+            } else {
+                track.pitchShift.pitch = currentPitchShift;
+                track.pitchShift.wet.value = 1.0;
+            }
+            Tone.connect(track.sourceNode, track.pitchShift);
+            Tone.connect(track.pitchShift, track.gainNode);
+        } else {
+            track.sourceNode.connect(track.gainNode);
+        }
+    } catch (err) {
+        console.warn(`Error actualizando ruteo de pitch para ${id}:`, err);
+        try {
+            track.sourceNode.connect(track.gainNode);
+        } catch (e) {}
+    }
+}
+
 // --- Configurar Nodos de Audio en Web Audio API ---
 function setupAudioNodes() {
     for (const [id, track] of Object.entries(tracks)) {
@@ -2128,22 +2205,8 @@ function setupSingleTrackAudioNode(id) {
         const sourceNode = audioCtx.createMediaElementSource(track.audio);
         track.sourceNode = sourceNode;
 
-        // Tone.js Pitch Shifter en tiempo real para pistas musicales
-        if (window.Tone && typeof Tone.PitchShift === "function" && id !== "metronome" && id !== "guide") {
-            try {
-                const pitchNode = new Tone.PitchShift({
-                    pitch: currentPitchShift,
-                    windowSize: 0.08,
-                    delayTime: 0
-                });
-                pitchNode.wet.value = (currentPitchShift === 0 ? 0 : 1.0);
-                track.pitchShift = pitchNode;
-                Tone.connect(sourceNode, pitchNode);
-                Tone.connect(pitchNode, track.gainNode);
-            } catch (err) {
-                console.warn(`PitchShift fallback para track ${id}:`, err);
-                sourceNode.connect(track.gainNode);
-            }
+        if (currentPitchShift !== 0 && window.Tone && typeof Tone.PitchShift === "function" && id !== "metronome" && id !== "guide") {
+            updateTrackPitchRouting(id);
         } else {
             sourceNode.connect(track.gainNode);
         }
@@ -3306,17 +3369,13 @@ async function applyPitchShift(semitones) {
         } catch (e) {}
     }
 
-    for (const [id, track] of Object.entries(tracks)) {
-        if (track) {
-            // Mantener velocidad y tempo EXACTAMENTE al 100% (1.0x)
-            if (track.audio) {
-                track.audio.preservesPitch = true;
-                track.audio.playbackRate = 1.0;
+    for (const id of Object.keys(tracks)) {
+        if (id !== "metronome" && id !== "guide") {
+            if (tracks[id] && tracks[id].audio) {
+                tracks[id].audio.preservesPitch = true;
+                tracks[id].audio.playbackRate = 1.0;
             }
-            if (track.pitchShift) {
-                track.pitchShift.pitch = currentPitchShift;
-                track.pitchShift.wet.value = (currentPitchShift === 0 ? 0 : 1.0);
-            }
+            updateTrackPitchRouting(id);
         }
     }
 }
@@ -3539,6 +3598,10 @@ function updateAuthUI() {
         }
         if (openVaultBtn) openVaultBtn.classList.add("hidden");
         if (saveToVaultBtn) saveToVaultBtn.classList.add("hidden");
+    }
+
+    if (typeof updateTempoSyncInputsState === "function") {
+        updateTempoSyncInputsState();
     }
 }
 
