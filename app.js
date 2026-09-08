@@ -1051,9 +1051,18 @@ function createSynthesizedCueFallback(sampleKey, sampleRate = 44100) {
     
     // Frecuencias distintivas por tipo de sample si no se encuentra el audio
     const freqMap = {
-        "1": 523.25, "2": 587.33, "3": 659.25, "4": 698.46,
-        "intro": 440, "verso": 493.88, "coro": 880, "precoro": 783.99,
-        "puente": 659.25, "solo": 987.77, "final": 392
+        "1": 523.25, "2": 587.33, "3": 659.25, "4": 698.46, "5": 783.99, "6": 880.0, "7": 987.77,
+        "intro": 440, "verso": 493.88, "verso1": 493.88, "verso2": 493.88, "verso3": 493.88, "verso4": 493.88,
+        "coro": 880, "coro1": 880, "coro2": 880, "coro3": 880, "postcoro": 830.61,
+        "precoro": 783.99, "precoro1": 783.99, "precoro2": 783.99,
+        "puente": 659.25, "puente1": 659.25, "puente2": 659.25,
+        "solo": 987.77, "guitarra": 987.77, "bass": 329.63, "bateria": 587.33, "teclado": 698.46,
+        "instrumental": 740.0, "interludio": 622.25, "vamp": 554.37, "refrain": 659.25,
+        "toda_la_banda": 523.25, "entra_bateria": 587.33, "acapella": 440, "suave": 392,
+        "sostener": 440, "pausa": 220, "sube_intensidad": 880, "baja_intensidad": 330,
+        "sube_tono": 932.33, "baja_tono": 311.13, "repetir": 698.46, "ultima_vez": 783.99,
+        "rap": 659.25, "pulsos": 523.25, "exortation": 698.46, "swell": 440,
+        "final": 392, "outro": 392, "final_grande": 349.23
     };
     const f = freqMap[sampleKey] || 600;
 
@@ -1099,6 +1108,62 @@ async function getCueAudioBuffer(sampleKey) {
     CUE_SAMPLE_CACHE[sampleKey] = fallbackBuf;
     return fallbackBuf;
 }
+
+// Catálogo Completo de Secciones Disponibles para Agregar y Modificar
+const AVAILABLE_SECTIONS = [
+    // Estructura Principal
+    { type: "INTRO", cueKey: "intro", color: "#3b82f6" },
+    { type: "VERSO", cueKey: "verso", color: "#10b981" },
+    { type: "VERSO 1", cueKey: "verso1", color: "#10b981" },
+    { type: "VERSO 2", cueKey: "verso2", color: "#10b981" },
+    { type: "VERSO 3", cueKey: "verso3", color: "#10b981" },
+    { type: "VERSO 4", cueKey: "verso4", color: "#10b981" },
+    { type: "PRE-CORO", cueKey: "precoro", color: "#f59e0b" },
+    { type: "PRE-CORO 1", cueKey: "precoro1", color: "#f59e0b" },
+    { type: "PRE-CORO 2", cueKey: "precoro2", color: "#f59e0b" },
+    { type: "CORO", cueKey: "coro", color: "#ef4444" },
+    { type: "CORO 1", cueKey: "coro1", color: "#ef4444" },
+    { type: "CORO 2", cueKey: "coro2", color: "#ef4444" },
+    { type: "CORO 3", cueKey: "coro3", color: "#ef4444" },
+    { type: "POST-CORO", cueKey: "postcoro", color: "#fb7185" },
+    { type: "PUENTE", cueKey: "puente", color: "#a855f7" },
+    { type: "PUENTE 1", cueKey: "puente1", color: "#a855f7" },
+    { type: "PUENTE 2", cueKey: "puente2", color: "#a855f7" },
+
+    // Solos e Instrumentales
+    { type: "INSTRUMENTAL", cueKey: "instrumental", color: "#8b5cf6" },
+    { type: "INTERLUDIO", cueKey: "interludio", color: "#6366f1" },
+    { type: "SOLO", cueKey: "solo", color: "#ec4899" },
+    { type: "SOLO GUITARRA", cueKey: "guitarra", color: "#ec4899" },
+    { type: "SOLO BAJO", cueKey: "bass", color: "#f43f5e" },
+    { type: "SOLO BATERÍA", cueKey: "bateria", color: "#eab308" },
+    { type: "SOLO TECLADO", cueKey: "teclado", color: "#d946ef" },
+    { type: "VAMP", cueKey: "vamp", color: "#06b6d4" },
+    { type: "REFRAIN", cueKey: "refrain", color: "#14b8a6" },
+
+    // Dinámicas y Cues de Ensayo
+    { type: "TODA LA BANDA", cueKey: "toda_la_banda", color: "#22c55e" },
+    { type: "ENTRA BATERÍA", cueKey: "entra_bateria", color: "#eab308" },
+    { type: "A CAPELLA", cueKey: "acapella", color: "#a1a1aa" },
+    { type: "SUAVE", cueKey: "suave", color: "#38bdf8" },
+    { type: "SOSTENER", cueKey: "sostener", color: "#818cf8" },
+    { type: "PAUSA", cueKey: "pausa", color: "#71717a" },
+    { type: "SUBE INTENSIDAD", cueKey: "sube_intensidad", color: "#f97316" },
+    { type: "BAJA INTENSIDAD", cueKey: "baja_intensidad", color: "#0ea5e9" },
+    { type: "SUBE TONO", cueKey: "sube_tono", color: "#f43f5e" },
+    { type: "BAJA TONO", cueKey: "baja_tono", color: "#64748b" },
+    { type: "REPETIR", cueKey: "repetir", color: "#e11d48" },
+    { type: "ÚLTIMA VEZ", cueKey: "ultima_vez", color: "#be123c" },
+    { type: "RAP", cueKey: "rap", color: "#9333ea" },
+    { type: "PULSOS", cueKey: "pulsos", color: "#4ade80" },
+    { type: "EXHORTACIÓN", cueKey: "exortation", color: "#facc15" },
+    { type: "SWELL", cueKey: "swell", color: "#0284c7" },
+
+    // Finales
+    { type: "OUTRO", cueKey: "outro", color: "#06b6d4" },
+    { type: "FINAL", cueKey: "final", color: "#06b6d4" },
+    { type: "FINAL GRANDE", cueKey: "final_grande", color: "#0284c7" }
+];
 
 // Cálculo del downbeat offset (primer pulso) con correlación de envolvente de transitorios de alta precisión
 function calculateDownbeatOffset(audioBuffer, bpm) {
@@ -1486,18 +1551,6 @@ function detectSongSections(bpm, offsetSec, totalDuration) {
     if (!duration || duration <= 0) return;
     detectSongSectionsDynamic(bpm, offsetSec, totalDuration, cachedDecodedStemBuffers);
 }
-
-const AVAILABLE_SECTIONS = [
-    { type: "INTRO", cueKey: "intro", color: "#3b82f6" },
-    { type: "VERSO", cueKey: "verso", color: "#10b981" },
-    { type: "PRE-CORO", cueKey: "precoro", color: "#f59e0b" },
-    { type: "CORO", cueKey: "coro", color: "#ef4444" },
-    { type: "PUENTE", cueKey: "puente", color: "#a855f7" },
-    { type: "SOLO DE GUITARRA", cueKey: "guitarra", color: "#ec4899" },
-    { type: "SOLO DE BAJO", cueKey: "bass", color: "#f43f5e" },
-    { type: "INSTRUMENTAL", cueKey: "instrumental", color: "#8b5cf6" },
-    { type: "FINAL", cueKey: "final", color: "#06b6d4" }
-];
 
 let editingSectionId = null;
 let selectedSectionType = null;
@@ -1896,13 +1949,16 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
         const barDuration = beatInterval * beatsPerBar;
 
-        // Pre-cargar conteos "1", "2", "3", "4"
+        // Pre-cargar conteos "1", "2", "3", "4", "5", "6", "7"
         const countSamples = [
             null,
             await getCueAudioBuffer("1"),
             await getCueAudioBuffer("2"),
             await getCueAudioBuffer("3"),
-            await getCueAudioBuffer("4")
+            await getCueAudioBuffer("4"),
+            await getCueAudioBuffer("5"),
+            await getCueAudioBuffer("6"),
+            await getCueAudioBuffer("7")
         ];
 
         // Insertar avisos vocales 1 compás antes de cada sección en su posición exacta
@@ -1915,9 +1971,12 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
             if (!sampleCue) sampleCue = await getCueAudioBuffer("verso");
 
             if (beatsPerBar === 4) {
-                // 4/4: Beat 1 = Sección ("Intro", "Verso", "Coro"...), Beat 2 = "2", Beat 3 = "3", Beat 4 = "4"
+                // 4/4: Beat 1 = Sección + "1", Beat 2 = "2", Beat 3 = "3", Beat 4 = "4"
                 if (sampleCue) {
                     insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                }
+                if (countSamples[1]) {
+                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(preMeasureTime * sampleRate));
                 }
                 if (countSamples[2]) {
                     insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
@@ -1929,9 +1988,12 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
                     insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
                 }
             } else if (beatsPerBar === 3) {
-                // 3/4: Beat 1 = Sección, Beat 2 = "2", Beat 3 = "3"
+                // 3/4: Beat 1 = Sección + "1", Beat 2 = "2", Beat 3 = "3"
                 if (sampleCue) {
                     insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                }
+                if (countSamples[1]) {
+                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(preMeasureTime * sampleRate));
                 }
                 if (countSamples[2]) {
                     insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
@@ -1940,12 +2002,27 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
                     insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
                 }
             } else {
-                // 6/8: Beat 1 = Sección, Beat 4 = "4"
+                // 6/8: Beat 1 = Sección + "1", Beat 2 = "2", Beat 3 = "3", Beat 4 = "4", Beat 5 = "5", Beat 6 = "6"
                 if (sampleCue) {
                     insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
                 }
+                if (countSamples[1]) {
+                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(preMeasureTime * sampleRate));
+                }
+                if (countSamples[2]) {
+                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
+                }
+                if (countSamples[3]) {
+                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
+                }
                 if (countSamples[4]) {
                     insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
+                }
+                if (countSamples[5]) {
+                    insertAudioBufferToChannel(left, right, countSamples[5], Math.floor((preMeasureTime + 4 * beatInterval) * sampleRate));
+                }
+                if (countSamples[6]) {
+                    insertAudioBufferToChannel(left, right, countSamples[6], Math.floor((preMeasureTime + 5 * beatInterval) * sampleRate));
                 }
             }
         }
