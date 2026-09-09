@@ -968,7 +968,7 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
 
 // Variables de Configuración de Usuario para la sesión de carga
 let userConfiguredBpm = null;
-let userConfiguredPreRoll = 1;
+let userConfiguredPreRoll = 2;
 let userConfiguredAutoGuide = true;
 
 // Helper para insertar silencio inicial en los stems (Lead-in Pre-roll)
@@ -1906,68 +1906,85 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
         ]);
         const countSamples = [null, ...counts];
 
-        // Insertar avisos vocales 1 compás antes de cada sección en su posición exacta
+        // Insertar avisos vocales antes de cada sección dejando un tiempo de espacio para no solapar:
+        // Patrón profesional de ensayo: [Nombre de Sección] -> [1 tiempo de silencio/espacio] -> [1] -> [2] -> [3] -> [4...] -> [Inicio de Sección]
         for (let s = 0; s < songSections.length; s++) {
             const sec = songSections[s];
             const sectionTargetTime = sec.startTime;
-            const preMeasureTime = Math.max(0, sectionTargetTime - barDuration);
 
             let sampleCue = await getCueAudioBuffer(sec.cueKey || "verso");
             if (!sampleCue) sampleCue = await getCueAudioBuffer("verso");
 
             if (beatsPerBar === 4) {
-                // 4/4: Beat 1 = Sección + "1", Beat 2 = "2", Beat 3 = "3", Beat 4 = "4"
-                if (sampleCue) {
-                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                // 4/4:
+                // Tiempo -6: Sección (ej. "Intro", "Verso", "Coro")
+                // Tiempo -5: [Espacio / Silencio]
+                // Tiempo -4: "1"
+                // Tiempo -3: "2"
+                // Tiempo -2: "3"
+                // Tiempo -1: "4"
+                // Tiempo 0: Entra la Sección en la música
+                const cueTime = sectionTargetTime - 6 * beatInterval;
+                const count1Time = sectionTargetTime - 4 * beatInterval;
+                const count2Time = sectionTargetTime - 3 * beatInterval;
+                const count3Time = sectionTargetTime - 2 * beatInterval;
+                const count4Time = sectionTargetTime - 1 * beatInterval;
+
+                if (sampleCue && cueTime >= 0) {
+                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(cueTime * sampleRate));
                 }
-                if (countSamples[1]) {
-                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(preMeasureTime * sampleRate));
+                if (countSamples[1] && count1Time >= 0) {
+                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(count1Time * sampleRate));
                 }
-                if (countSamples[2]) {
-                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
+                if (countSamples[2] && count2Time >= 0) {
+                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor(count2Time * sampleRate));
                 }
-                if (countSamples[3]) {
-                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
+                if (countSamples[3] && count3Time >= 0) {
+                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor(count3Time * sampleRate));
                 }
-                if (countSamples[4]) {
-                    insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
+                if (countSamples[4] && count4Time >= 0) {
+                    insertAudioBufferToChannel(left, right, countSamples[4], Math.floor(count4Time * sampleRate));
                 }
             } else if (beatsPerBar === 3) {
-                // 3/4: Beat 1 = Sección + "1", Beat 2 = "2", Beat 3 = "3"
-                if (sampleCue) {
-                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                // 3/4:
+                // Tiempo -5: Sección (ej. "Intro", "Verso")
+                // Tiempo -4: [Espacio / Silencio]
+                // Tiempo -3: "1"
+                // Tiempo -2: "2"
+                // Tiempo -1: "3"
+                // Tiempo 0: Entra la Sección en la música
+                const cueTime = sectionTargetTime - 5 * beatInterval;
+                const count1Time = sectionTargetTime - 3 * beatInterval;
+                const count2Time = sectionTargetTime - 2 * beatInterval;
+                const count3Time = sectionTargetTime - 1 * beatInterval;
+
+                if (sampleCue && cueTime >= 0) {
+                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(cueTime * sampleRate));
                 }
-                if (countSamples[1]) {
-                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(preMeasureTime * sampleRate));
+                if (countSamples[1] && count1Time >= 0) {
+                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(count1Time * sampleRate));
                 }
-                if (countSamples[2]) {
-                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
+                if (countSamples[2] && count2Time >= 0) {
+                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor(count2Time * sampleRate));
                 }
-                if (countSamples[3]) {
-                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
+                if (countSamples[3] && count3Time >= 0) {
+                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor(count3Time * sampleRate));
                 }
             } else {
-                // 6/8: Beat 1 = Sección + "1", Beat 2 = "2", Beat 3 = "3", Beat 4 = "4", Beat 5 = "5", Beat 6 = "6"
-                if (sampleCue) {
-                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(preMeasureTime * sampleRate));
+                // 6/8:
+                // Tiempo -8: Sección
+                // Tiempo -7: [Espacio / Silencio]
+                // Tiempos -6 a -1: "1", "2", "3", "4", "5", "6"
+                // Tiempo 0: Entra la Sección en la música
+                const cueTime = sectionTargetTime - (beatsPerBar + 2) * beatInterval;
+                if (sampleCue && cueTime >= 0) {
+                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(cueTime * sampleRate));
                 }
-                if (countSamples[1]) {
-                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(preMeasureTime * sampleRate));
-                }
-                if (countSamples[2]) {
-                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor((preMeasureTime + 1 * beatInterval) * sampleRate));
-                }
-                if (countSamples[3]) {
-                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor((preMeasureTime + 2 * beatInterval) * sampleRate));
-                }
-                if (countSamples[4]) {
-                    insertAudioBufferToChannel(left, right, countSamples[4], Math.floor((preMeasureTime + 3 * beatInterval) * sampleRate));
-                }
-                if (countSamples[5]) {
-                    insertAudioBufferToChannel(left, right, countSamples[5], Math.floor((preMeasureTime + 4 * beatInterval) * sampleRate));
-                }
-                if (countSamples[6]) {
-                    insertAudioBufferToChannel(left, right, countSamples[6], Math.floor((preMeasureTime + 5 * beatInterval) * sampleRate));
+                for (let b = 1; b <= beatsPerBar; b++) {
+                    const countTime = sectionTargetTime - (beatsPerBar - b + 1) * beatInterval;
+                    if (countSamples[b] && countTime >= 0) {
+                        insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
+                    }
                 }
             }
         }
@@ -2044,7 +2061,7 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
 
 function insertAudioBufferToChannel(leftTarget, rightTarget, sourceBuffer, startSample) {
     if (!sourceBuffer || !leftTarget || !rightTarget) return;
-    if (isNaN(startSample) || startSample < 0) startSample = 0;
+    if (isNaN(startSample) || startSample < 0) return;
     
     try {
         const srcLeft = sourceBuffer.getChannelData(0);
