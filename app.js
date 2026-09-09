@@ -964,6 +964,8 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             studioWrapper.classList.add("max-w-[1720px]", "w-full", "px-2", "md:px-8");
         }
 
+        saveProjectSessionToLocal();
+
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         drawMeters();
 
@@ -983,6 +985,29 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
 let userConfiguredBpm = null;
 let userConfiguredPreRoll = 2;
 let userConfiguredAutoGuide = true;
+
+// Auto-Guardado en almacenamiento local para recuperación inmediata ante cierres accidentales
+function saveProjectSessionToLocal() {
+    if (!duration || !tracks || Object.keys(tracks).length === 0) return;
+    try {
+        const sessionData = {
+            fileName: currentFileName || (fileMeta ? fileMeta.textContent : "Proyecto"),
+            bpm: currentBpm,
+            timeSignature: currentTimeSignature,
+            duration: duration,
+            rawSongDuration: rawSongDuration,
+            offset: currentOffsetSec,
+            leadInSec: currentLeadInSec,
+            preRoll: userConfiguredPreRoll,
+            songSections: songSections,
+            pitchShift: currentPitchShift,
+            jobId: currentJobId,
+            vaultFolderId: currentVaultFolderId,
+            timestamp: Date.now()
+        };
+        localStorage.setItem("aurasplit_auto_session", JSON.stringify(sessionData));
+    } catch (e) {}
+}
 
 // Helper para insertar silencio inicial en los stems (Lead-in Pre-roll)
 function padAudioBufferWithLeadIn(audioBuffer, leadInSeconds) {
@@ -2813,36 +2838,45 @@ downloadMixBtn.addEventListener("click", async () => {
         }
         
         const sampleRate = audioCtx.sampleRate || 44100;
-        const length = Math.ceil(duration * sampleRate);
+        const totalDur = (duration && duration > 0) ? duration : 180;
+        const length = Math.ceil(totalDur * sampleRate);
         const offlineCtx = new OfflineAudioContext(2, length, sampleRate);
         
-        const decodePromises = tracksToMix.map(async ({ id, track, volume }) => {
-            const response = await fetch(track.blobUrl);
-            const arrayBuffer = await response.arrayBuffer();
-            const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
-            
+        for (const { id, track, volume } of tracksToMix) {
+            let buf = track.audioBuffer || (cachedDecodedStemBuffers && cachedDecodedStemBuffers[id]);
+            if (!buf && track.blobUrl) {
+                const res = await fetch(track.blobUrl);
+                const arrayBuf = await res.arrayBuffer();
+                buf = await audioCtx.decodeAudioData(arrayBuf);
+                track.audioBuffer = buf;
+            }
+            if (!buf) continue;
+
             const source = offlineCtx.createBufferSource();
-            source.buffer = audioBuffer;
+            source.buffer = buf;
             
             const gainNode = offlineCtx.createGain();
             gainNode.gain.setValueAtTime(volume, 0);
             
             source.connect(gainNode);
             gainNode.connect(offlineCtx.destination);
-            source.start(0);
-        });
+
+            const startAt = (id === "metronome" || id === "guide") ? 0 : (currentLeadInSec > 0 ? currentLeadInSec : 0);
+            source.start(startAt);
+        }
         
-        await Promise.all(decodePromises);
         const renderedBuffer = await offlineCtx.startRendering();
         const wavBlob = bufferToWav(renderedBuffer);
         
-        const nameWithoutExt = fileMeta.textContent.replace(/\.[^/.]+$/, "");
+        const nameWithoutExt = (fileMeta.textContent || "AuraSplit").replace(/^.*\:\s*/, "").replace(/\.[^/.]+$/, "").trim();
+        const blobUrl = URL.createObjectURL(wavBlob);
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(wavBlob);
+        link.href = blobUrl;
         link.download = `mezcla_${nameWithoutExt}.wav`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
         
     } catch (err) {
         console.error("Error al exportar la mezcla:", err);
