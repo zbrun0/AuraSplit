@@ -4462,6 +4462,8 @@ async function saveCurrentProjectToVault() {
     `;
 
     try {
+        saveProjectSessionToLocal();
+
         const projectMetadata = {
             bpm: currentBpm,
             timeSignature: currentTimeSignature,
@@ -4522,7 +4524,7 @@ async function saveCurrentProjectToVault() {
         }, 4000);
 
     } catch (err) {
-        alert("Error al guardar en tu repertorio: " + err.message);
+        alert("Error al guardar en tu repertorio: " + err.message + "\n\n(Tu sesión actual fue guardada en la memoria local de tu navegador de forma segura).");
         saveToVaultBtn.innerHTML = origHtml;
         saveToVaultBtn.disabled = false;
     }
