@@ -2795,7 +2795,7 @@ function clearMeter(id) {
     }
 }
 
-// --- Evento de Descarga de Mezcla Personalizada ---
+// --- Evento de Descarga de Mezcla Personalizada (Ultra Optimizado Anti-Cuelgues) ---
 downloadMixBtn.addEventListener("click", async () => {
     if (!tracks || Object.keys(tracks).length === 0) return;
     
@@ -2807,6 +2807,9 @@ downloadMixBtn.addEventListener("click", async () => {
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg> MEZCLANDO...
     `;
+    
+    // Permitir que el navegador pinte el estado visual antes del procesamiento
+    await new Promise(r => setTimeout(r, 40));
     
     try {
         const anySoloed = Object.values(tracks).some(t => t.isSoloed);
@@ -2837,8 +2840,9 @@ downloadMixBtn.addEventListener("click", async () => {
             return;
         }
         
-        const sampleRate = audioCtx.sampleRate || 44100;
-        const totalDur = (duration && duration > 0) ? duration : 180;
+        const sampleRate = 44100;
+        const leadIn = (currentLeadInSec > 0) ? currentLeadInSec : 0;
+        const totalDur = ((duration && duration > 0) ? duration : 180) + leadIn;
         const length = Math.ceil(totalDur * sampleRate);
         const offlineCtx = new OfflineAudioContext(2, length, sampleRate);
         
@@ -2861,11 +2865,13 @@ downloadMixBtn.addEventListener("click", async () => {
             source.connect(gainNode);
             gainNode.connect(offlineCtx.destination);
 
-            const startAt = (id === "metronome" || id === "guide") ? 0 : (currentLeadInSec > 0 ? currentLeadInSec : 0);
+            const startAt = (id === "metronome" || id === "guide") ? 0 : leadIn;
             source.start(startAt);
         }
         
         const renderedBuffer = await offlineCtx.startRendering();
+        
+        // Conversión ultra-rápida con Int16Array sin bloquear el hilo principal
         const wavBlob = bufferToWav(renderedBuffer);
         
         const nameWithoutExt = (fileMeta.textContent || "AuraSplit").replace(/^.*\:\s*/, "").replace(/\.[^/.]+$/, "").trim();
@@ -2887,55 +2893,82 @@ downloadMixBtn.addEventListener("click", async () => {
     }
 });
 
-// Codificación AudioBuffer a WAV PCM 16 bits
+// Codificación ultra-optimizada AudioBuffer a WAV PCM 16 bits (Zero-Freeze con Int16Array)
 function bufferToWav(buffer) {
-    let numOfChan = buffer.numberOfChannels,
-        length = buffer.length * numOfChan * 2 + 44,
-        bufferArr = new ArrayBuffer(length),
-        view = new DataView(bufferArr),
-        channels = [], i, sample,
-        offset = 0,
-        pos = 0;
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const numSamples = buffer.length;
+    const bytesPerSample = 2; // 16-bit PCM
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = numSamples * blockAlign;
+    const totalSize = 44 + dataSize;
 
-    setUint32(0x46464952);                         // "RIFF"
-    setUint32(length - 8);                         // file length - 8
-    setUint32(0x45564157);                         // "WAVE"
+    const arrayBuffer = new ArrayBuffer(totalSize);
+    const view = new DataView(arrayBuffer);
 
-    setUint32(0x20746d66);                         // "fmt " chunk
-    setUint32(16);                                 // longitud chunk (16)
-    setUint16(1);                                  // formato PCM (1)
-    setUint16(numOfChan);                          // número de canales
-    setUint32(buffer.sampleRate);                  // frecuencia muestreo
-    setUint32(buffer.sampleRate * 2 * numOfChan); // byte rate
-    setUint16(numOfChan * 2);                      // block align
-    setUint16(16);                                 // bits por muestra (16)
+    // Cabecera RIFF
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
 
-    setUint32(0x61746164);                         // "data" chunk
-    setUint32(length - pos - 4);                   // longitud datos
+    // Subchunk 1 (fmt)
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM sin compresión
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true); // 16 bits
 
-    for(i=0; i<buffer.numberOfChannels; i++)
-        channels.push(buffer.getChannelData(i));
+    // Subchunk 2 (data)
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
 
-    while(pos < length) {
-        for(i=0; i<numOfChan; i++) {
-            sample = Math.max(-1, Math.min(1, channels[i][offset]));
-            sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
-            view.setInt16(pos, sample, true);
-            pos += 2;
+    // Escritura directa a Int16Array para máxima velocidad nativa
+    const pcmData = new Int16Array(arrayBuffer, 44, numSamples * numChannels);
+
+    if (numChannels === 2) {
+        const left = buffer.getChannelData(0);
+        const right = buffer.getChannelData(1);
+        let outIdx = 0;
+        for (let i = 0; i < numSamples; i++) {
+            let s0 = left[i];
+            let s1 = right[i];
+            s0 = s0 < -1 ? -1 : (s0 > 1 ? 1 : s0);
+            s1 = s1 < -1 ? -1 : (s1 > 1 ? 1 : s1);
+            pcmData[outIdx++] = s0 < 0 ? (s0 * 0x8000) | 0 : (s0 * 0x7FFF) | 0;
+            pcmData[outIdx++] = s1 < 0 ? (s1 * 0x8000) | 0 : (s1 * 0x7FFF) | 0;
         }
-        offset++;
+    } else if (numChannels === 1) {
+        const chan = buffer.getChannelData(0);
+        for (let i = 0; i < numSamples; i++) {
+            let s = chan[i];
+            s = s < -1 ? -1 : (s > 1 ? 1 : s);
+            pcmData[i] = s < 0 ? (s * 0x8000) | 0 : (s * 0x7FFF) | 0;
+        }
+    } else {
+        const channels = [];
+        for (let c = 0; c < numChannels; c++) {
+            channels.push(buffer.getChannelData(c));
+        }
+        let outIdx = 0;
+        for (let i = 0; i < numSamples; i++) {
+            for (let c = 0; c < numChannels; c++) {
+                let s = channels[c][i];
+                s = s < -1 ? -1 : (s > 1 ? 1 : s);
+                pcmData[outIdx++] = s < 0 ? (s * 0x8000) | 0 : (s * 0x7FFF) | 0;
+            }
+        }
     }
 
-    return new Blob([bufferArr], {type: "audio/wav"});
+    return new Blob([arrayBuffer], { type: "audio/wav" });
 
-    function setUint16(data) {
-        view.setUint16(pos, data, true);
-        pos += 2;
-    }
-
-    function setUint32(data) {
-        view.setUint32(pos, data, true);
-        pos += 4;
+    function writeString(v, offset, str) {
+        for (let i = 0; i < str.length; i++) {
+            v.setUint8(offset + i, str.charCodeAt(i));
+        }
     }
 }
 
