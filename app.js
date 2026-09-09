@@ -28,7 +28,9 @@ let tracks = {}; // Contendrá: audio, gainNode, analyser, volume, isMuted, isSo
 let isPlaying = false;
 let startTime = 0;
 let playOffset = 0; // Posición actual de reproducción en segundos
-let duration = 0;   // Duración total de la canción en segundos
+let duration = 0;   // Duración total de la canción en segundos (incluyendo pre-roll)
+let rawSongDuration = 0; // Duración original del audio de la canción sin pre-roll
+let currentLeadInSec = 0; // Segundos de silencio previo (Pre-Roll) para conteo
 let zipBlob = null; // Almacenará el blob del archivo ZIP original para descarga total
 let animationFrameId = null;
 let currentPreviewTrack = null; // ID del canal que se está previsualizando individualmente
@@ -833,8 +835,9 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
         const decodedStemBuffers = {};
         const decodePromises = [];
 
+        rawSongDuration = 0;
         if (presetMetadata && presetMetadata.duration) {
-            duration = parseFloat(presetMetadata.duration);
+            rawSongDuration = parseFloat(presetMetadata.duration);
         }
 
         for (const stemId of ["drums", "vocals", "bass", "guitar", "other", "piano"]) {
@@ -847,8 +850,8 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                             decodedStemBuffers[stemId] = decBuf;
                             tracks[stemId].audioBuffer = decBuf;
                             tracks[stemId].peaks = extractPeaks(decBuf, 1200);
-                            if (!duration && decBuf.duration) {
-                                duration = decBuf.duration;
+                            if (!rawSongDuration && decBuf.duration) {
+                                rawSongDuration = decBuf.duration;
                             }
                         })
                         .catch(e => console.warn(`No se pudo decodificar buffer de ${stemId}:`, e))
@@ -872,19 +875,24 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
             if (timeSignatureSelect) timeSignatureSelect.value = currentTimeSignature;
             updatePhaseDisplay();
 
+            const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+            const barDuration = (60 / currentBpm) * beatsPerBar;
+            currentLeadInSec = (userConfiguredAutoGuide && userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+            duration = (rawSongDuration > 0 ? rawSongDuration : (duration || 180)) + currentLeadInSec;
+
             if (presetMetadata.songSections && Array.isArray(presetMetadata.songSections) && presetMetadata.songSections.length > 0) {
                 songSections = presetMetadata.songSections;
                 renderSectionMarkers();
             } else {
-                songSections = generateFallbackSections(duration || 180, currentBpm, currentTimeSignature, currentOffsetSec);
+                songSections = generateFallbackSections(duration, currentBpm, currentTimeSignature, currentLeadInSec + currentOffsetSec);
                 renderSectionMarkers();
             }
 
             if (userConfiguredAutoGuide) {
-                await generateMetronomeTrack(currentBpm, currentOffsetSec, duration || 180, currentTimeSignature);
+                await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
                 try {
                     const lang = presetMetadata.guideLang || (guideLangSelect ? guideLangSelect.value : "es");
-                    await generateGuideTrack(lang, userConfiguredPreRoll, 0);
+                    await generateGuideTrack(lang, userConfiguredPreRoll, currentLeadInSec);
                 } catch (e) {}
             }
 
@@ -912,15 +920,20 @@ async function decodeAndSetupMixer(blob, presetMetadata = null) {
                 currentOffsetSec = calculatedOffset;
                 updatePhaseDisplay();
 
+                const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+                const barDuration = (60 / currentBpm) * beatsPerBar;
+                currentLeadInSec = (userConfiguredAutoGuide && userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+                duration = (rawSongDuration > 0 ? rawSongDuration : (duration || 180)) + currentLeadInSec;
+
                 // Análisis Estructural con IA (Intro, Versos, Coros, Puente, Solos, Final)
-                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration || 180, decodedStemBuffers, 0);
+                await detectSongSectionsDynamic(currentBpm, currentOffsetSec, duration, decodedStemBuffers, currentLeadInSec);
 
                 if (userConfiguredAutoGuide) {
                     // Generar Metrónomo Sintetizado y Guía Vocal Cues
                     await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
                     
                     try {
-                        await generateGuideTrack("es", userConfiguredPreRoll, 0);
+                        await generateGuideTrack("es", userConfiguredPreRoll, currentLeadInSec);
                     } catch (guideErr) {
                         console.error("Error al generar guía vocal:", guideErr);
                     }
@@ -2387,13 +2400,25 @@ async function playTracks() {
     }
 
     const playPromises = [];
-    for (const track of Object.values(tracks)) {
+    for (const [id, track] of Object.entries(tracks)) {
         if (track.audio) {
             try {
-                track.audio.currentTime = playOffset;
-                const p = track.audio.play();
-                if (p && typeof p.then === "function") {
-                    playPromises.push(p.catch(e => console.warn("Track play caught:", e)));
+                if (id === "metronome" || id === "guide") {
+                    track.audio.currentTime = playOffset;
+                    const p = track.audio.play();
+                    if (p && typeof p.then === "function") {
+                        playPromises.push(p.catch(e => console.warn("Track play caught:", e)));
+                    }
+                } else {
+                    if (playOffset < currentLeadInSec) {
+                        track.audio.currentTime = 0;
+                    } else {
+                        track.audio.currentTime = Math.max(0, playOffset - currentLeadInSec);
+                        const p = track.audio.play();
+                        if (p && typeof p.then === "function") {
+                            playPromises.push(p.catch(e => console.warn("Track play caught:", e)));
+                        }
+                    }
                 }
             } catch (err) {
                 console.warn("Error iniciando track:", err);
@@ -2411,31 +2436,17 @@ async function playTracks() {
 }
 
 function pauseTracks(resetToZero = false) {
-    if (!isPlaying) {
-        if (resetToZero) {
-            playOffset = 0;
-            for (const track of Object.values(tracks)) {
-                if (track.audio) track.audio.currentTime = 0;
-            }
-        }
-        return;
-    }
-
     for (const track of Object.values(tracks)) {
         if (track.audio) {
             track.audio.pause();
         }
     }
 
-    const firstTrack = Object.keys(tracks)[0];
     if (resetToZero) {
         playOffset = 0;
-        for (const track of Object.values(tracks)) {
+        for (const [id, track] of Object.entries(tracks)) {
             if (track.audio) track.audio.currentTime = 0;
         }
-    } else if (tracks[firstTrack] && tracks[firstTrack].audio) {
-        playOffset = tracks[firstTrack].audio.currentTime;
-        if (playOffset > duration) playOffset = duration;
     }
 
     isPlaying = false;
@@ -2448,9 +2459,20 @@ function seekToTime(newTime) {
     newTime = Math.max(0, Math.min(duration, newTime));
     playOffset = newTime;
 
-    for (const track of Object.values(tracks)) {
-        if (track.audio) {
+    for (const [id, track] of Object.entries(tracks)) {
+        if (!track.audio) continue;
+        if (id === "metronome" || id === "guide") {
             track.audio.currentTime = newTime;
+        } else {
+            if (newTime < currentLeadInSec) {
+                track.audio.currentTime = 0;
+                if (!track.audio.paused) track.audio.pause();
+            } else {
+                track.audio.currentTime = Math.max(0, newTime - currentLeadInSec);
+                if (isPlaying && track.audio.paused) {
+                    track.audio.play().catch(() => {});
+                }
+            }
         }
     }
 
@@ -2588,26 +2610,55 @@ function drawMeters() {
         return;
     }
 
-    const firstTrack = Object.keys(tracks)[0];
-    if (firstTrack && tracks[firstTrack].audio) {
-        const currentPos = tracks[firstTrack].audio.currentTime;
-        playOffset = currentPos;
-        
-        if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentPos);
-        if (totalTimeDisplay && duration) totalTimeDisplay.textContent = formatTime(duration);
-        if (masterSeekbar && duration) masterSeekbar.value = (currentPos / duration) * 100;
-
-        // Actualizar badge de sección activa en la línea de tiempo
-        updateActiveSectionBadge(currentPos);
-
-        if (currentPos >= duration - 0.05 && duration > 0) {
-            pauseTracks();
-            playOffset = 0;
-            for (const t of Object.values(tracks)) {
-                if (t.audio) t.audio.currentTime = 0;
-            }
-            updateMasterPlayBtn();
+    // Determinar la posición actual del reloj maestro (Metrónomo o Guía abarcan el Pre-Roll y la Canción completa)
+    let currentPos = playOffset;
+    const leadTrack = tracks.metronome || tracks.guide;
+    if (leadTrack && leadTrack.audio) {
+        currentPos = leadTrack.audio.currentTime;
+    } else {
+        const firstStem = Object.entries(tracks).find(([id, t]) => t.audio && id !== "metronome" && id !== "guide");
+        if (firstStem && firstStem[1].audio) {
+            currentPos = firstStem[1].audio.currentTime + currentLeadInSec;
         }
+    }
+    playOffset = currentPos;
+    
+    if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentPos);
+    if (totalTimeDisplay && duration) totalTimeDisplay.textContent = formatTime(duration);
+    if (masterSeekbar && duration) masterSeekbar.value = (currentPos / duration) * 100;
+
+    // Actualizar badge de sección activa en la línea de tiempo
+    updateActiveSectionBadge(currentPos);
+
+    // Sincronizar entrada y reproducción de stems en tiempo real respecto al Pre-Roll
+    for (const [id, track] of Object.entries(tracks)) {
+        if (id === "metronome" || id === "guide" || !track.audio) continue;
+
+        if (currentPos < currentLeadInSec) {
+            // Zona de conteo previo: stems en silencio
+            if (!track.audio.paused) {
+                track.audio.pause();
+            }
+            if (track.audio.currentTime !== 0) {
+                track.audio.currentTime = 0;
+            }
+        } else {
+            // Zona de canción: reproducir en tiempo exacto
+            const targetStemTime = currentPos - currentLeadInSec;
+            if (track.audio.paused && currentPos < duration) {
+                track.audio.currentTime = Math.max(0, targetStemTime);
+                track.audio.play().catch(() => {});
+            } else if (!track.audio.paused) {
+                if (Math.abs(track.audio.currentTime - targetStemTime) > 0.08) {
+                    track.audio.currentTime = Math.max(0, targetStemTime);
+                }
+            }
+        }
+    }
+
+    if (currentPos >= duration - 0.05 && duration > 0) {
+        pauseTracks(true);
+        updateMasterPlayBtn();
     }
 
     for (const [id, track] of Object.entries(tracks)) {
@@ -4954,13 +5005,16 @@ function drawWaveformWithGrid(id, track, canvas) {
                 const numPeaks = peaks.length / 2;
                 const amp = h / 2;
                 
-                for (let i = 0; i < w; i++) {
-                    const peakIdx = Math.floor((i / w) * numPeaks);
+                const startX = (currentLeadInSec > 0 && duration > 0) ? Math.round((currentLeadInSec / duration) * w) : 0;
+                const stemW = Math.max(1, w - startX);
+
+                for (let i = 0; i < stemW; i++) {
+                    const peakIdx = Math.floor((i / stemW) * numPeaks);
                     const min = peaks[peakIdx * 2];
                     const max = peaks[peakIdx * 2 + 1];
                     
-                    offCtx.moveTo(i, amp + min * amp * 0.92);
-                    offCtx.lineTo(i, amp + max * amp * 0.92);
+                    offCtx.moveTo(startX + i, amp + min * amp * 0.92);
+                    offCtx.lineTo(startX + i, amp + max * amp * 0.92);
                 }
                 offCtx.stroke();
             }
