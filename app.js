@@ -1186,6 +1186,8 @@ function calculateDownbeatOffset(audioBuffer, bpm) {
     return bestPhi;
 }
 
+let metronomeGenCounter = 0;
+
 // --- Generar Pista de Metrónomo Pro Sincronizado según Métrica (4/4, 3/4, 6/8) ---
 async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, timeSignature = null) {
     if (!audioCtx) return;
@@ -1195,6 +1197,7 @@ async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, 
     totalDuration = (totalDuration && !isNaN(totalDuration) && totalDuration > 1) ? parseFloat(totalDuration) : (duration || 180);
     timeSignature = timeSignature || currentTimeSignature || "4/4";
 
+    const currentGen = ++metronomeGenCounter;
     const sampleRate = audioCtx.sampleRate || 44100;
     const interval = 60 / bpm;
     
@@ -1209,7 +1212,12 @@ async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, 
     }
 
     const metronomeBuffer = createAccentedMetronomeBuffer(beatTimes, totalDuration, sampleRate, timeSignature);
+    if (currentGen !== metronomeGenCounter) return;
+
     const wavBlob = bufferToWav(metronomeBuffer);
+    if (currentGen !== metronomeGenCounter) return;
+
+    const oldBlobUrl = tracks.metronome ? tracks.metronome.blobUrl : null;
     const blobUrl = URL.createObjectURL(wavBlob);
 
     if (tracks.metronome) {
@@ -1253,6 +1261,10 @@ async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, 
         createTimelineTrackUI("metronome");
     }
 
+    if (oldBlobUrl && oldBlobUrl !== blobUrl) {
+        URL.revokeObjectURL(oldBlobUrl);
+    }
+
     setupSingleTrackAudioNode("metronome");
     updateTrackGains();
     updateTrackDisplayName("metronome", `METRÓNOMO (${bpm.toFixed(1)} BPM - ${timeSignature})`);
@@ -1265,13 +1277,11 @@ async function generateMetronomeTrack(bpm, offsetSec = 0, totalDuration = null, 
     requestWaveformRedraw();
 }
 
-// Sintetizador de Click Profesional Unificado (Mismo sonido limpio y nítido para todos los beats)
+// Sintetizador de Click Profesional Unificado Mono (50% menos memoria)
 function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate, timeSig = "4/4") {
     const numSamples = Math.floor(duration * sampleRate);
-    const metronomeBuffer = audioCtx.createBuffer(2, numSamples, sampleRate);
-    
-    const left = metronomeBuffer.getChannelData(0);
-    const right = metronomeBuffer.getChannelData(1);
+    const metronomeBuffer = audioCtx.createBuffer(1, numSamples, sampleRate);
+    const channel = metronomeBuffer.getChannelData(0);
     
     const clickDuration = 0.030; // 30ms nítido
     const clickSamples = Math.floor(clickDuration * sampleRate);
@@ -1292,8 +1302,7 @@ function createAccentedMetronomeBuffer(beatTimes, duration, sampleRate, timeSig 
         for (let i = 0; i < clickSamples; i++) {
             const idx = startSample + i;
             if (idx < numSamples) {
-                left[idx] += clickSignal[i];
-                right[idx] += clickSignal[i];
+                channel[idx] += clickSignal[i];
             }
         }
     }
@@ -1878,6 +1887,8 @@ function updateActiveSectionBadge(currentTime) {
     }
 }
 
+let guideGenCounter = 0;
+
 // --- Generador de Guías Vocales con Banco de Samples de Estudio Sincronizado 1 Compás Antes ---
 async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
     if (!audioCtx) {
@@ -1889,6 +1900,7 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
         detectSongSections(currentBpm, currentOffsetSec, duration);
     }
 
+    const currentGen = ++guideGenCounter;
     const origBtnText = generateGuideBtn ? generateGuideBtn.innerHTML : "";
     if (generateGuideBtn) {
         generateGuideBtn.disabled = true;
@@ -1902,9 +1914,8 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
         const sampleRate = audioCtx.sampleRate || 44100;
         const effectiveDuration = (duration && duration > 0 && !isNaN(duration)) ? duration : 180;
         const totalSamples = Math.max(sampleRate * 2, Math.floor(effectiveDuration * sampleRate));
-        const guideBuffer = audioCtx.createBuffer(2, totalSamples, sampleRate);
-        const left = guideBuffer.getChannelData(0);
-        const right = guideBuffer.getChannelData(1);
+        const guideBuffer = audioCtx.createBuffer(1, totalSamples, sampleRate);
+        const channel = guideBuffer.getChannelData(0);
 
         const beatInterval = 60 / currentBpm;
         const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
@@ -1917,6 +1928,8 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
             Promise.all(countKeys.map(k => getCueAudioBuffer(k))),
             Promise.all(uniqueSecKeys.map(k => getCueAudioBuffer(k)))
         ]);
+        if (currentGen !== guideGenCounter) return;
+
         const countSamples = [null, ...counts];
 
         // Insertar avisos vocales antes de cada sección dejando un tiempo de espacio para no solapar:
@@ -1944,19 +1957,19 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
                 const count4Time = sectionTargetTime - 1 * beatInterval;
 
                 if (sampleCue && cueTime >= 0) {
-                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(cueTime * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, sampleCue, Math.floor(cueTime * sampleRate));
                 }
                 if (countSamples[1] && count1Time >= 0) {
-                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(count1Time * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, countSamples[1], Math.floor(count1Time * sampleRate));
                 }
                 if (countSamples[2] && count2Time >= 0) {
-                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor(count2Time * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, countSamples[2], Math.floor(count2Time * sampleRate));
                 }
                 if (countSamples[3] && count3Time >= 0) {
-                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor(count3Time * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, countSamples[3], Math.floor(count3Time * sampleRate));
                 }
                 if (countSamples[4] && count4Time >= 0) {
-                    insertAudioBufferToChannel(left, right, countSamples[4], Math.floor(count4Time * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, countSamples[4], Math.floor(count4Time * sampleRate));
                 }
             } else if (beatsPerBar === 3) {
                 // 3/4:
@@ -1972,16 +1985,16 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
                 const count3Time = sectionTargetTime - 1 * beatInterval;
 
                 if (sampleCue && cueTime >= 0) {
-                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(cueTime * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, sampleCue, Math.floor(cueTime * sampleRate));
                 }
                 if (countSamples[1] && count1Time >= 0) {
-                    insertAudioBufferToChannel(left, right, countSamples[1], Math.floor(count1Time * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, countSamples[1], Math.floor(count1Time * sampleRate));
                 }
                 if (countSamples[2] && count2Time >= 0) {
-                    insertAudioBufferToChannel(left, right, countSamples[2], Math.floor(count2Time * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, countSamples[2], Math.floor(count2Time * sampleRate));
                 }
                 if (countSamples[3] && count3Time >= 0) {
-                    insertAudioBufferToChannel(left, right, countSamples[3], Math.floor(count3Time * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, countSamples[3], Math.floor(count3Time * sampleRate));
                 }
             } else {
                 // 6/8:
@@ -1991,18 +2004,23 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
                 // Tiempo 0: Entra la Sección en la música
                 const cueTime = sectionTargetTime - (beatsPerBar + 2) * beatInterval;
                 if (sampleCue && cueTime >= 0) {
-                    insertAudioBufferToChannel(left, right, sampleCue, Math.floor(cueTime * sampleRate));
+                    insertAudioBufferToChannel(channel, channel, sampleCue, Math.floor(cueTime * sampleRate));
                 }
                 for (let b = 1; b <= beatsPerBar; b++) {
                     const countTime = sectionTargetTime - (beatsPerBar - b + 1) * beatInterval;
                     if (countSamples[b] && countTime >= 0) {
-                        insertAudioBufferToChannel(left, right, countSamples[b], Math.floor(countTime * sampleRate));
+                        insertAudioBufferToChannel(channel, channel, countSamples[b], Math.floor(countTime * sampleRate));
                     }
                 }
             }
         }
 
+        if (currentGen !== guideGenCounter) return;
+
         const wavBlob = bufferToWav(guideBuffer);
+        if (currentGen !== guideGenCounter) return;
+
+        const oldBlobUrl = tracks.guide ? tracks.guide.blobUrl : null;
         const blobUrl = URL.createObjectURL(wavBlob);
 
         if (tracks.guide) {
@@ -2010,7 +2028,7 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
             tracks.guide.sizeBytes = wavBlob.size;
             tracks.guide.volume = 0.85;
             tracks.guide.audioBuffer = guideBuffer;
-            tracks.guide.peaks = extractPeaks(guideBuffer, 2000);
+            tracks.guide.peaks = extractPeaks(guideBuffer, 1200);
 
             if (tracks.guide.audio) {
                 const wasPlaying = isPlaying;
@@ -2041,13 +2059,17 @@ async function generateGuideTrack(lang = "es", preRollBars = 1, leadInSec = 0) {
                 blobUrl: blobUrl,
                 sizeBytes: wavBlob.size,
                 audioBuffer: guideBuffer,
-                peaks: extractPeaks(guideBuffer, 2000),
+                peaks: extractPeaks(guideBuffer, 1200),
                 extension: "wav"
             };
 
             createTrackUI("guide");
             createTimelineTrackUI("guide");
             setupSingleTrackAudioNode("guide");
+        }
+
+        if (oldBlobUrl && oldBlobUrl !== blobUrl) {
+            URL.revokeObjectURL(oldBlobUrl);
         }
 
         const fader = document.getElementById("fader-guide");
@@ -3017,24 +3039,26 @@ function requestWaveformRedraw() {
     });
 }
 
-// Helper debounced para sincronizar audio sintetizado (click y guía vocal) sin congelar el navegador
-function debounceSyncClickAndGuide(delayMs = 350) {
+// Helper debounced para sincronizar el metrónomo sin congelar el navegador
+function debounceSyncClickAndGuide(delayMs = 150) {
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
     syncDebounceTimer = setTimeout(() => {
         syncClickAndGuide();
     }, delayMs);
 }
 
-function syncClickAndGuide() {
+async function syncClickAndGuide(updateGuideToo = false) {
     if (!currentBpm || !duration) return;
     if (!userConfiguredAutoGuide) return;
-    const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
-    const barDuration = (60 / currentBpm) * beatsPerBar;
-    const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+    
+    // Regenerar metrónomo mono ligero (ultra-rápido, sin fugas de memoria)
+    await generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
 
-    generateMetronomeTrack(currentBpm, currentOffsetSec, duration, currentTimeSignature);
-    if (tracks.guide) {
-        generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
+    if (updateGuideToo && tracks.guide) {
+        const beatsPerBar = (currentTimeSignature === "3/4") ? 3 : (currentTimeSignature === "6/8" ? 6 : 4);
+        const barDuration = (60 / currentBpm) * beatsPerBar;
+        const leadInSec = (userConfiguredPreRoll >= 1) ? (barDuration * userConfiguredPreRoll) : 0;
+        await generateGuideTrack("es", userConfiguredPreRoll, leadInSec);
     }
 }
 
@@ -3046,7 +3070,7 @@ if (bpmInput) {
             currentBpm = val;
             updatePhaseDisplay();
             requestWaveformRedraw();
-            debounceSyncClickAndGuide(250);
+            debounceSyncClickAndGuide(150);
         }
     });
 }
@@ -3070,7 +3094,7 @@ if (tapTempoBtn) {
                 if (bpmInput) bpmInput.value = currentBpm.toFixed(1);
                 updatePhaseDisplay();
                 requestWaveformRedraw();
-                debounceSyncClickAndGuide(350);
+                debounceSyncClickAndGuide(200);
             }
         }
     });
@@ -3079,7 +3103,7 @@ if (tapTempoBtn) {
 function updatePhaseDisplay() {
     if (!currentBpm) return;
     const beatInterval = 60 / currentBpm;
-    const normalizedOffset = currentOffsetSec % beatInterval;
+    const normalizedOffset = ((currentOffsetSec % beatInterval) + beatInterval) % beatInterval;
     const ms = Math.round(normalizedOffset * 1000);
     const maxMs = Math.round(beatInterval * 1000);
 
@@ -3096,40 +3120,13 @@ function updatePhaseDisplay() {
     }
 }
 
-function syncSectionsToPhaseOffset(oldOffset, newOffset, updateDOM = false) {
-    if (!songSections || songSections.length === 0 || !duration) return;
-    const delta = newOffset - oldOffset;
-    if (Math.abs(delta) < 0.0001) return;
-
-    songSections.forEach(sec => {
-        let newStartTime = sec.startTime + delta;
-        newStartTime = Math.max(0, Math.min(duration - 0.5, newStartTime));
-        sec.startTime = newStartTime;
-    });
-
-    songSections.sort((a, b) => a.startTime - b.startTime);
-    for (let i = 0; i < songSections.length; i++) {
-        if (i < songSections.length - 1) {
-            songSections[i].endTime = songSections[i + 1].startTime;
-        } else {
-            songSections[i].endTime = duration;
-        }
-    }
-
-    if (updateDOM) {
-        renderSectionMarkers();
-    }
-}
-
 function adjustOffsetByMs(deltaMs) {
     const deltaSec = deltaMs / 1000;
     const beatInterval = 60 / currentBpm;
-    const oldOffset = currentOffsetSec;
-    currentOffsetSec = (currentOffsetSec + deltaSec + beatInterval * 100) % beatInterval;
-    syncSectionsToPhaseOffset(oldOffset, currentOffsetSec, true);
+    currentOffsetSec = ((currentOffsetSec + deltaSec) % beatInterval + beatInterval) % beatInterval;
     updatePhaseDisplay();
     requestWaveformRedraw();
-    debounceSyncClickAndGuide(400);
+    debounceSyncClickAndGuide(100);
 }
 
 if (phaseSlider) {
@@ -3137,16 +3134,9 @@ if (phaseSlider) {
         const msVal = parseFloat(e.target.value);
         if (phaseDisplayVal) phaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
         if (tlPhaseDisplayVal) tlPhaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
-        const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
-        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec, false);
         requestWaveformRedraw();
-        debounceSyncClickAndGuide(500);
-    });
-
-    phaseSlider.addEventListener("change", () => {
-        renderSectionMarkers();
-        debounceSyncClickAndGuide(200);
+        debounceSyncClickAndGuide(100);
     });
 }
 
@@ -3155,16 +3145,9 @@ if (tlPhaseSlider) {
         const msVal = parseFloat(e.target.value);
         if (tlPhaseDisplayVal) tlPhaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
         if (phaseDisplayVal) phaseDisplayVal.textContent = `${Math.round(msVal)} ms`;
-        const oldOffset = currentOffsetSec;
         currentOffsetSec = msVal / 1000;
-        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec, false);
         requestWaveformRedraw();
-        debounceSyncClickAndGuide(500);
-    });
-
-    tlPhaseSlider.addEventListener("change", () => {
-        renderSectionMarkers();
-        debounceSyncClickAndGuide(200);
+        debounceSyncClickAndGuide(100);
     });
 }
 
@@ -3252,9 +3235,7 @@ function executeAutoSnap() {
     }
     
     const exactPeakSec = peakSample / sampleRate;
-    const oldOffset = currentOffsetSec;
     currentOffsetSec = exactPeakSec % beatInterval;
-    syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
     updatePhaseDisplay();
     renderAllWaveforms();
     debounceSyncClickAndGuide(50);
@@ -3271,9 +3252,7 @@ if (autoSnapDrumBtn) {
 if (syncCursorBtn) {
     syncCursorBtn.addEventListener("click", () => {
         const beatInterval = 60 / currentBpm;
-        const oldOffset = currentOffsetSec;
         currentOffsetSec = playOffset % beatInterval;
-        syncSectionsToPhaseOffset(oldOffset, currentOffsetSec);
         updatePhaseDisplay();
         renderAllWaveforms();
         debounceSyncClickAndGuide(50);
